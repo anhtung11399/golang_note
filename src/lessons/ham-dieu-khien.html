@@ -108,7 +108,7 @@ thử 3 lần <- dạng 3
 An Bình Chi <- dạng 4, bỏ chỉ số
 0 1 2 <- dạng 5
 </pre>
-<p><code>fmt.Print</code> (không có <code>ln</code>) in mà không xuống dòng. Còn một dạng nữa, <code>for key, value := range m</code> để duyệt map, thứ tự là ngẫu nhiên (bài 04).</p>
+<p><code>fmt.Print</code> (không có <code>ln</code>) in mà không xuống dòng. Còn một dạng nữa, <code>for key, value := range m</code> để duyệt map, thứ tự là ngẫu nhiên (bài {{n:slice-map}}).</p>
 <table>
 <tr><th>JavaScript</th><th>Go</th></tr>
 <tr><td><code>arr.forEach((x, i) =&gt; ...)</code></td><td><code>for i, x := range arr { ... }</code></td></tr>
@@ -116,7 +116,7 @@ An Bình Chi <- dạng 4, bỏ chỉ số
 <tr><td><code>while (cond)</code></td><td><code>for cond</code></td></tr>
 <tr><td><code>arr.map(f)</code>, <code>arr.filter(f)</code></td><td>Viết vòng for (Go ưa code rõ ràng hơn chuỗi hàm). Từ Go 1.21 có package <code>slices</code> với <code>slices.Contains</code>, <code>slices.Index</code>, <code>slices.Sort</code>...</td></tr>
 </table>
-<aside class="warn"><p>Biến trong <code>for _, x := range</code> là <b>bản sao</b> của phần tử. Sửa <code>x.Score = 10</code> không làm thay đổi phần tử trong slice. Muốn sửa, dùng chỉ số: <code>items[i].Score = 10</code>. Bài 05 có ví dụ chạy được cho chuyện này.</p></aside>
+<aside class="warn"><p>Biến trong <code>for _, x := range</code> là <b>bản sao</b> của phần tử. Sửa <code>x.Score = 10</code> không làm thay đổi phần tử trong slice. Muốn sửa, dùng chỉ số: <code>items[i].Score = 10</code>. Bài {{n:struct-con-tro}} có ví dụ chạy được cho chuyện này.</p></aside>
 
 <h2>switch: không cần break</h2>
 <pre lang="go">
@@ -200,7 +200,7 @@ func main() {
 5
 10
 </pre>
-<p>Hàm bắt đầu bằng chữ hoa (<code>Add</code>) thì package khác dùng được, chữ thường (<code>add</code>) thì chỉ dùng trong package của nó. Bài 08 nói kỹ.</p>
+<p>Hàm bắt đầu bằng chữ hoa (<code>Add</code>) thì package khác dùng được, chữ thường (<code>add</code>) thì chỉ dùng trong package của nó. Bài {{n:package-module}} nói kỹ.</p>
 
 <h3>Trả về nhiều giá trị</h3>
 <p>Đây là tính năng làm nên phong cách Go. Hàm có thể lỗi thì trả về <b>hai</b> giá trị: kết quả và lỗi. Người gọi nhận cả hai, rồi kiểm tra lỗi trước khi dùng kết quả.</p>
@@ -242,7 +242,7 @@ func main() {
 kết quả: 2.5
 lỗi: không chia được cho 0
 </pre>
-<aside class="fe"><p>Thay cho <code>try { ... } catch (e) { ... }</code>, lỗi trong Go là một giá trị trả về bình thường. Không có lỗi nào "bay" lên qua nhiều tầng mà bạn không thấy. Gần giống kiểu <code>const [data, error] = await to(promise)</code> mà một số dự án JS hay dùng. Bài 07 nói kỹ.</p></aside>
+<aside class="fe"><p>Thay cho <code>try { ... } catch (e) { ... }</code>, lỗi trong Go là một giá trị trả về bình thường. Không có lỗi nào "bay" lên qua nhiều tầng mà bạn không thấy. Gần giống kiểu <code>const [data, error] = await to(promise)</code> mà một số dự án JS hay dùng. Bài {{n:xu-ly-loi}} nói kỹ.</p></aside>
 
 <h3>Guard clause: thoát sớm, giữ luồng chính sát lề trái</h3>
 <p>Phong cách Go: xử lý trường hợp lỗi trước rồi <code>return</code> luôn, phần code chính nằm sát lề trái. Tránh if lồng nhiều tầng. Hai hàm dưới làm cùng một việc, nhưng hàm thứ hai dễ đọc hơn hẳn:</p>
@@ -271,7 +271,7 @@ func process(u *User) error {
     return send(u.Email) // tới đây thì mọi thứ đã hợp lệ
 }
 </pre>
-<p><code>*User</code> là con trỏ tới một <code>User</code> (bài 05). <code>||</code> là "hoặc", <code>!</code> là "không", giống JS.</p>
+<p><code>*User</code> là con trỏ tới một <code>User</code> (bài {{n:struct-con-tro}}). <code>||</code> là "hoặc", <code>!</code> là "không", giống JS.</p>
 
 <h3>Hàm có số tham số thay đổi (variadic)</h3>
 <pre lang="go">
@@ -356,7 +356,7 @@ lần 1 lỗi: mạng chập chờn
 lần 2 lỗi: mạng chập chờn
 kết quả: <nil> sau 3 lần gọi
 </pre>
-<p>So với JS: <code>func() error { ... }</code> viết ngay trong lời gọi chính là <code>() =&gt; { ... }</code>. Hàm truyền vào thay đổi được biến <code>calls</code> bên ngoài, đó là closure. Kiểu hàm nhận hàm này rất hay gặp ở middleware HTTP (bài 13).</p>
+<p>So với JS: <code>func() error { ... }</code> viết ngay trong lời gọi chính là <code>() =&gt; { ... }</code>. Hàm truyền vào thay đổi được biến <code>calls</code> bên ngoài, đó là closure. Kiểu hàm nhận hàm này rất hay gặp ở middleware HTTP (bài {{n:kien-truc}}).</p>
 <aside class="tip"><p>Từ Go 1.22, mỗi vòng lặp <code>for</code> tạo biến lặp <b>mới</b> cho mỗi lần lặp. Lỗi kinh điển "mọi goroutine / closure đều thấy giá trị cuối cùng của i" (giống lỗi <code>var</code> trong vòng for của JavaScript thời trước <code>let</code>) đã hết. Bạn vẫn sẽ thấy dòng <code>i := i</code> trong code cũ: đó là cách sửa lỗi này trước Go 1.22.</p></aside>
 
 <h2>defer: dọn dẹp khi hàm kết thúc</h2>
@@ -421,7 +421,7 @@ defer fmt.Println("mất", time.Since(start))              // sai: time.Since t�
 defer func() { fmt.Println("mất", time.Since(start)) }() // đúng: bọc trong hàm, tính lúc chạy
 </pre>
 <p>Và đừng <code>defer</code> trong vòng lặp dài (ví dụ mở 10.000 file): các defer chỉ chạy khi <b>hàm</b> kết thúc, nên file mở chồng chất. Hãy tách thân vòng lặp ra một hàm riêng.</p></aside>
-<aside class="real"><p>Mẫu đo thời gian xử lý bằng defer có ở hầu hết middleware ghi log của các dịch vụ Go: ghi <code>start</code> ở đầu, <code>defer</code> một hàm ghi log thời gian khi request xong. Bạn sẽ tự viết nó ở bài 13.</p></aside>
+<aside class="real"><p>Mẫu đo thời gian xử lý bằng defer có ở hầu hết middleware ghi log của các dịch vụ Go: ghi <code>start</code> ở đầu, <code>defer</code> một hàm ghi log thời gian khi request xong. Bạn sẽ tự viết nó ở bài {{n:kien-truc}}.</p></aside>
 
 <quiz q="Đoạn code sau in ra gì? <code>x := 1; defer fmt.Println(x); x = 2</code>">
 + 1
@@ -501,7 +501,7 @@ xong sau 41.25µs
 </details>
 </details>
 <details class="ex"><summary>Hàm thử lại có chờ tăng dần</summary>
-<p>Gọi API của bên thứ ba (ngân hàng, gửi email) đôi khi lỗi tạm thời. Cách xử lý chuẩn là thử lại, mỗi lần chờ lâu gấp đôi lần trước: 100ms, 200ms, 400ms... Cách này tên là <i>exponential backoff</i> (bài 20 dùng lại).</p>
+<p>Gọi API của bên thứ ba (ngân hàng, gửi email) đôi khi lỗi tạm thời. Cách xử lý chuẩn là thử lại, mỗi lần chờ lâu gấp đôi lần trước: 100ms, 200ms, 400ms... Cách này tên là <i>exponential backoff</i> (bài {{n:bat-dong-bo}} dùng lại).</p>
 <p>Viết <code>retry(attempts int, base time.Duration, fn func() error) error</code>:</p>
 <ul>
 <li>gọi <code>fn()</code>. Không lỗi thì trả <code>nil</code> luôn.</li>

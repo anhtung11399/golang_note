@@ -86,7 +86,7 @@ rows, err := db.Query(ctx, `
     WHERE class_id = ANY($1) GROUP BY class_id`, classIDs) // pgx đổi []int64 thành mảng Postgres
 // ... đọc vào map[int64]int rồi gán cho từng lớp
 
-// Hoặc gộp luôn vào truy vấn đầu bằng JOIN + GROUP BY (bài 14)
+// Hoặc gộp luôn vào truy vấn đầu bằng JOIN + GROUP BY (bài {{n:sql}})
 </pre>
 <aside class="fe"><p>Giống lỗi gọi API trong vòng lặp ở frontend: mỗi item trong danh sách tự <code>fetch</code> chi tiết của nó. Ở frontend là 30 request HTTP, ở backend là 30 lần đi về database cho <b>mỗi</b> request của người dùng. Nhân với 1.000 người dùng mỗi phút là 30.000 truy vấn vô ích.</p></aside>
 <aside class="real"><p>ORM là nơi N+1 hay xuất hiện nhất, vì truy cập <code>class.Students</code> trông như đọc một trường nhưng thật ra chạy một câu SQL. Vì vậy các ORM đều có cơ chế "preload / eager loading". Với SQL thuần, N+1 dễ thấy hơn: một câu <code>Query</code> nằm trong vòng <code>for</code>.</p></aside>
@@ -129,7 +129,7 @@ Người A -> Database: UPDATE stock = 0, tạo đơn A
 Người B -> Database: UPDATE stock = 0, tạo đơn B
 note Database: bán 2 vé trong khi chỉ còn 1
 </fig>
-<p><b>Tận mắt thấy lỗi.</b> Chương trình dưới cho 50 goroutine (50 người) cùng mua khi kho còn 10 vé, lần đầu bằng cách "đọc, kiểm tra, ghi", lần sau bằng cách đúng (cách 1 ngay bên dưới). Chạy với database của bài 14 (chương trình tự tạo bảng <code>tickets</code>), cách chạy giống phần "Chạy thử" bài 15:</p>
+<p><b>Tận mắt thấy lỗi.</b> Chương trình dưới cho 50 goroutine (50 người) cùng mua khi kho còn 10 vé, lần đầu bằng cách "đọc, kiểm tra, ghi", lần sau bằng cách đúng (cách 1 ngay bên dưới). Chạy với database của bài {{n:sql}} (chương trình tự tạo bảng <code>tickets</code>), cách chạy giống phần "Chạy thử" bài {{n:go-postgres}}:</p>
 <pre lang="go" file="main.go" check="no">
 package main
 
@@ -226,7 +226,7 @@ WHERE id = $1 AND stock >= 1
 RETURNING stock;
 -- 0 dòng bị sửa → hết vé. Một câu lệnh là nguyên tử: không ai chen vào giữa được
 </pre>
-<p>Ghép với tạo đơn trong cùng một transaction (bài 15): UPDATE không sửa được dòng nào thì rollback và trả "hết vé".</p>
+<p>Ghép với tạo đơn trong cùng một transaction (bài {{n:go-postgres}}): UPDATE không sửa được dòng nào thì rollback và trả "hết vé".</p>
 
 <h3>Cách 2: khoá dòng bằng SELECT ... FOR UPDATE</h3>
 <p>Khi logic kiểm tra phức tạp, không viết gọn trong một câu UPDATE được:</p>
@@ -245,10 +245,10 @@ err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
     return err
 })
 </pre>
-<aside class="tip"><p><code>FOR UPDATE SKIP LOCKED</code> bỏ qua những dòng đang bị khoá thay vì chờ. Đây là cách làm hàng đợi việc ngay trong Postgres: nhiều worker cùng lấy việc mà không giành nhau một việc (bài 20).</p></aside>
+<aside class="tip"><p><code>FOR UPDATE SKIP LOCKED</code> bỏ qua những dòng đang bị khoá thay vì chờ. Đây là cách làm hàng đợi việc ngay trong Postgres: nhiều worker cùng lấy việc mà không giành nhau một việc (bài {{n:bat-dong-bo}}).</p></aside>
 
 <h3>Cách 3: optimistic concurrency với cột version</h3>
-<p>Đã gặp ở bài 12: <code>UPDATE ... WHERE id = $1 AND version = $2</code>. Không khoá gì, chỉ phát hiện xung đột và báo 409. Hợp với dữ liệu ít khi bị sửa cùng lúc (người dùng sửa form).</p>
+<p>Đã gặp ở bài {{n:rest}}: <code>UPDATE ... WHERE id = $1 AND version = $2</code>. Không khoá gì, chỉ phát hiện xung đột và báo 409. Hợp với dữ liệu ít khi bị sửa cùng lúc (người dùng sửa form).</p>
 
 <h3>Mức cô lập (isolation level)</h3>
 <table>
@@ -258,7 +258,7 @@ err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 <tr><td>Serializable</td><td>Kết quả như thể các transaction chạy lần lượt. An toàn nhất, nhưng phải xử lý lỗi <code>40001</code> bằng cách chạy lại cả transaction</td></tr>
 </table>
 <p>Trong thực tế, đa số hệ thống chạy Read Committed và dùng cách 1 hoặc cách 2 ở những chỗ cần.</p>
-<aside class="real"><p>Lỗi "bán quá số lượng" xảy ra thật ở các đợt flash sale, bán vé concert, mở bán sản phẩm giới hạn. Ở tải rất cao, ngay cả khoá dòng trong database cũng thành nút cổ chai (mọi người xếp hàng trên <b>một dòng</b>). Các sàn lớn khi đó chia kho thành nhiều phần, hoặc trừ kho trong Redis bằng lệnh nguyên tử rồi ghi database sau qua hàng đợi. Bài 23 bàn về thiết kế này.</p></aside>
+<aside class="real"><p>Lỗi "bán quá số lượng" xảy ra thật ở các đợt flash sale, bán vé concert, mở bán sản phẩm giới hạn. Ở tải rất cao, ngay cả khoá dòng trong database cũng thành nút cổ chai (mọi người xếp hàng trên <b>một dòng</b>). Các sàn lớn khi đó chia kho thành nhiều phần, hoặc trừ kho trong Redis bằng lệnh nguyên tử rồi ghi database sau qua hàng đợi. Bài {{n:he-thong-that}} bàn về thiết kế này.</p></aside>
 
 <quiz q="Tính năng "tạo lớp miễn phí, tối đa 1 lớp" đang làm: <code>SELECT count(*)</code> rồi nếu &lt; 1 thì <code>INSERT</code>. Cách sửa gọn nhất để hai request cùng lúc không tạo ra 2 lớp?">
 - Thêm time.Sleep ngẫu nhiên trước khi INSERT
@@ -274,8 +274,8 @@ err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 <ol class="steps">
 <li>Cách "đếm rồi mới thêm" bị đúng lỗi bán vé ở trên: 10 request cùng đếm được 0. Phải làm sao để các request của <b>cùng một giáo viên</b> xếp hàng, từng cái một đếm và thêm.</li>
 <li>Không khoá được "những lớp chưa tồn tại". Nhưng khoá được một dòng chắc chắn có thật và đại diện cho giáo viên: dòng của họ trong bảng <code>users</code>, bằng <code>SELECT ... FOR UPDATE</code> trong một transaction.</li>
-<li>Trong cùng transaction: khoá, đếm, nếu chưa đủ thì <code>INSERT</code>. Dùng <code>pgx.BeginFunc</code> (bài 15) để khỏi tự viết commit / rollback.</li>
-<li>Test: <code>sync.WaitGroup</code> và 10 goroutine (bài 09), đếm số lần thành công và số lần nhận <code>ErrQuotaExceeded</code>, rồi đếm lại trong database. Test cần database thật, đọc địa chỉ từ <code>DATABASE_URL</code>, không có thì <code>t.Skip</code>.</li>
+<li>Trong cùng transaction: khoá, đếm, nếu chưa đủ thì <code>INSERT</code>. Dùng <code>pgx.BeginFunc</code> (bài {{n:go-postgres}}) để khỏi tự viết commit / rollback.</li>
+<li>Test: <code>sync.WaitGroup</code> và 10 goroutine (bài {{n:dong-thoi}}), đếm số lần thành công và số lần nhận <code>ErrQuotaExceeded</code>, rồi đếm lại trong database. Test cần database thật, đọc địa chỉ từ <code>DATABASE_URL</code>, không có thì <code>t.Skip</code>.</li>
 </ol>
 <details class="sol"><summary>Xem lời giải</summary>
 <pre lang="sh">
@@ -343,7 +343,7 @@ import (
 func TestQuotaUnderConcurrency(t *testing.T) {
     url := os.Getenv("DATABASE_URL")
     if url == "" {
-        t.Skip("cần DATABASE_URL trỏ tới database có dữ liệu bài 14")
+        t.Skip("cần DATABASE_URL trỏ tới database có dữ liệu bài {{n:sql}}")
     }
     ctx := context.Background()
     db, err := pgxpool.New(ctx, url)
@@ -406,7 +406,7 @@ $ DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go test .
 FAIL
 </pre>
 <p><b>Giải thích:</b> không có khoá, nhiều transaction cùng đếm được 0, 1 hoặc 2 lớp rồi cùng thêm, ra 9 lớp. Có khoá, transaction thứ hai đứng chờ ở dòng <code>FOR UPDATE</code> tới khi transaction thứ nhất commit, lúc đó nó mới đếm và thấy lớp vừa được thêm. Giáo viên khác nhau khoá dòng khác nhau, nên không chặn nhau. Test để <code>t.Skip</code> khi thiếu <code>DATABASE_URL</code>, nhờ vậy <code>go test ./...</code> trên máy không có database vẫn chạy được.</p>
-<p>Đây chính là lỗi đã được nhắc ở bài 13 (service tạo lớp "đếm rồi mới tạo"), giờ bạn đã biết cách sửa.</p>
+<p>Đây chính là lỗi đã được nhắc ở bài {{n:kien-truc}} (service tạo lớp "đếm rồi mới tạo"), giờ bạn đã biết cách sửa.</p>
 </details>
 </details>
 <details class="ex"><summary>Đọc EXPLAIN trên bảng 1 triệu dòng</summary>

@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 26: WebSocket, upload file và gửi email · Go cho dân Frontend</title>
+<meta name="description" content="WebSocket / SSE cho realtime, hub nhiều client, mở rộng nhiều server bằng Redis pub/sub; upload file trực tiếp lên S3 bằng presigned URL; gửi email qua hàng đợi.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/33</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li><li><a href="mau-dong-thoi.html" data-slug="mau-dong-thoi"><i class="dot"></i><span class="no">11</span><span class="tx">Các mẫu xử lý đồng thời hay dùng</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">12</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">13</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">14</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li><li><a href="framework.html" data-slug="framework"><i class="dot"></i><span class="no">15</span><span class="tx">Framework: Chi, Gin, Echo và tài liệu OpenAPI</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">16</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">17</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="orm-sqlc.html" data-slug="orm-sqlc"><i class="dot"></i><span class="no">18</span><span class="tx">sqlc, GORM và migration trong thực tế</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">19</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">20</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">21</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">22</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">23</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="message-queue.html" data-slug="message-queue"><i class="dot"></i><span class="no">24</span><span class="tx">Message queue: Kafka, NATS, RabbitMQ</span></a></li><li><a href="grpc.html" data-slug="grpc"><i class="dot"></i><span class="no">25</span><span class="tx">gRPC và Protocol Buffers</span></a></li><li><a href="realtime-file.html" data-slug="realtime-file" aria-current="page"><i class="dot"></i><span class="no">26</span><span class="tx">WebSocket, upload file và gửi email</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">27</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="test-nang-cao.html" data-slug="test-nang-cao"><i class="dot"></i><span class="no">28</span><span class="tx">Test nâng cao: mock, database thật, fuzz, load test</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">29</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="kubernetes.html" data-slug="kubernetes"><i class="dot"></i><span class="no">30</span><span class="tx">Kubernetes cho lập trình viên Go</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">31</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">32</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="realtime-file">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#d97706">Chặng 5 · Vận hành hệ thống thật</span><span>Bài 26</span><span>50 phút đọc + làm bài</span></div>
+    <h1>WebSocket, upload file và gửi email</h1>
+    <p class="lead">WebSocket / SSE cho realtime, hub nhiều client, mở rộng nhiều server bằng Redis pub/sub; upload file trực tiếp lên S3 bằng presigned URL; gửi email qua hàng đợi.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Đẩy dữ liệu realtime xuống trình duyệt</li><li>Upload file lớn không qua server</li><li>Gửi email tin cậy</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="ba-viec-moi-san-pham-deu-can"><a href="#ba-viec-moi-san-pham-deu-can" class="anchor" aria-hidden="true">#</a>Ba việc mọi sản phẩm đều cần</h2>
+<p>Bài này gom ba việc "nhìn thì đơn giản" nhưng làm sai rất tốn kém:</p>
+<ul>
+<li><b>Đẩy dữ liệu realtime</b> xuống trình duyệt: giáo viên thấy bài nộp mới ngay, không cần tải lại trang.</li>
+<li><b>Upload file</b>: phụ huynh nộp ảnh bài làm, giáo viên đính kèm PDF.</li>
+<li><b>Gửi email</b>: xác nhận, biên lai, nhắc việc.</li>
+</ul>
+
+<h2 id="realtime-chon-polling-sse-hay-websocket"><a href="#realtime-chon-polling-sse-hay-websocket" class="anchor" aria-hidden="true">#</a>Realtime: chọn polling, SSE hay WebSocket</h2>
+<table>
+<tr><th></th><th>Polling</th><th>SSE (Server-Sent Events)</th><th>WebSocket</th></tr>
+<tr><td>Hướng</td><td>client hỏi định kỳ</td><td>server → client</td><td>hai chiều</td></tr>
+<tr><td>Giao thức</td><td>HTTP thường</td><td>HTTP thường, một response không đóng</td><td>nâng cấp HTTP thành kết nối riêng</td></tr>
+<tr><td>Tự kết nối lại</td><td>không cần</td><td>có sẵn trong <code>EventSource</code></td><td>tự viết</td></tr>
+<tr><td>Qua proxy, CDN, tường lửa công ty</td><td>luôn được</td><td>gần như luôn được</td><td>đôi khi bị chặn</td></tr>
+<tr><td>Hợp với</td><td>cập nhật vài phút một lần</td><td>thông báo, tiến độ, bảng tin</td><td>chat, chỉnh sửa chung, game</td></tr>
+</table>
+<aside class="tip"><p>Phần lớn nhu cầu "realtime" chỉ là server báo cho client. SSE đơn giản hơn WebSocket nhiều: dùng HTTP bình thường, cookie và middleware xác thực vẫn chạy, trình duyệt tự kết nối lại. Chỉ chọn WebSocket khi client cần gửi liên tục.</p></aside>
+
+<h3>SSE bằng thư viện chuẩn</h3>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;log&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">events</span>(w http.ResponseWriter, r *http.Request) {
+    w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Content-Type&quot;</span>, <span class="s">&quot;text/event-stream&quot;</span>)
+    w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Cache-Control&quot;</span>, <span class="s">&quot;no-cache&quot;</span>)
+    w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;X-Accel-Buffering&quot;</span>, <span class="s">&quot;no&quot;</span>) <span class="c">// báo Nginx đừng gom response lại</span>
+
+    rc := http.<span class="f">NewResponseController</span>(w) <span class="c">// Go 1.20+: Flush, đặt deadline ghi</span>
+    rc.<span class="f">SetWriteDeadline</span>(time.Time{})     <span class="c">// bỏ WriteTimeout của server cho kết nối dài này</span>
+
+    tick := time.<span class="f">NewTicker</span>(time.Second)
+    <span class="k">defer</span> tick.<span class="f">Stop</span>()
+    <span class="k">for</span> i := <span class="n">1</span>; ; i++ {
+        <span class="k">select</span> {
+        <span class="k">case</span> &lt;-r.<span class="f">Context</span>().<span class="f">Done</span>(): <span class="c">// trình duyệt đóng tab</span>
+            log.<span class="f">Println</span>(<span class="s">&quot;client ngắt&quot;</span>)
+            <span class="k">return</span>
+        <span class="k">case</span> t := &lt;-tick.C:
+            <span class="c">// Định dạng SSE: &quot;id:&quot;, &quot;event:&quot;, &quot;data:&quot;, kết thúc bằng một dòng trống</span>
+            fmt.<span class="f">Fprintf</span>(w, <span class="s">&quot;id: %d\nevent: tick\ndata: {\&quot;n\&quot;:%d,\&quot;at\&quot;:%q}\n\n&quot;</span>, i, i, t.<span class="f">Format</span>(<span class="s">&quot;15:04:05&quot;</span>))
+            <span class="k">if</span> err := rc.<span class="f">Flush</span>(); err != <span class="b">nil</span> { <span class="c">// đẩy ngay xuống client, không chờ đầy bộ đệm</span>
+                <span class="k">return</span>
+            }
+        }
+    }
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    http.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /events&quot;</span>, events)
+    log.<span class="f">Fatal</span>(http.<span class="f">ListenAndServe</span>(<span class="s">&quot;:8080&quot;</span>, <span class="b">nil</span>))
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">curl -N localhost:8080/events</span>
+id: 1
+event: tick
+data: {&quot;n&quot;:1,&quot;at&quot;:&quot;10:20:01&quot;}
+
+id: 2
+event: tick
+data: {&quot;n&quot;:2,&quot;at&quot;:&quot;10:20:02&quot;}
+
+^C</pre></div>
+<div class="code"><div class="code-h"><span>frontend</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">const</span> es = <span class="k">new</span> <span class="f">EventSource</span>(<span class="s">&quot;/api/events&quot;</span>, { withCredentials: <span class="b">true</span> });
+es.<span class="f">addEventListener</span>(<span class="s">&quot;tick&quot;</span>, (e) =&gt; <span class="b">console</span>.<span class="f">log</span>(<span class="b">JSON</span>.<span class="f">parse</span>(e.data)));
+<span class="c">// mất mạng → trình duyệt tự kết nối lại, gửi header Last-Event-ID: 2 để server gửi tiếp từ đó</span></code></pre></div>
+<aside class="warn"><p>Mỗi tab mở là một kết nối giữ suốt. Với HTTP/1.1, trình duyệt chỉ cho 6 kết nối mỗi tên miền: mở 7 tab là tab thứ 7 treo. Phục vụ qua HTTP/2 (hầu hết CDN / load balancer đã bật) thì không bị giới hạn này.</p></aside>
+
+<h3>WebSocket: hub nhiều client</h3>
+<p>Thư viện: <code>github.com/coder/websocket</code> (trước là nhooyr.io/websocket, gọn, hỗ trợ context) hoặc <code>github.com/gorilla/websocket</code> (lâu đời, rất nhiều code cũ dùng). Bài này dùng coder/websocket.</p>
+<figure class="dg arch"><svg viewBox="0 0 820 320" style="min-width:640px;max-width:820px" role="img" aria-label="Mỗi kết nối có một goroutine đọc và một goroutine ghi. Hub giữ danh sách kết nối theo phòng (lớp)"><g class="ag ag-proc"><rect x="220" y="20" width="400" height="280" rx="8"/><text x="230" y="38" class="ag-t">Một server Go</text></g><path d="M106.0 70.0 L274.0 70.0" class="ae" marker-end="url(#ar)" marker-start="url(#ar)"/><path d="M106.0 160.0 L274.0 160.0" class="ae" marker-end="url(#ar)" marker-start="url(#ar)"/><path d="M106.0 250.0 L274.0 250.0" class="ae" marker-end="url(#ar)" marker-start="url(#ar)"/><path d="M494.0 160.0 L440.0 160.0 L440.0 70.0 L326.0 70.0" class="ae" marker-end="url(#ar)"/><path d="M494.0 160.0 L326.0 160.0" class="ae" marker-end="url(#ar)"/><path d="M440.0 160.0 L440.0 250.0 L326.0 250.0" class="ae" marker-end="url(#ar)"/><path d="M704.0 160.0 L546.0 160.0" class="ae ae-go" marker-end="url(#ar)"/><g class="an an-gen"><rect x="58" y="48" width="44" height="44" rx="9"/><text x="80" y="74.5" text-anchor="middle" class="an-i" style="font-size:13px">WEB</text><text x="80" y="108" text-anchor="middle" class="an-l">Giáo viên</text></g><g class="an an-gen"><rect x="58" y="138" width="44" height="44" rx="9"/><text x="80" y="164.5" text-anchor="middle" class="an-i" style="font-size:13px">WEB</text><text x="80" y="198" text-anchor="middle" class="an-l">Phụ huynh 1</text></g><g class="an an-gen"><rect x="58" y="228" width="44" height="44" rx="9"/><text x="80" y="254.5" text-anchor="middle" class="an-i" style="font-size:13px">WEB</text><text x="80" y="288" text-anchor="middle" class="an-l">Phụ huynh 2</text></g><g class="an an-go"><rect x="278" y="48" width="44" height="44" rx="9"/><text x="300" y="74.5" text-anchor="middle" class="an-i" style="font-size:13px">G</text><text x="300" y="108" text-anchor="middle" class="an-l">conn 1</text></g><g class="an an-go"><rect x="278" y="138" width="44" height="44" rx="9"/><text x="300" y="164.5" text-anchor="middle" class="an-i" style="font-size:13px">G</text><text x="300" y="198" text-anchor="middle" class="an-l">conn 2</text></g><g class="an an-go"><rect x="278" y="228" width="44" height="44" rx="9"/><text x="300" y="254.5" text-anchor="middle" class="an-i" style="font-size:13px">G</text><text x="300" y="288" text-anchor="middle" class="an-l">conn 3</text></g><g class="an an-go"><rect x="498" y="138" width="44" height="44" rx="9"/><text x="520" y="164.5" text-anchor="middle" class="an-i" style="font-size:11px">CHAN</text><text x="520" y="198" text-anchor="middle" class="an-l">Hub</text><text x="520" y="212" text-anchor="middle" class="an-s">phòng lớp 42</text></g><g class="an an-go"><rect x="708" y="138" width="44" height="44" rx="9"/><text x="730" y="164.5" text-anchor="middle" class="an-i" style="font-size:13px">API</text><text x="730" y="198" text-anchor="middle" class="an-l">Handler nộp bài</text></g><g class="ae-lb"><rect x="597.6" y="151.0" width="54.8" height="17" rx="4"/><text x="625.0" y="163.5" text-anchor="middle">publish</text></g></svg><figcaption>Mỗi kết nối có một goroutine đọc và một goroutine ghi. Hub giữ danh sách kết nối theo phòng (lớp)</figcaption></figure>
+<div class="code"><div class="code-h"><span>ws.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;log/slog&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/coder/websocket&quot;</span>
+)
+
+<span class="k">type</span> client <span class="k">struct</span> {
+    send <span class="k">chan</span> []<span class="t">byte</span> <span class="c">// bộ đệm ra: hub ghi vào, goroutine ghi của client đọc ra</span>
+}
+
+<span class="k">type</span> Hub <span class="k">struct</span> {
+    mu    sync.Mutex
+    rooms <span class="k">map</span>[<span class="t">string</span>]<span class="k">map</span>[*client]<span class="k">struct</span>{}
+}
+
+<span class="k">func</span> <span class="f">NewHub</span>() *Hub { <span class="k">return</span> &amp;Hub{rooms: <span class="k">map</span>[<span class="t">string</span>]<span class="k">map</span>[*client]<span class="k">struct</span>{}{}} }
+
+<span class="k">func</span> (h *Hub) <span class="f">join</span>(room <span class="t">string</span>, c *client) {
+    h.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> h.mu.<span class="f">Unlock</span>()
+    <span class="k">if</span> h.rooms[room] == <span class="b">nil</span> {
+        h.rooms[room] = <span class="k">map</span>[*client]<span class="k">struct</span>{}{}
+    }
+    h.rooms[room][c] = <span class="k">struct</span>{}{}
+}
+
+<span class="k">func</span> (h *Hub) <span class="f">leave</span>(room <span class="t">string</span>, c *client) {
+    h.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> h.mu.<span class="f">Unlock</span>()
+    <span class="b">delete</span>(h.rooms[room], c)
+    <span class="k">if</span> <span class="b">len</span>(h.rooms[room]) == <span class="n">0</span> {
+        <span class="b">delete</span>(h.rooms, room)
+    }
+}
+
+<span class="k">func</span> (h *Hub) <span class="f">Publish</span>(room <span class="t">string</span>, msg <span class="t">any</span>) {
+    b, _ := json.<span class="f">Marshal</span>(msg)
+    h.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> h.mu.<span class="f">Unlock</span>()
+    <span class="k">for</span> c := <span class="k">range</span> h.rooms[room] {
+        <span class="k">select</span> {
+        <span class="k">case</span> c.send &lt;- b:
+        <span class="k">default</span>:
+            <span class="c">// client quá chậm (mạng yếu), bộ đệm đầy: bỏ tin thay vì làm treo cả hub</span>
+            slog.<span class="f">Warn</span>(<span class="s">&quot;bỏ tin cho client chậm&quot;</span>, <span class="s">&quot;room&quot;</span>, room)
+        }
+    }
+}
+
+<span class="k">func</span> (h *Hub) <span class="f">Handle</span>(w http.ResponseWriter, r *http.Request) {
+    room := <span class="s">&quot;class:&quot;</span> + r.<span class="f">PathValue</span>(<span class="s">&quot;id&quot;</span>)
+    <span class="c">// QUAN TRỌNG: kiểm tra quyền vào phòng TRƯỚC khi nâng cấp kết nối (như mọi API khác)</span>
+
+    conn, err := websocket.<span class="f">Accept</span>(w, r, &amp;websocket.AcceptOptions{
+        OriginPatterns: []<span class="t">string</span>{<span class="s">&quot;app.sobaitap.vn&quot;</span>, <span class="s">&quot;localhost:5173&quot;</span>}, <span class="c">// chống trang lạ mở WebSocket bằng cookie của người dùng</span>
+    })
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span>
+    }
+    <span class="k">defer</span> conn.<span class="f">CloseNow</span>()
+
+    c := &amp;client{send: <span class="b">make</span>(<span class="k">chan</span> []<span class="t">byte</span>, <span class="n">32</span>)}
+    h.<span class="f">join</span>(room, c)
+    <span class="k">defer</span> h.<span class="f">leave</span>(room, c)
+
+    ctx, cancel := context.<span class="f">WithCancel</span>(r.<span class="f">Context</span>())
+    <span class="k">defer</span> <span class="f">cancel</span>()
+
+    <span class="c">// Goroutine đọc: bắt buộc phải đọc để xử lý ping/pong và phát hiện client đóng</span>
+    <span class="k">go</span> <span class="k">func</span>() {
+        <span class="k">defer</span> <span class="f">cancel</span>()
+        <span class="k">for</span> {
+            <span class="k">if</span> _, _, err := conn.<span class="f">Read</span>(ctx); err != <span class="b">nil</span> {
+                <span class="k">return</span>
+            }
+            <span class="c">// ứng dụng này không nhận tin từ client, bỏ qua</span>
+        }
+    }()
+
+    ping := time.<span class="f">NewTicker</span>(<span class="n">25</span> * time.Second) <span class="c">// giữ kết nối sống qua proxy (nhiều proxy cắt sau 60 giây im lặng)</span>
+    <span class="k">defer</span> ping.<span class="f">Stop</span>()
+    <span class="k">for</span> {
+        <span class="k">select</span> {
+        <span class="k">case</span> b := &lt;-c.send:
+            wctx, wcancel := context.<span class="f">WithTimeout</span>(ctx, <span class="n">5</span>*time.Second)
+            err := conn.<span class="f">Write</span>(wctx, websocket.MessageText, b)
+            <span class="f">wcancel</span>()
+            <span class="k">if</span> err != <span class="b">nil</span> {
+                <span class="k">return</span>
+            }
+        <span class="k">case</span> &lt;-ping.C:
+            <span class="k">if</span> err := conn.<span class="f">Ping</span>(ctx); err != <span class="b">nil</span> {
+                <span class="k">return</span>
+            }
+        <span class="k">case</span> &lt;-ctx.<span class="f">Done</span>():
+            conn.<span class="f">Close</span>(websocket.StatusNormalClosure, <span class="s">&quot;&quot;</span>)
+            <span class="k">return</span>
+        }
+    }
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// main:</span>
+hub := <span class="f">NewHub</span>()
+mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /ws/classes/{id}&quot;</span>, <span class="f">requireAuth</span>(hub.Handle))
+
+<span class="c">// trong handler nộp bài, sau khi lưu database thành công:</span>
+hub.<span class="f">Publish</span>(<span class="s">&quot;class:&quot;</span>+strconv.<span class="f">FormatInt</span>(classID, <span class="n">10</span>), <span class="k">map</span>[<span class="t">string</span>]<span class="t">any</span>{
+    <span class="s">&quot;type&quot;</span>: <span class="s">&quot;submission.created&quot;</span>, <span class="s">&quot;studentId&quot;</span>: sid, <span class="s">&quot;assignmentId&quot;</span>: aid,
+})</code></pre></div>
+<div class="code"><div class="code-h"><span>frontend</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">function</span> <span class="f">connect</span>() {
+  <span class="k">const</span> ws = <span class="k">new</span> <span class="f">WebSocket</span>(<span class="s">`wss://${location.host}/api/ws/classes/42`</span>);
+  ws.onmessage = (e) =&gt; {
+    <span class="k">const</span> ev = <span class="b">JSON</span>.<span class="f">parse</span>(e.data);
+    <span class="k">if</span> (ev.<span class="k">type</span> === <span class="s">&quot;submission.created&quot;</span>) toGrade.<span class="f">update</span>((n) =&gt; n + <span class="n">1</span>);
+  };
+  ws.onclose = () =&gt; <span class="f">setTimeout</span>(connect, <span class="n">1000</span> + Math.<span class="f">random</span>() * <span class="n">4000</span>); <span class="c">// tự nối lại, có độ trễ ngẫu nhiên</span>
+}
+<span class="f">connect</span>();</code></pre></div>
+<aside class="warn"><p>Ba lỗi bảo mật hay gặp với WebSocket: (1) không kiểm tra quyền vào phòng, ai biết id lớp cũng nghe được. (2) Không kiểm tra Origin: trang độc hại mở WebSocket tới API của bạn, trình duyệt tự gửi kèm cookie (giống CSRF). (3) Tin gửi xuống có dữ liệu của người khác: chỉ gửi đúng thứ người nghe được phép xem.</p></aside>
+
+<h3>Chạy nhiều server: Redis pub/sub</h3>
+<p>Hub ở trên nằm trong bộ nhớ một server. Có 3 bản server sau load balancer thì giáo viên nối vào server A, phụ huynh nộp bài ở server B: hub của B không biết giáo viên. Cách sửa: mọi server cùng nghe một kênh chung.</p>
+<figure class="dg arch"><svg viewBox="0 0 820 250" style="min-width:640px;max-width:820px" role="img" aria-label="Server nhận việc publish lên Redis. Mọi server đều subscribe và chuyển tiếp cho các client của mình"><path d="M106.0 70.0 L274.0 70.0" class="ae" marker-end="url(#ar)" marker-start="url(#ar)"/><path d="M106.0 190.0 L274.0 190.0" class="ae" marker-end="url(#ar)"/><path d="M326.0 190.0 L450.0 190.0 L450.0 130.0 L534.0 130.0" class="ae ae-go" marker-end="url(#ar)"/><path d="M534.0 130.0 L450.0 130.0 L450.0 70.0 L326.0 70.0" class="ae ae-ok" marker-end="url(#ar)"/><g class="an an-gen"><rect x="58" y="48" width="44" height="44" rx="9"/><text x="80" y="74.5" text-anchor="middle" class="an-i" style="font-size:13px">WEB</text><text x="80" y="108" text-anchor="middle" class="an-l">Giáo viên</text><text x="80" y="122" text-anchor="middle" class="an-s">nối vào A</text></g><g class="an an-gen"><rect x="58" y="168" width="44" height="44" rx="9"/><text x="80" y="194.5" text-anchor="middle" class="an-i" style="font-size:13px">WEB</text><text x="80" y="228" text-anchor="middle" class="an-l">Phụ huynh</text><text x="80" y="242" text-anchor="middle" class="an-s">nộp bài ở B</text></g><g class="an an-go"><rect x="278" y="48" width="44" height="44" rx="9"/><text x="300" y="74.5" text-anchor="middle" class="an-i" style="font-size:13px">API</text><text x="300" y="108" text-anchor="middle" class="an-l">Server A</text><text x="300" y="122" text-anchor="middle" class="an-s">hub</text></g><g class="an an-go"><rect x="278" y="168" width="44" height="44" rx="9"/><text x="300" y="194.5" text-anchor="middle" class="an-i" style="font-size:13px">API</text><text x="300" y="228" text-anchor="middle" class="an-l">Server B</text><text x="300" y="242" text-anchor="middle" class="an-s">hub</text></g><g class="an an-db"><rect x="538" y="108" width="44" height="44" rx="9"/><text x="560" y="134.5" text-anchor="middle" class="an-i" style="font-size:13px">RDS</text><text x="560" y="168" text-anchor="middle" class="an-l">Redis pub/sub</text><text x="560" y="182" text-anchor="middle" class="an-s">kênh class:42</text></g><g class="ae-lb"><rect x="156.2" y="61.0" width="67.6" height="17" rx="4"/><text x="190.0" y="73.5" text-anchor="middle">WebSocket</text></g><g class="ae-lb"><rect x="146.6" y="181.0" width="86.8" height="17" rx="4"/><text x="190.0" y="193.5" text-anchor="middle">POST nộp bài</text></g><g class="ae-lb"><rect x="354.2" y="181.0" width="67.6" height="17" rx="4"/><text x="388.0" y="193.5" text-anchor="middle">1 PUBLISH</text></g><g class="ae-lb"><rect x="347.8" y="61.0" width="80.4" height="17" rx="4"/><text x="388.0" y="73.5" text-anchor="middle">2 tin tới A</text></g></svg><figcaption>Server nhận việc publish lên Redis. Mọi server đều subscribe và chuyển tiếp cho các client của mình</figcaption></figure>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Server nào nhận việc cũng chỉ publish lên Redis, KHÔNG gọi hub trực tiếp</span>
+<span class="k">func</span> (s *Service) <span class="f">notify</span>(ctx context.Context, room <span class="t">string</span>, msg <span class="t">any</span>) {
+    b, _ := json.<span class="f">Marshal</span>(msg)
+    s.rdb.<span class="f">Publish</span>(ctx, <span class="s">&quot;ws:&quot;</span>+room, b)
+}
+
+<span class="c">// Mỗi server chạy một goroutine nghe mọi kênh ws:* và đưa vào hub của mình</span>
+<span class="k">func</span> (h *Hub) <span class="f">RunRedis</span>(ctx context.Context, rdb *redis.Client) {
+    sub := rdb.<span class="f">PSubscribe</span>(ctx, <span class="s">&quot;ws:*&quot;</span>)
+    <span class="k">defer</span> sub.<span class="f">Close</span>()
+    <span class="k">for</span> m := <span class="k">range</span> sub.<span class="f">Channel</span>() { <span class="c">// channel đóng khi sub.Close()</span>
+        room := strings.<span class="f">TrimPrefix</span>(m.Channel, <span class="s">&quot;ws:&quot;</span>)
+        h.<span class="f">publishRaw</span>(room, []<span class="t">byte</span>(m.Payload))
+    }
+}</code></pre></div>
+<p>Redis pub/sub không lưu tin: client đang mất kết nối thì mất tin. Vì vậy client khi nối lại nên <b>tải lại trạng thái từ API</b> (số bài chờ chấm), chỉ dùng tin realtime để cập nhật nhanh. Muốn không mất tin thì dùng Redis Streams hoặc NATS JetStream (bài 24).</p>
+
+<h2 id="upload-file-dung-cach-presigned-url"><a href="#upload-file-dung-cach-presigned-url" class="anchor" aria-hidden="true">#</a>Upload file đúng cách: presigned URL</h2>
+<p>Cách đơn giản nhất là trình duyệt gửi file lên server Go, server Go lưu file. Nhưng với ảnh 5MB, hàng nghìn phụ huynh nộp cùng tối, server tốn băng thông, RAM, và giữ kết nối rất lâu với mạng điện thoại chậm. Cách mọi hệ thống lớn dùng: <b>trình duyệt upload thẳng lên kho file</b> (S3, Cloudflare R2, Google Cloud Storage, MinIO) bằng một URL có chữ ký do server cấp.</p>
+<figure class="dg arch"><svg viewBox="0 0 820 330" style="min-width:640px;max-width:820px" role="img" aria-label="Server chỉ cấp quyền và ghi nhận. File đi thẳng từ trình duyệt tới kho, không qua server Go"><path d="M90.0 144.0 L90.0 70.0 L444.0 70.0" class="ae" marker-end="url(#ar)" marker-start="url(#ar)"/><path d="M90.0 196.0 L90.0 265.0 L444.0 265.0" class="ae ae-go" marker-end="url(#ar)"/><path d="M116.0 170.0 L340.0 170.0 L340.0 86.0 L444.0 86.0" class="ae" marker-end="url(#ar)"/><path d="M496.0 70.0 L704.0 70.0" class="ae" marker-end="url(#ar)"/><path d="M470.0 128.0 L470.0 239.0" class="ae ds" marker-end="url(#ar)"/><g class="an an-gen"><rect x="68" y="148" width="44" height="44" rx="9"/><text x="90" y="174.5" text-anchor="middle" class="an-i" style="font-size:13px">WEB</text><text x="90" y="208" text-anchor="middle" class="an-l">Trình duyệt</text></g><g class="an an-go"><rect x="448" y="48" width="44" height="44" rx="9"/><text x="470" y="74.5" text-anchor="middle" class="an-i" style="font-size:13px">API</text><text x="470" y="108" text-anchor="middle" class="an-l">API Go</text><text x="470" y="122" text-anchor="middle" class="an-s">kiểm quyền, ký URL</text></g><g class="an an-st"><rect x="448" y="243" width="44" height="44" rx="9"/><text x="470" y="269.5" text-anchor="middle" class="an-i" style="font-size:13px">S3</text><text x="470" y="303" text-anchor="middle" class="an-l">Kho file</text><text x="470" y="317" text-anchor="middle" class="an-s">S3 / R2 / MinIO</text></g><g class="an an-db"><rect x="708" y="48" width="44" height="44" rx="9"/><text x="730" y="74.5" text-anchor="middle" class="an-i" style="font-size:13px">PG</text><text x="730" y="108" text-anchor="middle" class="an-l">Postgres</text></g><g class="ae-lb"><rect x="159.6" y="61.0" width="214.8" height="17" rx="4"/><text x="267.0" y="73.5" text-anchor="middle">1 xin URL · 2 nhận URL có chữ ký</text></g><g class="ae-lb"><rect x="210.8" y="256.0" width="112.4" height="17" rx="4"/><text x="267.0" y="268.5" text-anchor="middle">3 PUT file thẳng</text></g><g class="ae-lb"><rect x="143.0" y="161.0" width="170.0" height="17" rx="4"/><text x="228.0" y="173.5" text-anchor="middle">4 báo đã xong (khoá file)</text></g><g class="ae-lb"><rect x="553.4" y="61.0" width="93.2" height="17" rx="4"/><text x="600.0" y="73.5" text-anchor="middle">5 ghi bài nộp</text></g><g class="ae-lb"><rect x="417.0" y="174.5" width="106.0" height="17" rx="4"/><text x="470.0" y="187.0" text-anchor="middle">6 kiểm tra file</text></g></svg><figcaption>Server chỉ cấp quyền và ghi nhận. File đi thẳng từ trình duyệt tới kho, không qua server Go</figcaption></figure>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> get github.com/aws/aws-sdk-<span class="k">go</span>-v2/config github.com/aws/aws-sdk-<span class="k">go</span>-v2/service/s3</code></pre></div>
+<div class="code"><div class="code-h"><span>upload.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/aws/aws-sdk-go-v2/aws&quot;</span>
+    <span class="s">&quot;github.com/aws/aws-sdk-go-v2/config&quot;</span>
+    <span class="s">&quot;github.com/aws/aws-sdk-go-v2/service/s3&quot;</span>
+    <span class="s">&quot;github.com/oklog/ulid/v2&quot;</span>
+)
+
+<span class="k">const</span> maxSize = <span class="n">5</span> &lt;&lt; <span class="n">20</span> <span class="c">// 5 MB</span>
+
+<span class="k">var</span> allowed = <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{<span class="s">&quot;image/jpeg&quot;</span>: <span class="s">&quot;.jpg&quot;</span>, <span class="s">&quot;image/png&quot;</span>: <span class="s">&quot;.png&quot;</span>, <span class="s">&quot;image/webp&quot;</span>: <span class="s">&quot;.webp&quot;</span>, <span class="s">&quot;application/pdf&quot;</span>: <span class="s">&quot;.pdf&quot;</span>}
+
+<span class="k">type</span> Uploader <span class="k">struct</span> {
+    s3     *s3.Client
+    presig *s3.PresignClient
+    bucket <span class="t">string</span>
+}
+
+<span class="k">func</span> <span class="f">NewUploader</span>(ctx context.Context, bucket, endpoint <span class="t">string</span>) (*Uploader, <span class="t">error</span>) {
+    cfg, err := config.<span class="f">LoadDefaultConfig</span>(ctx) <span class="c">// đọc AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION</span>
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="b">nil</span>, err
+    }
+    c := s3.<span class="f">NewFromConfig</span>(cfg, <span class="k">func</span>(o *s3.Options) {
+        <span class="k">if</span> endpoint != <span class="s">&quot;&quot;</span> { <span class="c">// R2 / MinIO: đổi địa chỉ, giao thức vẫn là S3</span>
+            o.BaseEndpoint = aws.<span class="f">String</span>(endpoint)
+            o.UsePathStyle = <span class="b">true</span>
+        }
+    })
+    <span class="k">return</span> &amp;Uploader{s3: c, presig: s3.<span class="f">NewPresignClient</span>(c), bucket: bucket}, <span class="b">nil</span>
+}
+
+<span class="k">type</span> presignReq <span class="k">struct</span> {
+    ContentType <span class="t">string</span> <span class="s">`json:&quot;contentType&quot;`</span>
+    Size        <span class="t">int64</span>  <span class="s">`json:&quot;size&quot;`</span>
+}
+
+<span class="c">// POST /uploads/presign → {key, url}</span>
+<span class="k">func</span> (u *Uploader) <span class="f">Presign</span>(w http.ResponseWriter, r *http.Request) {
+    <span class="k">var</span> in presignReq
+    <span class="k">if</span> err := <span class="f">readJSON</span>(r, &amp;in); err != <span class="b">nil</span> {
+        <span class="f">writeErr</span>(w, <span class="n">400</span>, <span class="s">&quot;BAD_JSON&quot;</span>, <span class="s">&quot;Dữ liệu không đúng&quot;</span>)
+        <span class="k">return</span>
+    }
+    ext, ok := allowed[in.ContentType]
+    <span class="k">if</span> !ok {
+        <span class="f">writeErr</span>(w, <span class="n">400</span>, <span class="s">&quot;BAD_TYPE&quot;</span>, <span class="s">&quot;Chỉ nhận ảnh JPG, PNG, WebP hoặc PDF&quot;</span>)
+        <span class="k">return</span>
+    }
+    <span class="k">if</span> in.Size &lt;= <span class="n">0</span> || in.Size &gt; maxSize {
+        <span class="f">writeErr</span>(w, <span class="n">400</span>, <span class="s">&quot;TOO_LARGE&quot;</span>, <span class="s">&quot;Mỗi file tối đa 5MB&quot;</span>)
+        <span class="k">return</span>
+    }
+    userID := <span class="f">userIDFrom</span>(r.<span class="f">Context</span>())
+    <span class="c">// Server TỰ đặt tên khoá: người dùng không chọn được đường dẫn (không ghi đè được file của người khác)</span>
+    key := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;uploads/%d/%s%s&quot;</span>, userID, ulid.<span class="f">Make</span>(), ext)
+
+    req, err := u.presig.<span class="f">PresignPutObject</span>(r.<span class="f">Context</span>(), &amp;s3.PutObjectInput{
+        Bucket:        aws.<span class="f">String</span>(u.bucket),
+        Key:           aws.<span class="f">String</span>(key),
+        ContentType:   aws.<span class="f">String</span>(in.ContentType), <span class="c">// ký cả kiểu: upload kiểu khác thì S3 từ chối</span>
+        ContentLength: aws.<span class="f">Int64</span>(in.Size),         <span class="c">// ký cả kích thước: gửi file to hơn thì bị từ chối</span>
+    }, s3.<span class="f">WithPresignExpires</span>(<span class="n">5</span>*time.Minute))
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="f">writeErr</span>(w, <span class="n">500</span>, <span class="s">&quot;INTERNAL&quot;</span>, <span class="s">&quot;Lỗi máy chủ&quot;</span>)
+        <span class="k">return</span>
+    }
+    <span class="f">writeJSON</span>(w, <span class="n">200</span>, <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{<span class="s">&quot;key&quot;</span>: key, <span class="s">&quot;url&quot;</span>: req.URL})
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>frontend</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">async</span> <span class="k">function</span> <span class="f">upload</span>(file: File): <span class="t">Promise</span>&lt;<span class="t">string</span>&gt; {
+  <span class="k">const</span> { key, url } = <span class="k">await</span> api.<span class="f">post</span>(<span class="s">&quot;/uploads/presign&quot;</span>, { contentType: file.<span class="k">type</span>, size: file.size });
+  <span class="k">const</span> res = <span class="k">await</span> <span class="b">fetch</span>(url, { method: <span class="s">&quot;PUT&quot;</span>, body: file, headers: { <span class="s">&quot;Content-Type&quot;</span>: file.<span class="k">type</span> } });
+  <span class="k">if</span> (!res.ok) <span class="k">throw</span> <span class="k">new</span> <span class="f">Error</span>(<span class="s">&quot;Tải ảnh lên không được&quot;</span>);
+  <span class="k">return</span> key; <span class="c">// gửi key này kèm khi nộp bài</span>
+}</code></pre></div>
+<p>Khi client báo "đã nộp kèm khoá X", server <b>phải kiểm tra lại</b>:</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Service) <span class="f">Submit</span>(ctx context.Context, userID, assignmentID <span class="t">int64</span>, keys []<span class="t">string</span>) <span class="t">error</span> {
+    prefix := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;uploads/%d/&quot;</span>, userID)
+    <span class="k">for</span> _, k := <span class="k">range</span> keys {
+        <span class="k">if</span> !strings.<span class="f">HasPrefix</span>(k, prefix) { <span class="c">// khoá phải do chính người này upload</span>
+            <span class="k">return</span> ErrForbidden
+        }
+        head, err := s.s3.<span class="f">HeadObject</span>(ctx, &amp;s3.HeadObjectInput{Bucket: &amp;s.bucket, Key: &amp;k})
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            <span class="k">return</span> ErrFileMissing <span class="c">// client nói đã upload nhưng chưa có file thật</span>
+        }
+        <span class="k">if</span> aws.<span class="f">ToInt64</span>(head.ContentLength) &gt; maxSize {
+            <span class="k">return</span> ErrTooLarge
+        }
+    }
+    <span class="k">return</span> s.store.<span class="f">Submit</span>(ctx, userID, assignmentID, keys)
+}</code></pre></div>
+<h3>Cho xem file: URL đọc có hạn</h3>
+<p>Kho file để <b>riêng tư</b> (không ai đọc được nếu không có chữ ký). Khi giáo viên mở bài nộp, server kiểm tra quyền rồi cấp URL đọc có hạn ngắn:</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (u *Uploader) <span class="f">ViewURL</span>(ctx context.Context, key <span class="t">string</span>) (<span class="t">string</span>, <span class="t">error</span>) {
+    req, err := u.presig.<span class="f">PresignGetObject</span>(ctx, &amp;s3.GetObjectInput{
+        Bucket:                     aws.<span class="f">String</span>(u.bucket),
+        Key:                        aws.<span class="f">String</span>(key),
+        ResponseContentDisposition: aws.<span class="f">String</span>(<span class="s">&quot;inline&quot;</span>), <span class="c">// mở trong trình duyệt thay vì tải về</span>
+    }, s3.<span class="f">WithPresignExpires</span>(<span class="n">10</span>*time.Minute))
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, err
+    }
+    <span class="k">return</span> req.URL, <span class="b">nil</span>
+}</code></pre></div>
+<aside class="warn"><p>Đừng tin <code>Content-Type</code> do trình duyệt gửi. Kẻ xấu có thể gửi file HTML với kiểu <code>image/png</code>. Bảo vệ: phục vụ file từ một <b>tên miền khác</b> với ứng dụng (ví dụ <code>files.sobaitap-cdn.net</code>), luôn trả header <code>X-Content-Type-Options: nosniff</code>, và với ảnh thì nên có bước xử lý lại (đọc bằng <code>image.Decode</code>, thu nhỏ, mã hoá lại) để vừa kiểm tra đúng là ảnh, vừa xoá thông tin vị trí GPS trong EXIF.</p></aside>
+<aside class="real"><p>Dọn rác: người dùng xin URL, upload, rồi không bấm nộp. File nằm mãi trong kho. Đặt <b>lifecycle rule</b> xoá file trong <code>uploads/</code> sau 1 ngày, và khi nộp thành công thì chép / đổi tên sang <code>submissions/</code>. Hoặc lưu bảng "file chờ" và có việc định kỳ dọn.</p></aside>
+
+<h3>Khi buộc phải nhận file qua server</h3>
+<p>Ví dụ file Excel cần đọc ngay. Luôn giới hạn kích thước <b>trước khi</b> đọc:</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">importExcel</span>(w http.ResponseWriter, r *http.Request) {
+    r.Body = http.<span class="f">MaxBytesReader</span>(w, r.Body, <span class="n">10</span>&lt;&lt;<span class="n">20</span>) <span class="c">// tối đa 10 MB, vượt thì đọc trả lỗi</span>
+    <span class="k">if</span> err := r.<span class="f">ParseMultipartForm</span>(<span class="n">2</span> &lt;&lt; <span class="n">20</span>); err != <span class="b">nil</span> { <span class="c">// 2 MB giữ trong RAM, phần còn lại ra file tạm</span>
+        <span class="f">writeErr</span>(w, <span class="n">413</span>, <span class="s">&quot;TOO_LARGE&quot;</span>, <span class="s">&quot;File tối đa 10MB&quot;</span>)
+        <span class="k">return</span>
+    }
+    <span class="k">defer</span> r.MultipartForm.<span class="f">RemoveAll</span>() <span class="c">// xoá file tạm</span>
+
+    f, hdr, err := r.<span class="f">FormFile</span>(<span class="s">&quot;file&quot;</span>)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="f">writeErr</span>(w, <span class="n">400</span>, <span class="s">&quot;NO_FILE&quot;</span>, <span class="s">&quot;Chưa chọn file&quot;</span>)
+        <span class="k">return</span>
+    }
+    <span class="k">defer</span> f.<span class="f">Close</span>()
+
+    head := <span class="b">make</span>([]<span class="t">byte</span>, <span class="n">512</span>)
+    n, _ := f.<span class="f">Read</span>(head)
+    kind := http.<span class="f">DetectContentType</span>(head[:n]) <span class="c">// đoán kiểu từ nội dung, không tin tên file</span>
+    f.<span class="f">Seek</span>(<span class="n">0</span>, io.SeekStart)
+    slog.<span class="f">Info</span>(<span class="s">&quot;nhận file&quot;</span>, <span class="s">&quot;name&quot;</span>, hdr.Filename, <span class="s">&quot;size&quot;</span>, hdr.Size, <span class="s">&quot;kind&quot;</span>, kind)
+    <span class="c">// ... đọc Excel</span>
+}</code></pre></div>
+
+<h2 id="gui-email"><a href="#gui-email" class="anchor" aria-hidden="true">#</a>Gửi email</h2>
+<p>Không ai tự chạy máy chủ email để gửi cho khách hàng: email từ IP lạ gần như chắc chắn vào thư rác. Dùng dịch vụ: Amazon SES, Postmark, Resend, Mailgun, SendGrid. Bạn cần cấu hình <b>SPF, DKIM, DMARC</b> cho tên miền (các bản ghi DNS chứng minh "dịch vụ này được phép gửi thay tên miền của tôi").</p>
+<figure class="dg arch"><svg viewBox="0 0 820 210" style="min-width:640px;max-width:820px" role="img" aria-label="Không gửi email trong request: ghi việc vào hàng đợi, worker gửi, lỗi thì thử lại"><path d="M106.0 100.0 L234.0 100.0" class="ae" marker-end="url(#ar)"/><path d="M286.0 100.0 L414.0 100.0" class="ae" marker-end="url(#ar)"/><path d="M466.0 100.0 L594.0 100.0" class="ae" marker-end="url(#ar)"/><path d="M646.0 100.0 L724.0 100.0" class="ae" marker-end="url(#ar)"/><path d="M620.0 74.0 L620.0 30.0 L440.0 30.0 L440.0 74.0" class="ae ds" marker-end="url(#ar)"/><g class="an an-go"><rect x="58" y="78" width="44" height="44" rx="9"/><text x="80" y="104.5" text-anchor="middle" class="an-i" style="font-size:13px">API</text><text x="80" y="138" text-anchor="middle" class="an-l">API Go</text><text x="80" y="152" text-anchor="middle" class="an-s">đăng ký xong</text></g><g class="an an-ai"><rect x="238" y="78" width="44" height="44" rx="9"/><text x="260" y="104.5" text-anchor="middle" class="an-i" style="font-size:11px">QUEUE</text><text x="260" y="138" text-anchor="middle" class="an-l">Hàng đợi</text><text x="260" y="152" text-anchor="middle" class="an-s">jobs / outbox</text></g><g class="an an-go"><rect x="418" y="78" width="44" height="44" rx="9"/><text x="440" y="104.5" text-anchor="middle" class="an-i" style="font-size:13px">WRK</text><text x="440" y="138" text-anchor="middle" class="an-l">Email worker</text><text x="440" y="152" text-anchor="middle" class="an-s">thử lại 5 lần</text></g><g class="an an-ai"><rect x="598" y="78" width="44" height="44" rx="9"/><text x="620" y="104.5" text-anchor="middle" class="an-i" style="font-size:11px">MAIL</text><text x="620" y="138" text-anchor="middle" class="an-l">SES / Postmark</text></g><g class="an an-gen"><rect x="728" y="78" width="44" height="44" rx="9"/><text x="750" y="104.5" text-anchor="middle" class="an-i" style="font-size:11px">USER</text><text x="750" y="138" text-anchor="middle" class="an-l">Hộp thư</text></g><g class="ae-lb"><rect x="117.0" y="91.0" width="106.0" height="17" rx="4"/><text x="170.0" y="103.5" text-anchor="middle">1 việc: welcome</text></g><g class="ae-lb"><rect x="496.2" y="91.0" width="67.6" height="17" rx="4"/><text x="530.0" y="103.5" text-anchor="middle">API HTTPS</text></g><g class="ae-lb"><rect x="441.8" y="21.0" width="176.4" height="17" rx="4"/><text x="530.0" y="33.5" text-anchor="middle">webhook: bounce, khiếu nại</text></g></svg><figcaption>Không gửi email trong request: ghi việc vào hàng đợi, worker gửi, lỗi thì thử lại</figcaption></figure>
+<p>Vì sao không gửi ngay trong handler: dịch vụ email có thể chậm 2 giây hoặc lỗi tạm thời, người dùng không nên chờ. Và nếu lỗi, cần thử lại mà không bắt người dùng bấm lại. Dùng hàng đợi của bài 23.</p>
+<div class="code"><div class="code-h"><span>mail.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> mail
+
+<span class="k">import</span> (
+    <span class="s">&quot;bytes&quot;</span>
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;embed&quot;</span>
+    <span class="s">&quot;html/template&quot;</span>
+    <span class="s">&quot;net&quot;</span>
+    <span class="s">&quot;net/smtp&quot;</span>
+)
+
+<span class="c">//go:embed templates/*.html</span>
+<span class="k">var</span> files embed.FS
+
+<span class="k">var</span> tpl = template.<span class="f">Must</span>(template.<span class="f">ParseFS</span>(files, <span class="s">&quot;templates/*.html&quot;</span>))
+
+<span class="k">type</span> Message <span class="k">struct</span> {
+    To, Subject <span class="t">string</span>
+    HTML        <span class="t">string</span>
+}
+
+<span class="c">// Render dùng html/template: tự escape tên người dùng, không chèn được mã HTML độc vào email</span>
+<span class="k">func</span> <span class="f">Render</span>(name <span class="t">string</span>, data <span class="t">any</span>) (<span class="t">string</span>, <span class="t">error</span>) {
+    <span class="k">var</span> buf bytes.Buffer
+    <span class="k">if</span> err := tpl.<span class="f">ExecuteTemplate</span>(&amp;buf, name, data); err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, err
+    }
+    <span class="k">return</span> buf.<span class="f">String</span>(), <span class="b">nil</span>
+}
+
+<span class="c">// Sender là interface: test dùng bản giả, dev dùng Mailpit, production dùng SES</span>
+<span class="k">type</span> Sender <span class="k">interface</span> {
+    <span class="f">Send</span>(ctx context.Context, m Message) <span class="t">error</span>
+}
+
+<span class="k">type</span> SMTPSender <span class="k">struct</span> {
+    Addr, User, Pass, From <span class="t">string</span>
+}
+
+<span class="k">func</span> (s SMTPSender) <span class="f">Send</span>(ctx context.Context, m Message) <span class="t">error</span> {
+    body := <span class="s">&quot;From: &quot;</span> + s.From + <span class="s">&quot;\r\n&quot;</span> +
+        <span class="s">&quot;To: &quot;</span> + m.To + <span class="s">&quot;\r\n&quot;</span> +
+        <span class="s">&quot;Subject: &quot;</span> + m.Subject + <span class="s">&quot;\r\n&quot;</span> +
+        <span class="s">&quot;MIME-Version: 1.0\r\n&quot;</span> +
+        <span class="s">&quot;Content-Type: text/html; charset=UTF-8\r\n\r\n&quot;</span> + m.HTML
+    host, _, _ := net.<span class="f">SplitHostPort</span>(s.Addr)
+    auth := smtp.<span class="f">PlainAuth</span>(<span class="s">&quot;&quot;</span>, s.User, s.Pass, host)
+    <span class="k">return</span> smtp.<span class="f">SendMail</span>(s.Addr, auth, s.From, []<span class="t">string</span>{m.To}, []<span class="t">byte</span>(body))
+}</code></pre></div>
+<p>Ví dụ trên dùng SMTP của thư viện chuẩn để bạn thấy bản chất (mọi dịch vụ đều nhận SMTP). Khi chạy thật, dùng SDK / API HTTP của dịch vụ (có id tin, có idempotency key, có timeout theo ctx). Tiêu đề có dấu tiếng Việt cần mã hoá: <code>mime.QEncoding.Encode("utf-8", subject)</code>.</p>
+<p><b>Khi phát triển</b>: chạy Mailpit, một hộp thư giả có giao diện web. Mọi email gửi tới nó hiện ở <code>localhost:8025</code>, không email nào lọt ra ngoài.</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">docker</span> run -d --name mailpit -p <span class="n">1025</span>:<span class="n">1025</span> -p <span class="n">8025</span>:<span class="n">8025</span> axllent/mailpit
+<span class="c"># cấu hình SMTP_ADDR=localhost:1025, mở http://localhost:8025 để xem thư</span></code></pre></div>
+<aside class="prod"><p>Nhận webhook <b>bounce</b> (địa chỉ không tồn tại) và <b>complaint</b> (người nhận bấm "thư rác"), đánh dấu địa chỉ đó không gửi nữa. Tỉ lệ bounce / complaint cao làm dịch vụ khoá tài khoản gửi của bạn. Email marketing phải có link huỷ đăng ký, email giao dịch (biên lai, đặt lại mật khẩu) thì không bắt buộc.</p></aside>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Có 3 server, giáo viên mở WebSocket tới server A. Phụ huynh nộp bài ở server B, B gọi hub.Publish của chính nó. Giáo viên có nhận được không?</p><div class="qo"><button type="button" class="opt">Có, vì cùng một ứng dụng</button><button type="button" class="opt" data-ok>Không, hub của B không có kết nối của giáo viên. Cần kênh chung (Redis pub/sub, NATS) để mọi server cùng nhận</button><button type="button" class="opt">Có nếu dùng sticky session</button></div><p class="why" hidden>Sticky session chỉ giữ một người dùng ở một server, không giúp hai người dùng khác nhau ở hai server nhìn thấy nhau.</p></div>
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Presigned URL upload: vì sao server tự đặt khoá file thay vì dùng tên file người dùng gửi?</p><div class="qo"><button type="button" class="opt" data-ok>Để người dùng không ghi đè file của người khác hay ghi vào đường dẫn tuỳ ý, và tránh tên file chứa ký tự lạ</button><button type="button" class="opt">Vì S3 không nhận tên file tiếng Việt</button><button type="button" class="opt">Để file nhỏ hơn</button></div><p class="why" hidden>URL có chữ ký cho phép ghi đúng khoá đó. Nếu khoá do người dùng chọn, họ chọn được khoá của người khác. Tên gốc có thể lưu riêng trong database để hiển thị.</p></div>
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Gửi email xác nhận ngay trong handler đăng ký. Dịch vụ email lỗi 30 giây. Hậu quả?</p><div class="qo"><button type="button" class="opt">Không sao, email tự gửi lại</button><button type="button" class="opt" data-ok>Request đăng ký treo hoặc lỗi, người dùng bấm lại, có thể tạo trùng hoặc không bao giờ nhận email</button><button type="button" class="opt">Tài khoản không được tạo</button></div><p class="why" hidden>Gửi email là việc nền: ghi vào hàng đợi trong cùng transaction tạo tài khoản, worker gửi và thử lại khi lỗi.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Bảng tin realtime bằng SSE cho nhiều người nghe</summary>
+<p>Viết server có <code>GET /events?class=42</code> (SSE) và <code>POST /submit?class=42&amp;student=An</code>. Mỗi lần có người nộp, mọi trình duyệt đang nghe lớp 42 nhận sự kiện <code>submission</code>. Lớp khác không nhận. Người nghe ngắt thì phải được gỡ khỏi danh sách.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Dùng lại cấu trúc Hub ở phần WebSocket nhưng đơn giản hơn: <code>map[string]map[chan string]struct{}</code> + mutex.</li>
+<li>Handler SSE: đăng ký một channel, <code>defer</code> gỡ ra, vòng <code>select</code> giữa channel và <code>r.Context().Done()</code>.</li>
+<li>Mỗi tin: <code>fmt.Fprintf(w, "event: submission\ndata: %s\n\n", msg)</code> rồi <code>Flush</code>.</li>
+<li>Thử: mở 2 terminal <code>curl -N</code> lớp 42, 1 terminal lớp 43, terminal thứ tư gọi POST.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;log&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="k">type</span> Hub <span class="k">struct</span> {
+    mu   sync.Mutex
+    subs <span class="k">map</span>[<span class="t">string</span>]<span class="k">map</span>[<span class="k">chan</span> <span class="t">string</span>]<span class="k">struct</span>{}
+}
+
+<span class="k">func</span> (h *Hub) <span class="f">add</span>(room <span class="t">string</span>) <span class="k">chan</span> <span class="t">string</span> {
+    ch := <span class="b">make</span>(<span class="k">chan</span> <span class="t">string</span>, <span class="n">8</span>)
+    h.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> h.mu.<span class="f">Unlock</span>()
+    <span class="k">if</span> h.subs[room] == <span class="b">nil</span> {
+        h.subs[room] = <span class="k">map</span>[<span class="k">chan</span> <span class="t">string</span>]<span class="k">struct</span>{}{}
+    }
+    h.subs[room][ch] = <span class="k">struct</span>{}{}
+    <span class="k">return</span> ch
+}
+
+<span class="k">func</span> (h *Hub) <span class="f">remove</span>(room <span class="t">string</span>, ch <span class="k">chan</span> <span class="t">string</span>) {
+    h.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> h.mu.<span class="f">Unlock</span>()
+    <span class="b">delete</span>(h.subs[room], ch)
+    log.<span class="f">Printf</span>(<span class="s">&quot;gỡ người nghe phòng %s, còn %d&quot;</span>, room, <span class="b">len</span>(h.subs[room]))
+}
+
+<span class="k">func</span> (h *Hub) <span class="f">publish</span>(room, msg <span class="t">string</span>) <span class="t">int</span> {
+    h.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> h.mu.<span class="f">Unlock</span>()
+    n := <span class="n">0</span>
+    <span class="k">for</span> ch := <span class="k">range</span> h.subs[room] {
+        <span class="k">select</span> {
+        <span class="k">case</span> ch &lt;- msg:
+            n++
+        <span class="k">default</span>:
+        }
+    }
+    <span class="k">return</span> n
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    hub := &amp;Hub{subs: <span class="k">map</span>[<span class="t">string</span>]<span class="k">map</span>[<span class="k">chan</span> <span class="t">string</span>]<span class="k">struct</span>{}{}}
+
+    http.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /events&quot;</span>, <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        room := r.URL.<span class="f">Query</span>().<span class="f">Get</span>(<span class="s">&quot;class&quot;</span>)
+        w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Content-Type&quot;</span>, <span class="s">&quot;text/event-stream&quot;</span>)
+        w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Cache-Control&quot;</span>, <span class="s">&quot;no-cache&quot;</span>)
+        rc := http.<span class="f">NewResponseController</span>(w)
+
+        ch := hub.<span class="f">add</span>(room)
+        <span class="k">defer</span> hub.<span class="f">remove</span>(room, ch)
+
+        fmt.<span class="f">Fprint</span>(w, <span class="s">&quot;: connected\n\n&quot;</span>) <span class="c">// dòng bắt đầu bằng &quot;:&quot; là chú thích, client bỏ qua</span>
+        rc.<span class="f">Flush</span>()
+        <span class="k">for</span> {
+            <span class="k">select</span> {
+            <span class="k">case</span> msg := &lt;-ch:
+                fmt.<span class="f">Fprintf</span>(w, <span class="s">&quot;event: submission\ndata: %s\n\n&quot;</span>, msg)
+                <span class="k">if</span> rc.<span class="f">Flush</span>() != <span class="b">nil</span> {
+                    <span class="k">return</span>
+                }
+            <span class="k">case</span> &lt;-r.<span class="f">Context</span>().<span class="f">Done</span>():
+                <span class="k">return</span>
+            }
+        }
+    })
+
+    http.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /submit&quot;</span>, <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        q := r.URL.<span class="f">Query</span>()
+        b, _ := json.<span class="f">Marshal</span>(<span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{<span class="s">&quot;student&quot;</span>: q.<span class="f">Get</span>(<span class="s">&quot;student&quot;</span>), <span class="s">&quot;at&quot;</span>: time.<span class="f">Now</span>().<span class="f">Format</span>(<span class="s">&quot;15:04:05&quot;</span>)})
+        n := hub.<span class="f">publish</span>(q.<span class="f">Get</span>(<span class="s">&quot;class&quot;</span>), <span class="t">string</span>(b))
+        fmt.<span class="f">Fprintf</span>(w, <span class="s">&quot;đã báo cho %d người nghe\n&quot;</span>, n)
+    })
+
+    log.<span class="f">Fatal</span>(http.<span class="f">ListenAndServe</span>(<span class="s">&quot;:8080&quot;</span>, <span class="b">nil</span>))
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal 1 và 2 — curl -N 'localhost:8080/events?class=42'"><div class="term-h"><i></i><i></i><i></i><span>Terminal 1 và 2 — curl -N 'localhost:8080/events?class=42'</span><b class="term-sim">Mô phỏng</b></div><pre>: connected
+
+event: submission
+data: {&quot;at&quot;:&quot;10:31:07&quot;,&quot;student&quot;:&quot;An&quot;}</pre></div>
+<div class="term sim" role="img" aria-label="Terminal 3 — curl -N 'localhost:8080/events?class=43'"><div class="term-h"><i></i><i></i><i></i><span>Terminal 3 — curl -N 'localhost:8080/events?class=43'</span><b class="term-sim">Mô phỏng</b></div><pre>: connected</pre></div>
+<div class="term sim" role="img" aria-label="Terminal 4"><div class="term-h"><i></i><i></i><i></i><span>Terminal 4</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">curl -X POST 'localhost:8080/submit?class=42&amp;student=An'</span>
+đã báo cho 2 người nghe</pre></div>
+<div class="term sim" role="img" aria-label="Terminal — server (sau khi bấm Ctrl+C ở terminal 1)"><div class="term-h"><i></i><i></i><i></i><span>Terminal — server (sau khi bấm Ctrl+C ở terminal 1)</span><b class="term-sim">Mô phỏng</b></div><pre>2026/11/03 10:31:20 gỡ người nghe phòng 42, còn 1</pre></div>
+<p><b>Giải thích:</b> hai người nghe lớp 42 cùng nhận sự kiện, người nghe lớp 43 không nhận gì. Khi tắt curl ở terminal 1, <code>r.Context()</code> bị huỷ, handler thoát và <code>defer hub.remove</code> gỡ channel: không rò rỉ. Gọi POST lần nữa sẽ báo "1 người nghe".</p>
+</details>
+</details>
+
+<details class="ex"><summary>API cấp presigned URL chạy với MinIO trên máy</summary>
+<p>Chạy MinIO (S3 chạy trên máy) bằng Docker, viết <code>POST /uploads/presign</code> như trong bài, upload một ảnh bằng curl, rồi viết <code>GET /files?key=</code> trả URL đọc có hạn 10 phút.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>MinIO: <code>docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 minio/minio server /data --console-address :9001</code>. Tạo bucket <code>sobaitap</code> ở <code>localhost:9001</code>.</li>
+<li>Biến môi trường cho SDK: <code>AWS_ACCESS_KEY_ID=minio</code>, <code>AWS_SECRET_ACCESS_KEY=minio12345</code>, <code>AWS_REGION=us-east-1</code>, endpoint <code>http://localhost:9000</code>.</li>
+<li>Upload bằng curl: <code>curl -X PUT -H "Content-Type: image/jpeg" --data-binary @anh.jpg "$URL"</code>. Kích thước file phải đúng bằng <code>size</code> đã xin.</li>
+<li>Thử gửi file lớn hơn hoặc đổi Content-Type: MinIO phải từ chối vì sai chữ ký.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;log&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/aws/aws-sdk-go-v2/aws&quot;</span>
+    <span class="s">&quot;github.com/aws/aws-sdk-go-v2/config&quot;</span>
+    <span class="s">&quot;github.com/aws/aws-sdk-go-v2/service/s3&quot;</span>
+)
+
+<span class="k">const</span> bucket = <span class="s">&quot;sobaitap&quot;</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+    ctx := context.<span class="f">Background</span>()
+    cfg, err := config.<span class="f">LoadDefaultConfig</span>(ctx)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        log.<span class="f">Fatal</span>(err)
+    }
+    c := s3.<span class="f">NewFromConfig</span>(cfg, <span class="k">func</span>(o *s3.Options) {
+        o.BaseEndpoint = aws.<span class="f">String</span>(<span class="s">&quot;http://localhost:9000&quot;</span>)
+        o.UsePathStyle = <span class="b">true</span>
+    })
+    ps := s3.<span class="f">NewPresignClient</span>(c)
+    n := <span class="n">0</span>
+
+    http.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /uploads/presign&quot;</span>, <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        <span class="k">var</span> in <span class="k">struct</span> {
+            ContentType <span class="t">string</span> <span class="s">`json:&quot;contentType&quot;`</span>
+            Size        <span class="t">int64</span>  <span class="s">`json:&quot;size&quot;`</span>
+        }
+        <span class="k">if</span> json.<span class="f">NewDecoder</span>(r.Body).<span class="f">Decode</span>(&amp;in) != <span class="b">nil</span> || in.ContentType != <span class="s">&quot;image/jpeg&quot;</span> || in.Size &lt;= <span class="n">0</span> || in.Size &gt; <span class="n">5</span>&lt;&lt;<span class="n">20</span> {
+            http.<span class="f">Error</span>(w, <span class="s">&quot;chỉ nhận ảnh JPG tối đa 5MB&quot;</span>, <span class="n">400</span>)
+            <span class="k">return</span>
+        }
+        n++
+        key := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;uploads/7/%d-%d.jpg&quot;</span>, time.<span class="f">Now</span>().<span class="f">Unix</span>(), n) <span class="c">// bản thật dùng ULID như trong bài</span>
+        req, err := ps.<span class="f">PresignPutObject</span>(r.<span class="f">Context</span>(), &amp;s3.PutObjectInput{
+            Bucket: aws.<span class="f">String</span>(bucket), Key: aws.<span class="f">String</span>(key),
+            ContentType: aws.<span class="f">String</span>(in.ContentType), ContentLength: aws.<span class="f">Int64</span>(in.Size),
+        }, s3.<span class="f">WithPresignExpires</span>(<span class="n">5</span>*time.Minute))
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            http.<span class="f">Error</span>(w, err.<span class="f">Error</span>(), <span class="n">500</span>)
+            <span class="k">return</span>
+        }
+        json.<span class="f">NewEncoder</span>(w).<span class="f">Encode</span>(<span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{<span class="s">&quot;key&quot;</span>: key, <span class="s">&quot;url&quot;</span>: req.URL})
+    })
+
+    http.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /files&quot;</span>, <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        key := r.URL.<span class="f">Query</span>().<span class="f">Get</span>(<span class="s">&quot;key&quot;</span>)
+        <span class="c">// bản thật: kiểm tra người xem có quyền với file này</span>
+        req, err := ps.<span class="f">PresignGetObject</span>(r.<span class="f">Context</span>(), &amp;s3.GetObjectInput{Bucket: aws.<span class="f">String</span>(bucket), Key: aws.<span class="f">String</span>(key)},
+            s3.<span class="f">WithPresignExpires</span>(<span class="n">10</span>*time.Minute))
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            http.<span class="f">Error</span>(w, err.<span class="f">Error</span>(), <span class="n">500</span>)
+            <span class="k">return</span>
+        }
+        json.<span class="f">NewEncoder</span>(w).<span class="f">Encode</span>(<span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{<span class="s">&quot;url&quot;</span>: req.URL})
+    })
+
+    log.<span class="f">Fatal</span>(http.<span class="f">ListenAndServe</span>(<span class="s">&quot;:8080&quot;</span>, <span class="b">nil</span>))
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">SIZE=$(stat -f%z anh.jpg)      # Linux: stat -c%s anh.jpg</span>
+<span class="t-p">$</span> <span class="t-c">curl -s -X POST localhost:8080/uploads/presign -d &quot;{\&quot;contentType\&quot;:\&quot;image/jpeg\&quot;,\&quot;size\&quot;:$SIZE}&quot;</span>
+{&quot;key&quot;:&quot;uploads/7/1793708400-1.jpg&quot;,&quot;url&quot;:&quot;http://localhost:9000/sobaitap/uploads/7/1793708400-1.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Credential=minio%2F20261103%2Fus-east-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20261103T033000Z&amp;X-Amz-Expires=300&amp;X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost&amp;X-Amz-Signature=5f2c...&quot;}
+
+<span class="t-p">$</span> <span class="t-c">curl -s -o /dev/null -w &quot;%{http_code}\n&quot; -X PUT -H &quot;Content-Type: image/jpeg&quot; --data-binary @anh.jpg &quot;$URL&quot;</span>
+200
+
+<span class="t-p">$</span> <span class="t-c">curl -s -o /dev/null -w &quot;%{http_code}\n&quot; -X PUT -H &quot;Content-Type: text/html&quot; --data-binary @anh.jpg &quot;$URL&quot;</span>
+403</pre></div>
+<p><b>Giải thích:</b> <code>X-Amz-SignedHeaders=content-length;content-type;host</code> cho thấy kích thước và kiểu file nằm trong chữ ký. Upload đúng kiểu trả 200. Đổi Content-Type thì chữ ký không khớp, MinIO trả 403 <code>SignatureDoesNotMatch</code>. Sau 5 phút, URL hết hạn và cũng bị 403. Mở <code>localhost:9001</code> sẽ thấy file trong bucket.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="realtime-file">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="grpc.html"><small>Bài trước</small>gRPC và Protocol Buffers</a><a class="next" href="quan-sat.html"><small>Bài tiếp theo</small>Theo dõi hệ thống: log, metrics, tracing</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#ba-viec-moi-san-pham-deu-can">Ba việc mọi sản phẩm đều cần</a><a href="#realtime-chon-polling-sse-hay-websocket">Realtime: chọn polling, SSE hay WebSocket</a><a href="#upload-file-dung-cach-presigned-url">Upload file đúng cách: presigned URL</a><a href="#gui-email">Gửi email</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

@@ -40,7 +40,7 @@ Go API -> Hàng đợi: "gửi email xác nhận đơn 9001"
 Go API --> Trình duyệt: 201 Created {id: 9001}
 note Hàng đợi: worker gửi email sau, request không phải chờ
 </fig>
-<p>Mỗi ô trong sơ đồ này là một bài trong lộ trình: HTTP (bài 11), xác thực (18), SQL và giao dịch (14 đến 16), cache (17), hàng đợi (20).</p>
+<p>Mỗi ô trong sơ đồ này là một bài trong lộ trình: HTTP (bài {{n:http}}), xác thực (18), SQL và giao dịch (14 đến 16), cache (17), hàng đợi (20).</p>
 
 <arch w="800" h="380" caption="Kiến trúc backend điển hình mà lộ trình này dạy bạn xây: client gọi qua load balancer tới API viết bằng Go; API đọc ghi Postgres, cache Redis, đẩy việc chậm sang hàng đợi cho worker; mọi thứ được giám sát">
 node web 70 70 browser "Trình duyệt" "React / Angular"
@@ -90,7 +90,7 @@ if err != nil {
 }
 total := product.Price * int64(req.Quantity)
 </pre>
-<aside class="real"><p>Lỗi kiểu này xảy ra thật: nhiều chương trình săn lỗi (bug bounty) của các sàn thương mại điện tử đã trả thưởng cho các báo cáo "sửa giá / sửa số lượng âm trong request". Bài 19 sẽ đi qua cả danh sách lỗi hay gặp nhất.</p></aside>
+<aside class="real"><p>Lỗi kiểu này xảy ra thật: nhiều chương trình săn lỗi (bug bounty) của các sàn thương mại điện tử đã trả thưởng cho các báo cáo "sửa giá / sửa số lượng âm trong request". Bài {{n:bao-mat-api}} sẽ đi qua cả danh sách lỗi hay gặp nhất.</p></aside>
 
 <h2>Vì sao chọn Go</h2>
 <p>Go được Google tạo ra (công bố năm 2009, bản 1.0 năm 2012) để viết các dịch vụ mạng lớn. Nó cố tình đơn giản: ít từ khoá, một cách định dạng code duy nhất, không có class và kế thừa.</p>
@@ -114,7 +114,7 @@ total := product.Price * int64(req.Quantity)
 <tr><td>Hệ sinh thái</td><td>Cực lớn (npm)</td><td>Nhỏ hơn, nhưng thư viện chuẩn làm được rất nhiều</td></tr>
 <tr><td>Dùng chung code với FE</td><td>Được</td><td>Không</td></tr>
 </table>
-<aside class="warn"><p>Go không phải lựa chọn tốt nhất cho mọi thứ. Học máy và phân tích dữ liệu thì Python mạnh hơn nhiều. Hệ thống cần độ trễ cực thấp và ổn định tuyệt đối (không chấp nhận bộ thu gom rác) thì người ta chọn Rust hoặc C++. Bài 23 có câu chuyện Discord chuyển một dịch vụ từ Go sang Rust vì lý do này.</p></aside>
+<aside class="warn"><p>Go không phải lựa chọn tốt nhất cho mọi thứ. Học máy và phân tích dữ liệu thì Python mạnh hơn nhiều. Hệ thống cần độ trễ cực thấp và ổn định tuyệt đối (không chấp nhận bộ thu gom rác) thì người ta chọn Rust hoặc C++. Bài {{n:he-thong-that}} có câu chuyện Discord chuyển một dịch vụ từ Go sang Rust vì lý do này.</p></aside>
 
 <h2>Những thay đổi trong cách nghĩ</h2>
 <p>Đây là những thứ dân frontend chuyển sang backend hay vấp nhất. Bạn không cần nhớ ngay, nhưng sẽ gặp lại chúng xuyên suốt lộ trình:</p>
@@ -122,7 +122,7 @@ total := product.Price * int64(req.Quantity)
 <li><b>"Chạy trên máy tôi được" không còn đủ.</b> Hai request đến cùng lúc, mạng mất giữa chừng, người dùng bấm nút hai lần: code phải đúng trong mọi trường hợp đó.</li>
 <li><b>Dữ liệu sống lâu hơn code.</b> Bạn có thể viết lại frontend trong một tuần. Dữ liệu 5 năm trong database thì phải chuyển đổi cẩn thận từng cột (migration).</li>
 <li><b>Mọi thứ đều có giới hạn.</b> Upload tối đa bao nhiêu MB? Một trang trả bao nhiêu dòng? Một người được gọi API bao nhiêu lần mỗi phút? Không đặt giới hạn là chờ bị sập.</li>
-<li><b>Lỗi là chuyện bình thường.</b> Go buộc bạn xử lý lỗi ở mọi bước (bài 7). Lúc đầu thấy dài dòng, sau sẽ thấy đó là lý do hệ thống Go ít bất ngờ.</li>
+<li><b>Lỗi là chuyện bình thường.</b> Go buộc bạn xử lý lỗi ở mọi bước (bài {{n:xu-ly-loi}}). Lúc đầu thấy dài dòng, sau sẽ thấy đó là lý do hệ thống Go ít bất ngờ.</li>
 <li><b>Đo, đừng đoán.</b> Chậm ở đâu thì xem log, metrics, kế hoạch truy vấn. Đừng tối ưu theo cảm giác.</li>
 </ul>
 
@@ -142,7 +142,7 @@ Chặng 0 · Khởi động :: bạn đang ở đây
 - Không cần làm gì, vì frontend đã ẩn ô nhập
 - Kiểm tra userId có tồn tại trong database không
 + Bỏ qua userId trong request, lấy người dùng từ phiên đăng nhập (42), hoặc từ chối nếu hai giá trị khác nhau
-? Mọi thứ trong request đều có thể bị sửa. Danh tính người dùng chỉ được lấy từ phiên đăng nhập mà backend tự xác minh. Đây là lỗi BOLA, đứng số 1 trong OWASP API Top 10 (bài 19).
+? Mọi thứ trong request đều có thể bị sửa. Danh tính người dùng chỉ được lấy từ phiên đăng nhập mà backend tự xác minh. Đây là lỗi BOLA, đứng số 1 trong OWASP API Top 10 (bài {{n:bao-mat-api}}).
 </quiz>
 
 <quiz q="Vì sao Go phù hợp với dịch vụ có hàng chục nghìn kết nối đồng thời?">
@@ -157,7 +157,7 @@ Chặng 0 · Khởi động :: bạn đang ở đây
 <p>Chọn một màn hình bạn từng làm ở frontend (ví dụ trang danh sách đơn hàng có phân trang và bộ lọc). Viết ra giấy:</p>
 <ol><li>Những request nào được gửi đi, method gì, URL gì.</li><li>Với mỗi request, backend phải kiểm tra những gì trước khi trả dữ liệu.</li><li>Dữ liệu đó có thể nằm ở những bảng nào trong database.</li></ol>
 <details class="sol"><summary>Gợi ý đáp án</summary>
-<p>Ví dụ <code>GET /api/orders?status=paid&amp;page=2</code>. Backend phải: xác định người gọi là ai (phiên đăng nhập), chỉ lấy đơn của chính người đó (không để xem đơn người khác), kiểm tra <code>status</code> có thuộc danh sách hợp lệ, giới hạn <code>page</code> và số dòng mỗi trang, rồi truy vấn bảng <code>orders</code> (có thể JOIN <code>order_items</code>, <code>products</code>). Bạn sẽ tự viết đúng endpoint này ở bài 12 và 15.</p>
+<p>Ví dụ <code>GET /api/orders?status=paid&amp;page=2</code>. Backend phải: xác định người gọi là ai (phiên đăng nhập), chỉ lấy đơn của chính người đó (không để xem đơn người khác), kiểm tra <code>status</code> có thuộc danh sách hợp lệ, giới hạn <code>page</code> và số dòng mỗi trang, rồi truy vấn bảng <code>orders</code> (có thể JOIN <code>order_items</code>, <code>products</code>). Bạn sẽ tự viết đúng endpoint này ở bài {{n:rest}} và {{n:go-postgres}}.</p>
 </details>
 </details>
 <details class="ex"><summary>Thử "tấn công" một trang của chính bạn</summary>

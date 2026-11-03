@@ -97,7 +97,7 @@ func main() {
 <tr><td>struct</td><td>struct với mọi trường là zero value</td></tr>
 </table>
 <p>Nhà thiết kế Go cố tình làm cho zero value hữu dụng: một <code>sync.Mutex</code> hay <code>bytes.Buffer</code> mới khai báo là dùng được ngay, không cần gọi hàm khởi tạo.</p>
-<aside class="warn"><p>Zero value gây ra một câu hỏi rất thật ở backend: client gửi <code>{"score": 0}</code> hay <b>không gửi</b> <code>score</code>? Với <code>int</code>, cả hai đều thành <code>0</code>. Khi cần phân biệt "không có" và "bằng 0" (ví dụ API cập nhật một phần, PATCH), người ta dùng con trỏ <code>*int</code> (nil = không gửi). Bài 05 và 12 sẽ dùng cách này.</p></aside>
+<aside class="warn"><p>Zero value gây ra một câu hỏi rất thật ở backend: client gửi <code>{"score": 0}</code> hay <b>không gửi</b> <code>score</code>? Với <code>int</code>, cả hai đều thành <code>0</code>. Khi cần phân biệt "không có" và "bằng 0" (ví dụ API cập nhật một phần, PATCH), người ta dùng con trỏ <code>*int</code> (nil = không gửi). Bài {{n:struct-con-tro}} và {{n:rest}} sẽ dùng cách này.</p></aside>
 
 <p>Tự kiểm chứng:</p>
 <pre lang="go">

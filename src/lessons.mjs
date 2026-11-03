@@ -77,6 +77,12 @@ export const LESSONS = [
     goals: ['Truyền context xuyên suốt một request', 'Viết test dạng bảng (table-driven)', 'Chạy test với -race và đo coverage'],
   },
   {
+    slug: 'mau-dong-thoi', phase: 1, mins: 55,
+    title: 'Các mẫu xử lý đồng thời hay dùng',
+    desc: 'Pipeline, fan-out / fan-in, semaphore, errgroup giới hạn, sync.Once, sync.Pool, atomic, chống rò rỉ goroutine, rate limit, debounce.',
+    goals: ['Nhận ra và áp dụng đúng mẫu đồng thời cho từng bài toán', 'Giới hạn số việc chạy song song', 'Không để rò rỉ goroutine'],
+  },
+  {
     slug: 'http', phase: 2, mins: 60,
     title: 'HTTP từ gốc với net/http',
     desc: 'HTTP nhìn từ phía máy chủ, viết server bằng thư viện chuẩn, định tuyến kiểu Go 1.22, đọc và trả JSON an toàn.',
@@ -95,6 +101,12 @@ export const LESSONS = [
     goals: ['Viết middleware log, recover, request id', 'Tách code theo lớp, tiêm phụ thuộc', 'Tắt server không làm rơi request (graceful shutdown)'],
   },
   {
+    slug: 'framework', phase: 2, mins: 60,
+    title: 'Framework: Chi, Gin, Echo và tài liệu OpenAPI',
+    desc: 'Khi nào dùng framework, cùng một API viết bằng net/http, Chi và Gin, validate bằng struct tag, sinh tài liệu OpenAPI, CORS.',
+    goals: ['Đọc hiểu code Gin / Chi trong dự án công ty', 'Validate request bằng thư viện', 'Có tài liệu API cho đội frontend'],
+  },
+  {
     slug: 'sql', phase: 3, mins: 60,
     title: 'SQL và thiết kế cơ sở dữ liệu',
     desc: 'Bảng, khoá chính, khoá ngoại, quan hệ 1-n và n-n, chuẩn hoá, JOIN, GROUP BY: nền tảng mọi backend.',
@@ -105,6 +117,12 @@ export const LESSONS = [
     title: 'Go làm việc với PostgreSQL',
     desc: 'pgx và connection pool, truy vấn có tham số, migration, sqlc sinh code, giao dịch (transaction).',
     goals: ['Kết nối Postgres qua pool', 'Viết repository an toàn với SQL injection', 'Dùng transaction cho thao tác nhiều bước'],
+  },
+  {
+    slug: 'orm-sqlc', phase: 3, mins: 55,
+    title: 'sqlc, GORM và migration trong thực tế',
+    desc: 'sqlc từ đầu đến cuối, GORM (model, query, association, transaction, bẫy hiệu năng), goose / golang-migrate, chọn công cụ nào.',
+    goals: ['Dùng sqlc sinh code truy vấn có kiểu', 'Đọc và viết code GORM, tránh bẫy N+1', 'Chạy migration an toàn'],
   },
   {
     slug: 'toi-uu-query', phase: 3, mins: 60,
@@ -137,16 +155,46 @@ export const LESSONS = [
     goals: ['Biết khi nào cần hàng đợi', 'Thiết kế việc chạy nền an toàn khi chạy lại', 'Xác minh chữ ký webhook'],
   },
   {
+    slug: 'message-queue', phase: 5, mins: 60,
+    title: 'Message queue: Kafka, NATS, RabbitMQ',
+    desc: 'Queue và log, topic / partition / consumer group, at-least-once, thứ tự, retry và DLQ, viết producer / consumer bằng Go, chọn công cụ.',
+    goals: ['Hiểu Kafka hoạt động thế nào', 'Viết consumer Go xử lý đúng khi lỗi', 'Chọn hàng đợi phù hợp'],
+  },
+  {
+    slug: 'grpc', phase: 5, mins: 55,
+    title: 'gRPC và Protocol Buffers',
+    desc: 'Vì sao các dịch vụ Go nói chuyện bằng gRPC, viết file .proto, sinh code, server / client, streaming, interceptor, deadline, lỗi, grpc-gateway.',
+    goals: ['Viết service gRPC bằng Go', 'Dùng deadline, metadata, interceptor', 'Biết khi nào dùng gRPC thay REST'],
+  },
+  {
+    slug: 'realtime-file', phase: 5, mins: 50,
+    title: 'WebSocket, upload file và gửi email',
+    desc: 'WebSocket / SSE cho realtime, hub nhiều client, mở rộng nhiều server bằng Redis pub/sub; upload file trực tiếp lên S3 bằng presigned URL; gửi email qua hàng đợi.',
+    goals: ['Đẩy dữ liệu realtime xuống trình duyệt', 'Upload file lớn không qua server', 'Gửi email tin cậy'],
+  },
+  {
     slug: 'quan-sat', phase: 5, mins: 45,
     title: 'Theo dõi hệ thống: log, metrics, tracing',
     desc: 'Ba trụ cột quan sát hệ thống, health check, Prometheus, OpenTelemetry, pprof, SLO và cảnh báo.',
     goals: ['Biết hệ thống đang khoẻ hay ốm', 'Lần ra request chậm ở đâu', 'Đặt cảnh báo có ý nghĩa'],
   },
   {
+    slug: 'test-nang-cao', phase: 5, mins: 55,
+    title: 'Test nâng cao: mock, database thật, fuzz, load test',
+    desc: 'Test table, fake vs mock (gomock), testcontainers với Postgres thật, golden file, fuzzing, test race, đo tải với k6 / vegeta, coverage trong CI.',
+    goals: ['Viết test tích hợp với database thật', 'Chọn fake hay mock', 'Đo tải trước khi lên production'],
+  },
+  {
     slug: 'trien-khai', phase: 5, mins: 55,
     title: 'Docker, CI/CD và triển khai',
     desc: 'Đóng gói bằng Docker nhiều giai đoạn, cấu hình 12-factor, CI chạy test, triển khai không gián đoạn, mở rộng theo chiều ngang.',
     goals: ['Viết Dockerfile cho Go nhỏ và an toàn', 'Dựng CI chạy test + build', 'Hiểu các lựa chọn hosting cho backend Go'],
+  },
+  {
+    slug: 'kubernetes', phase: 5, mins: 60,
+    title: 'Kubernetes cho lập trình viên Go',
+    desc: 'Pod, Deployment, Service, Ingress, ConfigMap, Secret, probe, resource limit, HPA, rolling update, graceful shutdown trong K8s, đọc YAML và gỡ lỗi.',
+    goals: ['Deploy API Go lên Kubernetes', 'Cấu hình probe, limit, autoscale đúng', 'Gỡ lỗi pod không chạy'],
   },
   {
     slug: 'he-thong-that', phase: 5, mins: 60,

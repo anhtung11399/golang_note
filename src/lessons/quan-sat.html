@@ -9,7 +9,7 @@
 </table>
 <aside class="fe"><p>Bạn có thể đã dùng Sentry hoặc Datadog RUM ở frontend để bắt lỗi JavaScript của người dùng thật. Backend dùng cùng ý tưởng, chỉ là dữ liệu đến từ server. Sentry cũng có SDK cho Go.</p></aside>
 
-<h2>Logs: đã học ở bài 13</h2>
+<h2>Logs: đã học ở bài {{n:kien-truc}}</h2>
 <ul>
 <li>Log có cấu trúc (JSON), mỗi dòng có <code>request_id</code>, <code>user_id</code> khi có.</li>
 <li>Mức log: <code>ERROR</code> cho thứ cần người xem, <code>WARN</code> cho bất thường tự phục hồi được, <code>INFO</code> cho sự kiện nghiệp vụ quan trọng, <code>DEBUG</code> tắt trên production.</li>
@@ -39,7 +39,7 @@ var (
     }, []string{"method", "route"})
 )
 
-// Trong middleware Logger (bài 13), sau next.ServeHTTP:
+// Trong middleware Logger (bài {{n:kien-truc}}), sau next.ServeHTTP:
 route := r.Pattern // Go 1.23+: mẫu route đã khớp, ví dụ "GET /classes/{id}"
 httpRequests.WithLabelValues(r.Method, route, strconv.Itoa(rec.status)).Inc()
 httpDuration.WithLabelValues(r.Method, route).Observe(time.Since(start).Seconds())
@@ -110,7 +110,7 @@ mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK)
 })
 </pre>
-<p>Load balancer và Kubernetes gọi các endpoint này: bản nào không "ready" thì không nhận request mới, bản nào không "live" thì bị khởi động lại. Lúc graceful shutdown (bài 13), cho <code>/readyz</code> trả 503 trước để load balancer ngừng gửi request mới tới.</p>
+<p>Load balancer và Kubernetes gọi các endpoint này: bản nào không "ready" thì không nhận request mới, bản nào không "live" thì bị khởi động lại. Lúc graceful shutdown (bài {{n:kien-truc}}), cho <code>/readyz</code> trả 503 trước để load balancer ngừng gửi request mới tới.</p>
 
 <h2>pprof: xem bên trong chương trình đang chạy</h2>
 <p>Go có sẵn công cụ profiling cực mạnh. Bật nó ở cổng nội bộ:</p>
@@ -124,7 +124,7 @@ go tool pprof -http=:8000 http://localhost:6060/debug/pprof/profile?seconds=30  
 go tool pprof -http=:8000 http://localhost:6060/debug/pprof/heap                # bộ nhớ: ai cấp phát nhiều
 curl "http://localhost:6060/debug/pprof/goroutine?debug=1"                        # đang có bao nhiêu goroutine, kẹt ở đâu
 </pre>
-<p>Lệnh đầu mở giao diện web có biểu đồ <i>flame graph</i>: hàm nào càng rộng càng tốn thời gian. Số goroutine tăng mãi theo thời gian là dấu hiệu rò rỉ goroutine (bài 09).</p>
+<p>Lệnh đầu mở giao diện web có biểu đồ <i>flame graph</i>: hàm nào càng rộng càng tốn thời gian. Số goroutine tăng mãi theo thời gian là dấu hiệu rò rỉ goroutine (bài {{n:dong-thoi}}).</p>
 <aside class="warn"><p>Không bao giờ để <code>/debug/pprof</code> mở ra Internet: nó lộ thông tin bên trong và có thể bị dùng để làm chậm server. Chỉ nghe ở <code>127.0.0.1</code> hoặc cổng nội bộ, truy cập qua SSH / VPN.</p></aside>
 
 <h2>SLO và cảnh báo</h2>
@@ -155,9 +155,9 @@ curl "http://localhost:6060/debug/pprof/goroutine?debug=1"                      
 <p>Tạo tải, đọc metrics, và (tuỳ chọn) xem bằng Prometheus + Grafana.</p>
 <p><b>Gợi ý từng bước</b></p>
 <ol class="steps">
-<li>Middleware đo: giống <code>Logger</code> ở bài 13 (bọc <code>ResponseWriter</code> để nhớ status), nhưng thay vì ghi log thì tăng counter và ghi histogram.</li>
+<li>Middleware đo: giống <code>Logger</code> ở bài {{n:kien-truc}} (bọc <code>ResponseWriter</code> để nhớ status), nhưng thay vì ghi log thì tăng counter và ghi histogram.</li>
 <li>Nhãn route lấy từ <code>r.Pattern</code> (Go 1.23+): sau khi mux khớp, nó là mẫu như <code>"GET /notes/{id}"</code>, không phải đường dẫn thật.</li>
-<li>Hai server trong một chương trình: server chính ở <code>:8080</code> chạy ở <code>main</code>, server nội bộ chạy trong một goroutine (bài 09).</li>
+<li>Hai server trong một chương trình: server chính ở <code>:8080</code> chạy ở <code>main</code>, server nội bộ chạy trong một goroutine (bài {{n:dong-thoi}}).</li>
 <li>Tạo tải: một vòng <code>for</code> trong terminal gọi <code>curl</code> chạy nền là đủ, hoặc cài <code>hey</code>: <code>go install github.com/rakyll/hey@latest</code>.</li>
 </ol>
 <details class="sol"><summary>Xem lời giải</summary>

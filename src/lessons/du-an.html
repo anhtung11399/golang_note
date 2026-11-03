@@ -5,7 +5,7 @@
 <tr><td>Giáo viên</td><td>Tạo lớp (miễn phí tối đa 2 lớp), xem mã lớp, xem danh sách học sinh, giao bài, xem ai đã nộp / chưa nộp, chấm điểm và nhận xét</td></tr>
 <tr><td>Học sinh</td><td>Vào lớp bằng mã lớp (không vượt sĩ số), xem bài tập của các lớp mình học, nộp bài (văn bản), xem điểm của chính mình, nộp lại khi chưa được chấm</td></tr>
 </table>
-<p>Yêu cầu phi chức năng: chỉ dùng Go + PostgreSQL (+ Redis tuỳ chọn), có test, chạy được bằng một lệnh <code>docker compose up</code>, đạt checklist bảo mật ở bài 19.</p>
+<p>Yêu cầu phi chức năng: chỉ dùng Go + PostgreSQL (+ Redis tuỳ chọn), có test, chạy được bằng một lệnh <code>docker compose up</code>, đạt checklist bảo mật ở bài {{n:bao-mat-api}}.</p>
 
 <h2>Kiến trúc</h2>
 <fig type="flow" caption="Một repo, hai chương trình: API và worker dùng chung database">
@@ -129,24 +129,24 @@ DROP TABLE jobs, submissions, assignments, enrollments, classes, sessions, users
 <h2>Lộ trình làm từng bước</h2>
 <p>Làm theo thứ tự. Mỗi bước có tiêu chí "xong" rõ ràng, commit sau mỗi bước. Phần lớn code bạn đã có sẵn trong lời giải bài tập của các bài trước, mục "Bắt đầu từ" ở mỗi bước chỉ chỗ để chép sang rồi sửa.</p>
 
-<h3>Bước 1: khung dự án (bài 08, 11, 13)</h3>
+<h3>Bước 1: khung dự án (bài {{n:package-module}}, {{n:http}}, {{n:kien-truc}})</h3>
 <ul>
 <li><code>go mod init</code>, cấu trúc thư mục, <code>config.Load()</code>, logger slog JSON.</li>
 <li><code>http.Server</code> có timeout, graceful shutdown, middleware RequestID / Logger / Recover / SecurityHeaders.</li>
 <li><code>GET /livez</code>, <code>GET /readyz</code>.</li>
-<li><b>Bắt đầu từ:</b> lời giải bài tập bài 13 (dự án <code>notes-api</code>): đã có đủ cấu trúc thư mục, ba middleware, <code>run()</code> với graceful shutdown. Đổi tên module, bỏ phần ghi chú.</li>
+<li><b>Bắt đầu từ:</b> lời giải bài tập bài {{n:kien-truc}} (dự án <code>notes-api</code>): đã có đủ cấu trúc thư mục, ba middleware, <code>run()</code> với graceful shutdown. Đổi tên module, bỏ phần ghi chú.</li>
 <li><b>Xong khi:</b> <code>go run ./cmd/api</code> chạy, Ctrl+C tắt sạch, mỗi request có một dòng log JSON.</li>
 </ul>
 
-<h3>Bước 2: database (bài 14, 15)</h3>
+<h3>Bước 2: database (bài {{n:sql}}, {{n:go-postgres}})</h3>
 <ul>
 <li>Compose với Postgres, migration bằng goose, pool pgx, <code>/readyz</code> ping database.</li>
 <li>Helper test: tạo database / schema riêng cho mỗi test.</li>
-<li><b>Bắt đầu từ:</b> lược đồ bài 14 làm file migration đầu tiên (thêm dòng <code>-- +goose Up</code> / <code>-- +goose Down</code> như ví dụ bài 15), <code>compose.yaml</code> ở lời giải bài 22.</li>
+<li><b>Bắt đầu từ:</b> lược đồ bài {{n:sql}} làm file migration đầu tiên (thêm dòng <code>-- +goose Up</code> / <code>-- +goose Down</code> như ví dụ bài {{n:go-postgres}}), <code>compose.yaml</code> ở lời giải bài {{n:trien-khai}}.</li>
 <li><b>Xong khi:</b> <code>goose up</code> rồi <code>goose down</code> rồi <code>goose up</code> chạy sạch.</li>
 </ul>
 
-<h3>Bước 3: đăng ký, đăng nhập (bài 18)</h3>
+<h3>Bước 3: đăng ký, đăng nhập (bài {{n:xac-thuc}})</h3>
 <pre lang="go" file="internal/service/auth.go (trích)">
 func (s *Auth) Login(ctx context.Context, email, password string) (token string, err error) {
     email = strings.ToLower(strings.TrimSpace(email))
@@ -177,11 +177,11 @@ func (s *Auth) Login(ctx context.Context, email, password string) (token string,
 }
 </pre>
 <ul>
-<li><b>Bắt đầu từ:</b> <code>auth.go</code> trong lời giải bài 18. Đoạn trích ở trên là cùng logic đó, chỉ tách sang tầng service (bài 13) và thêm một chi tiết: so mật khẩu với một chuỗi băm giả khi không có email, để thời gian trả lời như nhau.</li>
+<li><b>Bắt đầu từ:</b> <code>auth.go</code> trong lời giải bài {{n:xac-thuc}}. Đoạn trích ở trên là cùng logic đó, chỉ tách sang tầng service (bài {{n:kien-truc}}) và thêm một chi tiết: so mật khẩu với một chuỗi băm giả khi không có email, để thời gian trả lời như nhau.</li>
 <li><b>Xong khi:</b> có test cho: đăng ký trùng email (kể cả khác hoa thường), đăng nhập sai không lộ email tồn tại, quá 5 lần bị 429, đăng xuất thì cookie cũ bị 401.</li>
 </ul>
 
-<h3>Bước 4: lớp học và hạn mức (bài 16)</h3>
+<h3>Bước 4: lớp học và hạn mức (bài {{n:toi-uu-query}})</h3>
 <pre lang="sql" file="Vào lớp: kiểm sĩ số NGAY trong câu ghi">
 INSERT INTO enrollments (class_id, student_id)
 SELECT c.id, $2
@@ -191,14 +191,14 @@ WHERE c.join_code = $1
 ON CONFLICT DO NOTHING
 RETURNING class_id;
 </pre>
-<aside class="warn"><p>Câu trên vẫn có khe hở ở mức cô lập Read Committed: hai học sinh vào lớp còn đúng 1 chỗ có thể cùng đếm thấy chỗ trống. Hãy khoá dòng lớp trước trong transaction (<code>SELECT ... FROM classes WHERE join_code = $1 FOR UPDATE</code>), giống cách khoá dòng giáo viên ở bài 16. Viết test 20 goroutine cùng vào lớp sĩ số 5 để chứng minh.</p></aside>
+<aside class="warn"><p>Câu trên vẫn có khe hở ở mức cô lập Read Committed: hai học sinh vào lớp còn đúng 1 chỗ có thể cùng đếm thấy chỗ trống. Hãy khoá dòng lớp trước trong transaction (<code>SELECT ... FROM classes WHERE join_code = $1 FOR UPDATE</code>), giống cách khoá dòng giáo viên ở bài {{n:toi-uu-query}}. Viết test 20 goroutine cùng vào lớp sĩ số 5 để chứng minh.</p></aside>
 <ul>
 <li>Mã lớp: 8 ký tự ngẫu nhiên từ <code>crypto/rand</code>, bỏ các ký tự dễ nhầm (0/O, 1/I/L), UNIQUE, trùng thì sinh lại.</li>
-<li><b>Bắt đầu từ:</b> <code>CreateClassWithQuota</code> và test 10 goroutine trong lời giải bài 16. Vào lớp làm y hệt, chỉ đổi dòng bị khoá từ giáo viên sang lớp.</li>
+<li><b>Bắt đầu từ:</b> <code>CreateClassWithQuota</code> và test 10 goroutine trong lời giải bài {{n:toi-uu-query}}. Vào lớp làm y hệt, chỉ đổi dòng bị khoá từ giáo viên sang lớp.</li>
 <li><b>Xong khi:</b> test đồng thời chứng minh không vượt hạn mức 2 lớp và không vượt sĩ số.</li>
 </ul>
 
-<h3>Bước 5: bài tập, nộp bài, chấm bài (bài 12, 15, 19)</h3>
+<h3>Bước 5: bài tập, nộp bài, chấm bài (bài {{n:rest}}, {{n:go-postgres}}, {{n:bao-mat-api}})</h3>
 <pre lang="sql" file="Nộp bài: học sinh phải thuộc lớp, bài chưa được chấm">
 INSERT INTO submissions (assignment_id, student_id, content)
 SELECT a.id, $2, $3
@@ -224,23 +224,23 @@ ORDER BY u.name, u.id
 LIMIT $3 OFFSET $4;
 </pre>
 <ul>
-<li><b>Bắt đầu từ:</b> <code>AssignmentStore</code> trong lời giải bài 15 (đã kiểm quyền giáo viên trong mọi câu SQL), cách đọc lỗi <code>23505</code> ở bài 15, <code>Validate()</code> ở bài 12.</li>
+<li><b>Bắt đầu từ:</b> <code>AssignmentStore</code> trong lời giải bài {{n:go-postgres}} (đã kiểm quyền giáo viên trong mọi câu SQL), cách đọc lỗi <code>23505</code> ở bài {{n:go-postgres}}, <code>Validate()</code> ở bài {{n:rest}}.</li>
 <li><b>Xong khi:</b> có bộ test phân quyền: giáo viên B không xem / chấm được bài của lớp giáo viên A, học sinh không thuộc lớp không nộp được, học sinh không xem được bài nộp của bạn khác, học sinh không gọi được endpoint chấm bài.</li>
 </ul>
 
-<h3>Bước 6: việc chạy nền (bài 20)</h3>
+<h3>Bước 6: việc chạy nền (bài {{n:bat-dong-bo}})</h3>
 <ul>
 <li>Giao bài → trong cùng transaction chèn job <code>assignment.created</code>.</li>
 <li><code>cmd/worker</code>: lấy việc bằng <code>SKIP LOCKED</code>, "gửi thông báo" (ghi log), bảng <code>notifications_sent</code> chống gửi trùng, thử lại có backoff, dừng an toàn.</li>
 <li>Việc định kỳ: 19 giờ mỗi ngày (giờ Việt Nam) nhắc học sinh có bài hạn ngày mai chưa nộp. Chạy 2 worker cùng lúc mà mỗi học sinh vẫn chỉ nhận một lời nhắc mỗi ngày.</li>
-<li><b>Bắt đầu từ:</b> lời giải bài 20: bảng <code>jobs</code>, <code>notifications_sent</code>, vòng lặp worker, <code>assign</code> tạo bài và việc trong một transaction. Việc định kỳ: thêm bảng <code>reminders_sent(student_id, day)</code> có khoá chính kép, chèn được mới gửi.</li>
+<li><b>Bắt đầu từ:</b> lời giải bài {{n:bat-dong-bo}}: bảng <code>jobs</code>, <code>notifications_sent</code>, vòng lặp worker, <code>assign</code> tạo bài và việc trong một transaction. Việc định kỳ: thêm bảng <code>reminders_sent(student_id, day)</code> có khoá chính kép, chèn được mới gửi.</li>
 </ul>
 
-<h3>Bước 7: quan sát và đóng gói (bài 21, 22)</h3>
+<h3>Bước 7: quan sát và đóng gói (bài {{n:quan-sat}}, {{n:trien-khai}})</h3>
 <ul>
 <li>Metrics RED ở cổng nội bộ, pprof ở localhost.</li>
 <li>Dockerfile nhiều giai đoạn, Compose chạy cả api + worker + postgres, GitHub Actions: vet, test -race, govulncheck, build.</li>
-<li><b>Bắt đầu từ:</b> middleware metrics trong lời giải bài 21, <code>Dockerfile</code>, <code>compose.yaml</code>, <code>.github/workflows/ci.yml</code> trong lời giải bài 22. Thêm một service <code>worker</code> vào compose, build cùng image nhưng chạy lệnh khác.</li>
+<li><b>Bắt đầu từ:</b> middleware metrics trong lời giải bài {{n:quan-sat}}, <code>Dockerfile</code>, <code>compose.yaml</code>, <code>.github/workflows/ci.yml</code> trong lời giải bài {{n:trien-khai}}. Thêm một service <code>worker</code> vào compose, build cùng image nhưng chạy lệnh khác.</li>
 <li><b>Xong khi:</b> clone repo về máy sạch, <code>docker compose up</code> là chạy, CI xanh.</li>
 </ul>
 
@@ -256,14 +256,14 @@ LIMIT $3 OFFSET $4;
 <h2>Lỗi người mới hay mắc ở dự án này</h2>
 <table>
 <tr><th>Lỗi</th><th>Đã học ở</th></tr>
-<tr><td>Trả nguyên struct User (có <code>password_hash</code>) ra JSON</td><td>Bài 19, API3</td></tr>
-<tr><td><code>GET /assignments/{id}</code> không kiểm người gọi có thuộc lớp</td><td>Bài 19, API1</td></tr>
-<tr><td>Đếm số lớp / sĩ số trong Go rồi mới INSERT</td><td>Bài 16</td></tr>
-<tr><td>Gửi thông báo ngay trong handler bằng <code>go func()</code></td><td>Bài 09, 20</td></tr>
-<tr><td>Danh sách rỗng trả <code>null</code></td><td>Bài 04</td></tr>
-<tr><td>Hạn nộp "hôm nay" tính theo UTC, lệch 7 giờ</td><td>Bài 14</td></tr>
-<tr><td>Quên <code>rows.Close()</code>, pool cạn sau vài giờ chạy</td><td>Bài 15</td></tr>
-<tr><td>Không có timeout ở server và client</td><td>Bài 11</td></tr>
+<tr><td>Trả nguyên struct User (có <code>password_hash</code>) ra JSON</td><td>Bài {{n:bao-mat-api}}, API3</td></tr>
+<tr><td><code>GET /assignments/{id}</code> không kiểm người gọi có thuộc lớp</td><td>Bài {{n:bao-mat-api}}, API1</td></tr>
+<tr><td>Đếm số lớp / sĩ số trong Go rồi mới INSERT</td><td>Bài {{n:toi-uu-query}}</td></tr>
+<tr><td>Gửi thông báo ngay trong handler bằng <code>go func()</code></td><td>Bài {{n:dong-thoi}}, {{n:bat-dong-bo}}</td></tr>
+<tr><td>Danh sách rỗng trả <code>null</code></td><td>Bài {{n:slice-map}}</td></tr>
+<tr><td>Hạn nộp "hôm nay" tính theo UTC, lệch 7 giờ</td><td>Bài {{n:sql}}</td></tr>
+<tr><td>Quên <code>rows.Close()</code>, pool cạn sau vài giờ chạy</td><td>Bài {{n:go-postgres}}</td></tr>
+<tr><td>Không có timeout ở server và client</td><td>Bài {{n:http}}</td></tr>
 </table>
 
 <h2>Đưa vào CV</h2>

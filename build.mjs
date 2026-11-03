@@ -57,6 +57,13 @@ const LANG = {
   },
   yaml: { kw: words(''), ty: words(''), bi: words('true false null'), com: /#[^\n]*/, str: /"(?:[^"\\\n]|\\.)*"|'[^'\n]*'/ },
   json: { kw: words(''), ty: words(''), bi: words('true false null'), com: /(?!)/, str: /"(?:[^"\\\n]|\\.)*"/ },
+  proto: {
+    kw: words('syntax package import option message service rpc returns stream enum repeated optional oneof map reserved'),
+    ty: words('string int32 int64 uint32 uint64 bool bytes double float sint32 sint64 fixed32 fixed64'),
+    bi: words('true false'),
+    com: /\/\/[^\n]*/,
+    str: /"(?:[^"\\\n]|\\.)*"/,
+  },
   http: { kw: words('GET POST PUT PATCH DELETE HEAD OPTIONS HTTP'), ty: words(''), bi: words(''), com: /(?!)/, str: /(?!)/ },
   text: null,
 };
@@ -88,7 +95,7 @@ function highlight(code, lang) {
   return out + esc(code.slice(last));
 }
 
-const LANG_NAME = { go: 'Go', ts: 'TypeScript', sql: 'SQL', sh: 'Terminal', docker: 'Dockerfile', yaml: 'YAML', json: 'JSON', http: 'HTTP', text: '' };
+const LANG_NAME = { proto: 'Protobuf',  go: 'Go', ts: 'TypeScript', sql: 'SQL', sh: 'Terminal', docker: 'Dockerfile', yaml: 'YAML', json: 'JSON', http: 'HTTP', text: '' };
 
 function attrs(s) {
   const a = {};
@@ -315,7 +322,7 @@ const SVC = {
   // devtools (xanh dương)
   codedeploy: ['CD', 'dv'], codepipeline: ['CP', 'dv'], ecr: ['ECR', 'cp'], athena: ['ATH', 'an'], opensearch: ['OS', 'an'], quicksight: ['QS', 'an'],
   // backend chung (site Go)
-  gosvc: ['GO', 'go'], goapi: ['API', 'go'], worker: ['WRK', 'go'], grpcsvc: ['gRPC', 'go'], pg: ['PG', 'db'], postgres: ['PG', 'db'], mysql: ['SQL', 'db'], redis: ['RDS', 'db'], kafka: ['KFK', 'ai'], nats: ['NATS', 'ai'], rabbit: ['MQ', 'ai'], queue: ['QUEUE', 'ai'], cron: ['CRON', 'mg'], k8s: ['K8S', 'nw'], pod: ['POD', 'cp'], svc: ['SVC', 'nw'], ingress: ['ING', 'nw'], lb: ['LB', 'nw'], nginx: ['NGX', 'nw'], cdn: ['CDN', 'nw'], browser: ['WEB', 'gen'], mobile: ['APP', 'gen'], prom: ['PROM', 'mg'], jaeger: ['TRACE', 'mg'], minio: ['OBJ', 'st'], docker: ['DOCK', 'dv'], ci: ['CI', 'dv'], git: ['GIT', 'dv'], mutex: ['LOCK', 'sec'], chan: ['CHAN', 'go'], goroutine: ['G', 'go'], ctx: ['CTX', 'go'], handler: ['H', 'go'], mw: ['MW', 'go'], service: ['SVC', 'go'], store: ['REPO', 'go'], oauth: ['OIDC', 'sec'], jwt: ['JWT', 'sec'], email: ['MAIL', 'ai'], smtp: ['SMTP', 'ai'],
+  gosvc: ['GO', 'go'], goapi: ['API', 'go'], worker: ['WRK', 'go'], grpcsvc: ['gRPC', 'go'], pg: ['PG', 'db'], postgres: ['PG', 'db'], mysql: ['SQL', 'db'], redis: ['RDS', 'db'], kafka: ['KFK', 'ai'], nats: ['NATS', 'ai'], rabbit: ['MQ', 'ai'], queue: ['QUEUE', 'ai'], cron: ['CRON', 'mg'], k8s: ['K8S', 'nw'], pod: ['POD', 'cp'], svc: ['SVC', 'nw'], ingress: ['ING', 'nw'], lb: ['LB', 'nw'], nginx: ['NGX', 'nw'], cdn: ['CDN', 'nw'], browser: ['WEB', 'gen'], mobile: ['APP', 'gen'], prom: ['PROM', 'mg'], jaeger: ['TRACE', 'mg'], minio: ['OBJ', 'st'], docker: ['DOCK', 'dv'], ci: ['CI', 'dv'], git: ['GIT', 'dv'], mutex: ['LOCK', 'sec'], chan: ['CHAN', 'go'], goroutine: ['G', 'go'], ctx: ['CTX', 'go'], handler: ['H', 'go'], mw: ['MW', 'go'], service: ['SVC', 'go'], store: ['REPO', 'go'], oauth: ['OIDC', 'sec'], jwt: ['JWT', 'sec'], email: ['MAIL', 'ai'], smtp: ['SMTP', 'ai'], ws: ['WS', 'nw'], proto: ['PB', 'go'], test: ['TEST', 'dv'], deploy: ['DEP', 'cp'], cm: ['CM', 'mg'], secret: ['SEC', 'sec'], hpa: ['HPA', 'mg'], topic: ['TOPIC', 'ai'], dlq: ['DLQ', 'bad'], gin: ['GIN', 'go'], openapi: ['OAS', 'dv'], gorm: ['ORM', 'go'], sqlc: ['SQLC', 'go'], node: ['NODE', 'cp'], kubectl: ['CTL', 'dv'],
   // chung
   cpu: ['CPU', 'gen'], user: ['USER', 'gen'], users: ['USERS', 'gen'], server: ['SRV', 'gen'], dc: ['DC', 'gen'], internet: ['WWW', 'gen'], laptop: ['PC', 'gen'], admin: ['ADM', 'gen'], hacker: ['!', 'bad'], file: ['FILE', 'gen'], app: ['APP', 'gen'], db_onprem: ['DB', 'gen'], dns: ['DNS', 'gen'],
 };
@@ -471,7 +478,12 @@ ${DEFS}
 function lessonPage(l, i) {
   const file = path.join(SRC, 'lessons', l.slug + '.html');
   const raw = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '<p>Bài này đang được viết.</p>';
-  const { html, toc } = render(raw);
+  // {{n:slug}} → số thứ tự của bài đó (thêm / chèn bài không làm sai các chỗ nhắc "bài N")
+  const { html, toc } = render(raw.replace(/\{\{n:([a-z0-9-]+)\}\}/g, (_, s) => {
+    const k = LESSONS.findIndex((x) => x.slug === s);
+    if (k < 0) throw new Error(`${l.slug}: không có bài ${s}`);
+    return String(k);
+  }));
   const p = PHASES.find((x) => x.id === l.phase);
   const prev = LESSONS[i - 1];
   const next = LESSONS[i + 1];

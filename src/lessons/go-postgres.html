@@ -43,7 +43,7 @@ edge pool2 pg "10 × số bản" c=ok
 </arch>
 
 <h2>Chạy thử: chương trình Go đầu tiên đọc database</h2>
-<p>Trước khi đi vào từng phần, chạy một chương trình hoàn chỉnh để thấy toàn cảnh. Cần có Postgres đang chạy, đã tạo 5 bảng và nạp dữ liệu mẫu ở bài 14.</p>
+<p>Trước khi đi vào từng phần, chạy một chương trình hoàn chỉnh để thấy toàn cảnh. Cần có Postgres đang chạy, đã tạo 5 bảng và nạp dữ liệu mẫu ở bài {{n:sql}}.</p>
 <p><b>Bước 1.</b> Tạo dự án và cài pgx:</p>
 <pre lang="sh">
 mkdir hello-db && cd hello-db
@@ -128,10 +128,10 @@ func main() {
 </pre>
 <p><b>Bước 3.</b> Chạy, kèm địa chỉ database trong biến môi trường <code>DATABASE_URL</code>. Địa chỉ có dạng <code>postgres://người_dùng:mật_khẩu@máy:cổng/tên_database</code>:</p>
 <pre lang="sh">
-# Nếu chạy Postgres bằng Docker (bài 14, cách 1)
+# Nếu chạy Postgres bằng Docker (bài {{n:sql}}, cách 1)
 DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go run .
 
-# Nếu cài bằng Homebrew (bài 14, cách 2): người dùng là tên tài khoản máy Mac, không có mật khẩu
+# Nếu cài bằng Homebrew (bài {{n:sql}}, cách 2): người dùng là tên tài khoản máy Mac, không có mật khẩu
 DATABASE_URL="postgres://$(whoami)@localhost:5432/postgres" go run .
 </pre>
 <pre lang="out">
@@ -142,8 +142,8 @@ lớp của giáo viên 7: [{ID:42 Name:Lớp 5A Capacity:35} {ID:43 Name:Tiến
 đổi tên lớp 50 (của người khác): 0 dòng <nil>
 thêm email trùng: mã lỗi 23505 | ràng buộc users_email_key
 </pre>
-<p>Gặp <code>không kết nối được database: ... connection refused</code>: Postgres chưa chạy (mở Docker Desktop, hoặc <code>brew services start postgresql@17</code>). Gặp <code>relation "users" does not exist</code>: chưa tạo bảng ở bài 14.</p>
-<p>Các phần dưới giải thích từng việc trong chương trình trên: <code>QueryRow</code> đọc một dòng, <code>Query</code> đọc nhiều dòng, <code>Exec</code> ghi, và cách đọc lỗi của Postgres. Các đoạn code bên dưới là trích đoạn từ một <code>Store</code> (bài 13), cách viết thật trong dự án.</p>
+<p>Gặp <code>không kết nối được database: ... connection refused</code>: Postgres chưa chạy (mở Docker Desktop, hoặc <code>brew services start postgresql@17</code>). Gặp <code>relation "users" does not exist</code>: chưa tạo bảng ở bài {{n:sql}}.</p>
+<p>Các phần dưới giải thích từng việc trong chương trình trên: <code>QueryRow</code> đọc một dòng, <code>Query</code> đọc nhiều dòng, <code>Exec</code> ghi, và cách đọc lỗi của Postgres. Các đoạn code bên dưới là trích đoạn từ một <code>Store</code> (bài {{n:kien-truc}}), cách viết thật trong dự án.</p>
 
 <h2>Truy vấn có tham số: không bao giờ ghép chuỗi</h2>
 <pre lang="go" mark="bad">
@@ -155,7 +155,7 @@ rows, err := pool.Query(ctx, q)
 // $1, $2... là chỗ giữ chỗ. Giá trị được gửi RIÊNG, database không bao giờ coi nó là code SQL
 row := pool.QueryRow(ctx, `SELECT id, name FROM users WHERE email = $1`, email)
 </pre>
-<aside class="warn"><p>Tham số chỉ thay được <b>giá trị</b>, không thay được tên bảng, tên cột hay <code>ASC/DESC</code>. Những phần đó nếu phải động thì chọn từ danh sách cố định trong code (whitelist, bài 12), không bao giờ lấy thẳng từ request.</p></aside>
+<aside class="warn"><p>Tham số chỉ thay được <b>giá trị</b>, không thay được tên bảng, tên cột hay <code>ASC/DESC</code>. Những phần đó nếu phải động thì chọn từ danh sách cố định trong code (whitelist, bài {{n:rest}}), không bao giờ lấy thẳng từ request.</p></aside>
 
 <h3>Đọc một dòng</h3>
 <pre lang="go">
@@ -243,10 +243,10 @@ if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
     return domain.ErrEmailTaken // → 409 "Email đã được dùng"
 }
 </pre>
-<p>Đây là cách đúng để chống trùng email: <b>không</b> SELECT kiểm tra trước rồi mới INSERT (hai request cùng lúc đều thấy "chưa có"), mà cứ INSERT và để ràng buộc UNIQUE từ chối. Mã lỗi Postgres hay gặp: <code>23505</code> trùng UNIQUE, <code>23503</code> sai khoá ngoại, <code>23514</code> sai CHECK, <code>40001</code> xung đột tuần tự hoá (bài 16).</p>
+<p>Đây là cách đúng để chống trùng email: <b>không</b> SELECT kiểm tra trước rồi mới INSERT (hai request cùng lúc đều thấy "chưa có"), mà cứ INSERT và để ràng buộc UNIQUE từ chối. Mã lỗi Postgres hay gặp: <code>23505</code> trùng UNIQUE, <code>23503</code> sai khoá ngoại, <code>23514</code> sai CHECK, <code>40001</code> xung đột tuần tự hoá (bài {{n:toi-uu-query}}).</p>
 
 <h2>Transaction: tất cả hoặc không gì cả</h2>
-<p>Nộp bài gồm hai việc: lưu bài nộp và tạo thông báo cho giáo viên (bảng <code>notifications</code> trong ví dụ này chưa có ở bài 14, chỉ để minh hoạ). Nếu lưu xong bài mà lỗi lúc tạo thông báo thì sao? Transaction đảm bảo các câu lệnh bên trong <b>cùng thành công</b> hoặc <b>cùng bị huỷ</b>.</p>
+<p>Nộp bài gồm hai việc: lưu bài nộp và tạo thông báo cho giáo viên (bảng <code>notifications</code> trong ví dụ này chưa có ở bài {{n:sql}}, chỉ để minh hoạ). Nếu lưu xong bài mà lỗi lúc tạo thông báo thì sao? Transaction đảm bảo các câu lệnh bên trong <b>cùng thành công</b> hoặc <b>cùng bị huỷ</b>.</p>
 <pre lang="go">
 func (s *Store) Submit(ctx context.Context, sub Submission, teacherID int64) error {
     tx, err := s.db.Begin(ctx)
@@ -271,7 +271,7 @@ func (s *Store) Submit(ctx context.Context, sub Submission, teacherID int64) err
 }
 </pre>
 <p>pgx có sẵn hàm bọc gọn hơn: <code>pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error { ... })</code> tự commit khi hàm trả nil và tự rollback khi lỗi.</p>
-<aside class="warn"><p>Không gọi API bên ngoài (gửi email, gọi cổng thanh toán) <b>bên trong</b> transaction. Transaction giữ khoá trên các dòng đã sửa. Nếu dịch vụ bên ngoài mất 10 giây, các request khác chạm vào những dòng đó cũng phải chờ 10 giây. Ghi vào database trong transaction, việc gọi ra ngoài làm sau (hoặc qua hàng đợi, bài 20).</p></aside>
+<aside class="warn"><p>Không gọi API bên ngoài (gửi email, gọi cổng thanh toán) <b>bên trong</b> transaction. Transaction giữ khoá trên các dòng đã sửa. Nếu dịch vụ bên ngoài mất 10 giây, các request khác chạm vào những dòng đó cũng phải chờ 10 giây. Ghi vào database trong transaction, việc gọi ra ngoài làm sau (hoặc qua hàng đợi, bài {{n:bat-dong-bo}}).</p></aside>
 
 <arch w="800" h="260" caption="Transaction: các câu lệnh trong cùng một transaction cùng thành công (COMMIT) hoặc cùng bị huỷ (ROLLBACK); defer tx.Rollback() đảm bảo không để transaction treo khi có lỗi">
 node b 80 120 store "Begin" "pool.Begin(ctx)"
@@ -344,7 +344,7 @@ c, err := q.CreateClass(ctx, db.CreateClassParams{TeacherID: 7, Name: "5A", Capa
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Repository cho bài tập</summary>
-<p>Với lược đồ và dữ liệu mẫu bài 14, viết <code>AssignmentStore</code> dùng pgx, có ba method:</p>
+<p>Với lược đồ và dữ liệu mẫu bài {{n:sql}}, viết <code>AssignmentStore</code> dùng pgx, có ba method:</p>
 <ul>
 <li><code>Create(ctx, teacherID, classID, title, due)</code>: giao bài mới. Lớp không thuộc giáo viên đó thì trả <code>ErrNotFound</code>.</li>
 <li><code>ListByClass(ctx, teacherID, classID, page, size)</code>: trả về một trang bài tập (mới nhất trước) và tổng số bài.</li>
@@ -503,7 +503,7 @@ thầy Nam xoá bài 9: không tìm thấy
 cô Hoa xoá bài 9: <nil>
 cô Hoa xoá lại bài 9: không tìm thấy
 </pre>
-<p>Chương trình sửa dữ liệu thật: chạy lần hai sẽ ra kết quả khác (bài 9 đã bị xoá). Muốn về lại từ đầu, xoá và tạo lại bảng ở bài 14 (<code>DROP TABLE submissions, assignments, enrollments, classes, users;</code> rồi dán lại lược đồ và dữ liệu mẫu).</p>
+<p>Chương trình sửa dữ liệu thật: chạy lần hai sẽ ra kết quả khác (bài {{n:dong-thoi}} đã bị xoá). Muốn về lại từ đầu, xoá và tạo lại bảng ở bài {{n:sql}} (<code>DROP TABLE submissions, assignments, enrollments, classes, users;</code> rồi dán lại lược đồ và dữ liệu mẫu).</p>
 <p><b>Giải thích:</b> Thầy Nam không tạo, không xem, không xoá được gì ở lớp 42, và nhận đúng <code>ErrNotFound</code> như khi lớp không tồn tại. Handler đổi lỗi này thành <code>404</code>, nên người ngoài không đoán được lớp 42 có thật hay không. Để ý <code>ORDER BY a.due_date DESC, a.id DESC</code>: thêm <code>id</code> làm tiêu chí phụ để thứ tự <b>ổn định</b>. Nếu nhiều bài cùng hạn mà chỉ sắp theo hạn, Postgres có thể trả thứ tự khác nhau giữa hai lần truy vấn, và phân trang bị trùng / sót dòng.</p>
 </details>
 </details>

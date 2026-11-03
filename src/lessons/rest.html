@@ -156,9 +156,9 @@ GET /v1/notifications?limit=20&after=eyJpZCI6OTAwMX0
 <pre lang="json">
 { "items": [ ... ], "nextCursor": "eyJpZCI6ODk4MX0", "hasMore": true }
 </pre>
-<p>Nhanh với mọi độ sâu và không trùng / sót, hợp với cuộn vô hạn và feed. Không nhảy thẳng tới trang 50 được. Cách cài đặt bằng SQL ở bài 16.</p>
+<p>Nhanh với mọi độ sâu và không trùng / sót, hợp với cuộn vô hạn và feed. Không nhảy thẳng tới trang 50 được. Cách cài đặt bằng SQL ở bài {{n:toi-uu-query}}.</p>
 <aside class="real"><p>Stripe dùng cursor: tham số <code>starting_after</code> và trường <code>has_more</code>. GitHub API trả link trang sau trong header <code>Link</code>. Twitter / X, Facebook Graph API đều dùng cursor cho feed.</p></aside>
-<aside class="warn"><p>Luôn đặt <b>giới hạn trên</b> cho <code>size</code> (ví dụ tối đa 100), và chỉ cho sắp xếp / lọc theo <b>danh sách cột cho phép</b>. Tuyệt đối không ghép thẳng tham số <code>sort</code> vào câu SQL (bài 19: SQL injection).</p>
+<aside class="warn"><p>Luôn đặt <b>giới hạn trên</b> cho <code>size</code> (ví dụ tối đa 100), và chỉ cho sắp xếp / lọc theo <b>danh sách cột cho phép</b>. Tuyệt đối không ghép thẳng tham số <code>sort</code> vào câu SQL (bài {{n:bao-mat-api}}: SQL injection).</p>
 <pre lang="go">
 var sortable = map[string]string{
     "dueDate":   "due_date",
@@ -174,7 +174,7 @@ if !ok {
 <ul>
 <li><b>Thời điểm</b>: chuỗi ISO 8601 / RFC 3339 có múi giờ, nên dùng UTC: <code>"2026-11-03T08:30:00Z"</code>. Go mặc định đổi <code>time.Time</code> sang dạng này.</li>
 <li><b>Ngày</b> không có giờ (hạn nộp, ngày sinh): <code>"2026-11-10"</code>. Đừng biến nó thành thời điểm nửa đêm UTC, sẽ lệch ngày ở múi giờ Việt Nam (UTC+7).</li>
-<li><b>Id</b> 64 bit: cân nhắc trả dạng chuỗi (JavaScript chỉ chính xác tới 2<sup>53</sup>, bài 02).</li>
+<li><b>Id</b> 64 bit: cân nhắc trả dạng chuỗi (JavaScript chỉ chính xác tới 2<sup>53</sup>, bài {{n:bien-kieu}}).</li>
 <li><b>Tiền</b>: số nguyên theo đơn vị nhỏ nhất kèm mã tiền tệ: <code>{"amount": 49000, "currency": "VND"}</code>.</li>
 </ul>
 
@@ -194,7 +194,7 @@ API -> Database: đã có K
 Database --> API: kết quả cũ {id: 77}
 API --> App: 201 {id: 77}, không tạo giao dịch thứ hai
 </fig>
-<aside class="real"><p>Đây đúng là cách Stripe làm với header <code>Idempotency-Key</code>, và là một trong những thiết kế API được nhắc tới nhiều nhất. Phần cài đặt (bảng lưu khoá, UNIQUE, xử lý hai request cùng khoá tới cùng lúc) ở bài 20.</p></aside>
+<aside class="real"><p>Đây đúng là cách Stripe làm với header <code>Idempotency-Key</code>, và là một trong những thiết kế API được nhắc tới nhiều nhất. Phần cài đặt (bảng lưu khoá, UNIQUE, xử lý hai request cùng khoá tới cùng lúc) ở bài {{n:bat-dong-bo}}.</p></aside>
 
 <h2>Chống ghi đè khi hai người cùng sửa</h2>
 <p>Giáo viên A và B cùng mở form sửa một bài tập. A lưu, rồi B lưu đè mất thay đổi của A. Cách chuẩn là <b>optimistic concurrency</b>: mỗi bản ghi có số phiên bản, client gửi lại phiên bản nó đã đọc.</p>

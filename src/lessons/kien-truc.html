@@ -22,7 +22,7 @@ func RequestID(next http.Handler) http.Handler {
             id = newID() // ví dụ 16 byte ngẫu nhiên dạng hex
         }
         w.Header().Set("X-Request-ID", id)
-        ctx := WithRequestID(r.Context(), id) // hàm ở bài 10
+        ctx := WithRequestID(r.Context(), id) // hàm ở bài {{n:context-test}}
         next.ServeHTTP(w, r.WithContext(ctx))
     })
 }
@@ -83,7 +83,7 @@ func Chain(h http.Handler, mws ...Middleware) http.Handler {
 handler := Chain(mux, RequestID, Logger(logger), Recover)
 // thứ tự chạy khi có request: RequestID → Logger → Recover → mux
 </pre>
-<p><b>Chạy thử để thấy thứ tự.</b> Chương trình dưới không mở cổng mạng: nó dùng <code>httptest</code> (bài 10) để gửi request giả thẳng vào handler, nên chạy được cả trên Go Playground.</p>
+<p><b>Chạy thử để thấy thứ tự.</b> Chương trình dưới không mở cổng mạng: nó dùng <code>httptest</code> (bài {{n:context-test}}) để gửi request giả thẳng vào handler, nên chạy được cả trên Go Playground.</p>
 <pre lang="go">
 package main
 
@@ -232,7 +232,7 @@ func (h *Handler) createClass(w http.ResponseWriter, r *http.Request) {
     WriteJSON(w, http.StatusCreated, toClassDTO(c))
 }
 </pre>
-<aside class="warn"><p>Đoạn service trên có lỗi tranh chấp: hai request "tạo lớp" tới cùng lúc, cả hai đều đếm được 0 rồi cùng tạo, giáo viên có 2 lớp miễn phí. Bài 16 sửa nó bằng cách đưa điều kiện vào chính câu SQL. Bạn sẽ gặp kiểu lỗi "kiểm tra rồi mới làm" này ở mọi nơi.</p></aside>
+<aside class="warn"><p>Đoạn service trên có lỗi tranh chấp: hai request "tạo lớp" tới cùng lúc, cả hai đều đếm được 0 rồi cùng tạo, giáo viên có 2 lớp miễn phí. Bài {{n:toi-uu-query}} sửa nó bằng cách đưa điều kiện vào chính câu SQL. Bạn sẽ gặp kiểu lỗi "kiểm tra rồi mới làm" này ở mọi nơi.</p></aside>
 <aside class="tip"><p>Đừng tách lớp cho có. Endpoint chỉ đọc một bảng và trả về thì handler gọi thẳng store là đủ. Cấu trúc ba lớp đáng giá khi có quy tắc nghiệp vụ thật.</p></aside>
 
 <arch w="800" h="350" caption="Kiến trúc phân lớp: handler chỉ biết HTTP, service chứa nghiệp vụ và chỉ phụ thuộc interface, store cài đặt interface bằng SQL. main ghép các phần lại (dependency injection)">
@@ -299,7 +299,7 @@ func getenv(k, def string) string {
 
 <h2>Ghép mọi thứ trong main</h2>
 <p>Hàm <code>main</code> là nơi duy nhất biết mọi thành phần cụ thể: đọc cấu hình, tạo kết nối, "tiêm" chúng vào service và handler qua các hàm <code>New...</code>. Không cần framework dependency injection.</p>
-<p>Trích đoạn. Phần <code>pgxpool</code> (database) học ở bài 15. Bản chạy được không cần database nằm trong lời giải bài tập cuối bài.</p>
+<p>Trích đoạn. Phần <code>pgxpool</code> (database) học ở bài {{n:go-postgres}}. Bản chạy được không cần database nằm trong lời giải bài tập cuối bài.</p>
 <pre lang="go" file="cmd/api/main.go">
 func main() {
     if err := run(); err != nil {
@@ -378,7 +378,7 @@ Nền tảng chạy -> Server cũ: quá thời gian chờ thì SIGKILL
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Tổ chức lại API ghi chú theo lớp</summary>
-<p>Lấy API ghi chú của bài 11 (bản có <code>GET /notes</code>, <code>POST /notes</code>, <code>GET /notes/{id}</code>), tổ chức lại thành dự án nhiều package:</p>
+<p>Lấy API ghi chú của bài {{n:http}} (bản có <code>GET /notes</code>, <code>POST /notes</code>, <code>GET /notes/{id}</code>), tổ chức lại thành dự án nhiều package:</p>
 <ul>
 <li><code>internal/notes</code>: service (kiểm tra nội dung) + store lưu trong bộ nhớ, nối với nhau qua interface. Package này <b>không</b> import <code>net/http</code>.</li>
 <li><code>internal/httpapi</code>: handler + ba middleware RequestID, Logger, Recover.</li>
@@ -466,7 +466,7 @@ func (s *Service) List(ctx context.Context) ([]Note, error) {
     return s.store.List(ctx)
 }
 
-// MemStore: lưu trong bộ nhớ. Bài 15 thay bằng Postgres, Service không đổi
+// MemStore: lưu trong bộ nhớ. Bài {{n:go-postgres}} thay bằng Postgres, Service không đổi
 type MemStore struct {
     mu     sync.Mutex
     nextID int64
@@ -890,6 +890,6 @@ $ curl -X POST localhost:8090/notes -d '{"text":"Học Go"}'
 {"time":"15:38:36","level":"INFO","msg":"đã tắt"}
 </pre>
 <p>Terminal 2 vẫn nhận được <code>{"ok":"xong việc chậm"}</code>. Bỏ phần <code>srv.Shutdown</code> đi (để Ctrl+C thoát luôn) và thử lại: curl báo <code>Empty reply from server</code>, request bị cắt ngang. Đó chính là chuyện xảy ra với người dùng mỗi lần deploy nếu không tắt an toàn.</p>
-<p><b>Giải thích cách chia:</b> <code>internal/notes</code> không biết gì về HTTP, nên mai này thêm một chương trình chạy việc nền (<code>cmd/worker</code>) dùng lại được nguyên service. Đổi <code>MemStore</code> sang Postgres (bài 15) chỉ cần viết một kiểu mới có ba method của <code>Store</code>, handler và service không sửa dòng nào. <code>srv.ListenAndServe()</code> trả về <code>http.ErrServerClosed</code> khi bị <code>Shutdown</code>, đó không phải lỗi thật, nên trong <code>main</code> có dòng bỏ qua nó.</p>
+<p><b>Giải thích cách chia:</b> <code>internal/notes</code> không biết gì về HTTP, nên mai này thêm một chương trình chạy việc nền (<code>cmd/worker</code>) dùng lại được nguyên service. Đổi <code>MemStore</code> sang Postgres (bài {{n:go-postgres}}) chỉ cần viết một kiểu mới có ba method của <code>Store</code>, handler và service không sửa dòng nào. <code>srv.ListenAndServe()</code> trả về <code>http.ErrServerClosed</code> khi bị <code>Shutdown</code>, đó không phải lỗi thật, nên trong <code>main</code> có dòng bỏ qua nó.</p>
 </details>
 </details>

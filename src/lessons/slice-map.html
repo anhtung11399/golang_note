@@ -156,7 +156,7 @@ for _, u := range users {
     out = append(out, toDTO(u))       // không lần nào phải xin thêm bộ nhớ
 }
 </pre>
-<p>Đây là trích đoạn: <code>users</code>, <code>UserDTO</code>, <code>toDTO</code> là những thứ có trong dự án thật (bài 12). Chỉ cần nhớ mẫu: biết trước số lượng thì <code>make([]T, 0, n)</code>.</p>
+<p>Đây là trích đoạn: <code>users</code>, <code>UserDTO</code>, <code>toDTO</code> là những thứ có trong dự án thật (bài {{n:rest}}). Chỉ cần nhớ mẫu: biết trước số lượng thì <code>make([]T, 0, n)</code>.</p>
 
 <h3>nil slice và slice rỗng trong JSON</h3>
 <pre lang="go">
@@ -254,7 +254,7 @@ An 20
 Bình 22
 Chi 19
 </pre></li>
-<li><b>Map không an toàn khi nhiều goroutine cùng ghi.</b> Runtime phát hiện được và dừng chương trình với lỗi <code>fatal error: concurrent map writes</code>. Trong HTTP server (mỗi request một goroutine), một map dùng chung phải được bảo vệ bằng mutex (bài 09).</li>
+<li><b>Map không an toàn khi nhiều goroutine cùng ghi.</b> Runtime phát hiện được và dừng chương trình với lỗi <code>fatal error: concurrent map writes</code>. Trong HTTP server (mỗi request một goroutine), một map dùng chung phải được bảo vệ bằng mutex (bài {{n:dong-thoi}}).</li>
 </ol>
 
 <h3>Set: dùng map với giá trị rỗng</h3>
@@ -285,7 +285,7 @@ số email khác nhau: 2
 </pre>
 <p>Dùng <code>map[string]bool</code> cũng được và dễ đọc hơn (<code>if seen[email]</code>). <code>struct{}</code> chỉ tiết kiệm bộ nhớ khi map rất lớn.</p>
 
-<aside class="real"><p>Map trong bộ nhớ là cache đơn giản nhất. Nhưng khi chạy 3 bản server sau load balancer, mỗi bản có map riêng: người dùng gọi lần một vào máy A, lần hai vào máy B và không thấy dữ liệu cũ. Đây là lý do các hệ thống thật dùng Redis cho cache dùng chung (bài 17).</p></aside>
+<aside class="real"><p>Map trong bộ nhớ là cache đơn giản nhất. Nhưng khi chạy 3 bản server sau load balancer, mỗi bản có map riêng: người dùng gọi lần một vào máy A, lần hai vào máy B và không thấy dữ liệu cũ. Đây là lý do các hệ thống thật dùng Redis cho cache dùng chung (bài {{n:cache}}).</p></aside>
 
 <h2>Gom nhóm: mẫu bạn sẽ viết rất nhiều</h2>
 <p>Ví dụ có danh sách bài nộp, cần gom theo học sinh để tính số bài đã nộp:</p>
@@ -327,7 +327,7 @@ học sinh 2: 1 bài
 học sinh 3: 0 bài
 </pre>
 <p>Trong JS bạn sẽ viết <code>subs.reduce((acc, s) =&gt; { acc[s.studentId] = (acc[s.studentId] ?? 0) + 1; return acc }, {})</code>. Go viết bằng vòng for, và không cần <code>?? 0</code> vì khoá chưa có đã là 0.</p>
-<p>Ở bài 16, bạn sẽ dùng chính mẫu này để sửa lỗi N+1 truy vấn: lấy hết dữ liệu liên quan trong một câu SQL rồi gom bằng map trong Go.</p>
+<p>Ở bài {{n:toi-uu-query}}, bạn sẽ dùng chính mẫu này để sửa lỗi N+1 truy vấn: lấy hết dữ liệu liên quan trong một câu SQL rồi gom bằng map trong Go.</p>
 
 <quiz q="<code>a := []int{1, 2, 3, 4}; b := a[:2]; b = append(b, 99)</code>. Giá trị của <code>a</code> là gì?">
 - [1 2 3 4]
@@ -458,7 +458,7 @@ trang 4: []
 trang 0: []
 </pre>
 <p><b>Thử bỏ dòng kiểm tra <code>start &gt;= len(items)</code></b> rồi chạy lại. Chương trình dừng với lỗi <code>panic: runtime error: slice bounds out of range</code>. JavaScript trả <code>undefined</code> hay mảng rỗng khi vượt chỉ số, còn Go thì dừng hẳn. Mọi chỉ số tính từ dữ liệu người dùng gửi lên (như <code>?page=999</code>) đều phải kiểm tra như trên.</p>
-<p><b>Dùng cho mọi kiểu:</b> hàm trên chỉ nhận <code>[]string</code>. Bài 06 dạy generics để viết một lần, dùng cho cả <code>[]int</code>, <code>[]User</code>: <code>func pageOf[T any](items []T, page, size int) []T</code>. Thân hàm giữ nguyên, chỉ đổi <code>string</code> thành <code>T</code>.</p>
+<p><b>Dùng cho mọi kiểu:</b> hàm trên chỉ nhận <code>[]string</code>. Bài {{n:interface}} dạy generics để viết một lần, dùng cho cả <code>[]int</code>, <code>[]User</code>: <code>func pageOf[T any](items []T, page, size int) []T</code>. Thân hàm giữ nguyên, chỉ đổi <code>string</code> thành <code>T</code>.</p>
 <p>Truy cập ngoài phạm vi slice (<code>items[10]</code> khi len là 5) gây <b>panic</b>, khác với JavaScript trả <code>undefined</code>. Mọi chỉ số tính từ dữ liệu người dùng gửi lên đều phải kiểm tra như trên.</p>
 </details>
 </details>

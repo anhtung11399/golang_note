@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 28: Test nâng cao: mock, database thật, fuzz, load test · Go cho dân Frontend</title>
+<meta name="description" content="Test table, fake vs mock (gomock), testcontainers với Postgres thật, golden file, fuzzing, test race, đo tải với k6 / vegeta, coverage trong CI.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/33</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li><li><a href="mau-dong-thoi.html" data-slug="mau-dong-thoi"><i class="dot"></i><span class="no">11</span><span class="tx">Các mẫu xử lý đồng thời hay dùng</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">12</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">13</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">14</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li><li><a href="framework.html" data-slug="framework"><i class="dot"></i><span class="no">15</span><span class="tx">Framework: Chi, Gin, Echo và tài liệu OpenAPI</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">16</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">17</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="orm-sqlc.html" data-slug="orm-sqlc"><i class="dot"></i><span class="no">18</span><span class="tx">sqlc, GORM và migration trong thực tế</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">19</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">20</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">21</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">22</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">23</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="message-queue.html" data-slug="message-queue"><i class="dot"></i><span class="no">24</span><span class="tx">Message queue: Kafka, NATS, RabbitMQ</span></a></li><li><a href="grpc.html" data-slug="grpc"><i class="dot"></i><span class="no">25</span><span class="tx">gRPC và Protocol Buffers</span></a></li><li><a href="realtime-file.html" data-slug="realtime-file"><i class="dot"></i><span class="no">26</span><span class="tx">WebSocket, upload file và gửi email</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">27</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="test-nang-cao.html" data-slug="test-nang-cao" aria-current="page"><i class="dot"></i><span class="no">28</span><span class="tx">Test nâng cao: mock, database thật, fuzz, load test</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">29</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="kubernetes.html" data-slug="kubernetes"><i class="dot"></i><span class="no">30</span><span class="tx">Kubernetes cho lập trình viên Go</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">31</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">32</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="test-nang-cao">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#d97706">Chặng 5 · Vận hành hệ thống thật</span><span>Bài 28</span><span>55 phút đọc + làm bài</span></div>
+    <h1>Test nâng cao: mock, database thật, fuzz, load test</h1>
+    <p class="lead">Test table, fake vs mock (gomock), testcontainers với Postgres thật, golden file, fuzzing, test race, đo tải với k6 / vegeta, coverage trong CI.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Viết test tích hợp với database thật</li><li>Chọn fake hay mock</li><li>Đo tải trước khi lên production</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="tu-co-test-den-test-dang-tin"><a href="#tu-co-test-den-test-dang-tin" class="anchor" aria-hidden="true">#</a>Từ "có test" đến "test đáng tin"</h2>
+<p>Bài 10 dạy <code>go test</code>, test dạng bảng, <code>httptest</code>. Bài này lo phần khó hơn: test những thứ có phụ thuộc bên ngoài (database, API bên thứ ba, thời gian), test tìm lỗi mà bạn không nghĩ ra (fuzz), và đo xem server chịu được bao nhiêu tải.</p>
+<figure class="dg arch"><svg viewBox="0 0 820 270" style="min-width:640px;max-width:820px" role="img" aria-label="Kim tự tháp test: nhiều test nhỏ chạy nhanh ở đáy, ít test lớn chạy chậm ở đỉnh"><path d="M410.0 204.0 L410.0 198.0" class="ae" marker-end="url(#ar)"/><path d="M410.0 114.0 L410.0 108.0" class="ae" marker-end="url(#ar)"/><g class="an an-gen"><rect x="388" y="28" width="44" height="44" rx="9"/><text x="410" y="54.5" text-anchor="middle" class="an-i" style="font-size:13px">WEB</text><text x="410" y="88" text-anchor="middle" class="an-l">E2E</text><text x="410" y="102" text-anchor="middle" class="an-s">vài chục, phút</text></g><g class="an an-db"><rect x="388" y="118" width="44" height="44" rx="9"/><text x="410" y="144.5" text-anchor="middle" class="an-i" style="font-size:13px">PG</text><text x="410" y="178" text-anchor="middle" class="an-l">Tích hợp</text><text x="410" y="192" text-anchor="middle" class="an-s">database thật, giây</text></g><g class="an an-dv"><rect x="388" y="208" width="44" height="44" rx="9"/><text x="410" y="234.5" text-anchor="middle" class="an-i" style="font-size:11px">TEST</text><text x="410" y="268" text-anchor="middle" class="an-l">Unit</text><text x="410" y="282" text-anchor="middle" class="an-s">hàng trăm, mili giây</text></g><text x="560" y="50" text-anchor="start" class="at at-s  ">Playwright, cả hệ thống</text><text x="560" y="140" text-anchor="start" class="at at-s  ">Postgres thật (testcontainers)</text><text x="560" y="230" text-anchor="start" class="at at-s  ">hàm thuần, service + fake</text><text x="260" y="50" text-anchor="end" class="at at-s  ">chậm, dễ chập chờn</text><text x="260" y="230" text-anchor="end" class="at at-s  ">nhanh, ổn định</text></svg><figcaption>Kim tự tháp test: nhiều test nhỏ chạy nhanh ở đáy, ít test lớn chạy chậm ở đỉnh</figcaption></figure>
+
+<h2 id="fake-hay-mock"><a href="#fake-hay-mock" class="anchor" aria-hidden="true">#</a>Fake hay mock</h2>
+<p>Service cần một store. Trong test, ta thay store thật bằng một bản giả. Có hai kiểu:</p>
+<table>
+<tr><th></th><th>Fake</th><th>Mock</th></tr>
+<tr><td>Là gì</td><td>một bản cài đặt đơn giản nhưng chạy thật (map trong bộ nhớ)</td><td>đối tượng ghi lại lời gọi, test khai báo trước "phải gọi hàm X với tham số Y"</td></tr>
+<tr><td>Test kiểm tra</td><td><b>kết quả</b>: sau khi gọi, dữ liệu là gì</td><td><b>cách làm</b>: đã gọi những gì</td></tr>
+<tr><td>Đổi cách cài đặt bên trong</td><td>test vẫn đúng</td><td>test hay vỡ dù hành vi không đổi</td></tr>
+<tr><td>Hợp với</td><td>store, cache, hàng đợi</td><td>xác nhận <b>có gửi</b> email, <b>có gọi</b> cổng thanh toán đúng số tiền</td></tr>
+</table>
+<p>Cộng đồng Go nghiêng về fake viết tay. Interface Go nhỏ (bài 6) nên fake thường chỉ vài chục dòng.</p>
+<div class="code"><div class="code-h"><span>service/class.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> service
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+)
+
+<span class="k">var</span> ErrQuota = errors.<span class="f">New</span>(<span class="s">&quot;đã đủ số lớp miễn phí&quot;</span>)
+
+<span class="k">type</span> Class <span class="k">struct</span> {
+    ID        <span class="t">int64</span>
+    TeacherID <span class="t">int64</span>
+    Name      <span class="t">string</span>
+}
+
+<span class="c">// Interface do service tự khai báo, chỉ gồm những gì service cần</span>
+<span class="k">type</span> ClassStore <span class="k">interface</span> {
+    <span class="f">CountByTeacher</span>(ctx context.Context, teacherID <span class="t">int64</span>) (<span class="t">int</span>, <span class="t">error</span>)
+    <span class="f">Create</span>(ctx context.Context, c Class) (Class, <span class="t">error</span>)
+}
+
+<span class="k">type</span> Mailer <span class="k">interface</span> {
+    <span class="f">Send</span>(ctx context.Context, to, subject, body <span class="t">string</span>) <span class="t">error</span>
+}
+
+<span class="k">type</span> ClassService <span class="k">struct</span> {
+    Store     ClassStore
+    Mail      Mailer
+    FreeQuota <span class="t">int</span>
+}
+
+<span class="k">func</span> (s *ClassService) <span class="f">Create</span>(ctx context.Context, teacherID <span class="t">int64</span>, email, name <span class="t">string</span>) (Class, <span class="t">error</span>) {
+    n, err := s.Store.<span class="f">CountByTeacher</span>(ctx, teacherID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> Class{}, err
+    }
+    <span class="k">if</span> n &gt;= s.FreeQuota {
+        <span class="k">return</span> Class{}, ErrQuota
+    }
+    c, err := s.Store.<span class="f">Create</span>(ctx, Class{TeacherID: teacherID, Name: name})
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> Class{}, err
+    }
+    _ = s.Mail.<span class="f">Send</span>(ctx, email, <span class="s">&quot;Đã tạo lớp&quot;</span>, <span class="s">&quot;Lớp &quot;</span>+name+<span class="s">&quot; đã sẵn sàng&quot;</span>)
+    <span class="k">return</span> c, <span class="b">nil</span>
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>service/class_test.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> service
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;testing&quot;</span>
+)
+
+<span class="c">// Fake store: map trong bộ nhớ, chạy thật</span>
+<span class="k">type</span> fakeStore <span class="k">struct</span> {
+    mu      sync.Mutex
+    classes []Class
+    failErr <span class="t">error</span> <span class="c">// để thử trường hợp database lỗi</span>
+}
+
+<span class="k">func</span> (f *fakeStore) <span class="f">CountByTeacher</span>(_ context.Context, tid <span class="t">int64</span>) (<span class="t">int</span>, <span class="t">error</span>) {
+    f.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> f.mu.<span class="f">Unlock</span>()
+    <span class="k">if</span> f.failErr != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="n">0</span>, f.failErr
+    }
+    n := <span class="n">0</span>
+    <span class="k">for</span> _, c := <span class="k">range</span> f.classes {
+        <span class="k">if</span> c.TeacherID == tid {
+            n++
+        }
+    }
+    <span class="k">return</span> n, <span class="b">nil</span>
+}
+
+<span class="k">func</span> (f *fakeStore) <span class="f">Create</span>(_ context.Context, c Class) (Class, <span class="t">error</span>) {
+    f.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> f.mu.<span class="f">Unlock</span>()
+    c.ID = <span class="t">int64</span>(<span class="b">len</span>(f.classes) + <span class="n">1</span>)
+    f.classes = <span class="b">append</span>(f.classes, c)
+    <span class="k">return</span> c, <span class="b">nil</span>
+}
+
+<span class="c">// Mailer ghi lại thư đã gửi: một &quot;mock&quot; viết tay đơn giản</span>
+<span class="k">type</span> sentMail <span class="k">struct</span>{ to, subject <span class="t">string</span> }
+<span class="k">type</span> recordMailer <span class="k">struct</span>{ sent []sentMail }
+
+<span class="k">func</span> (m *recordMailer) <span class="f">Send</span>(_ context.Context, to, subject, _ <span class="t">string</span>) <span class="t">error</span> {
+    m.sent = <span class="b">append</span>(m.sent, sentMail{to, subject})
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">TestCreateClass</span>(t *testing.T) {
+    ctx := context.<span class="f">Background</span>()
+
+    t.<span class="f">Run</span>(<span class="s">&quot;tạo được lớp đầu tiên và gửi email&quot;</span>, <span class="k">func</span>(t *testing.T) {
+        st, ml := &amp;fakeStore{}, &amp;recordMailer{}
+        svc := &amp;ClassService{Store: st, Mail: ml, FreeQuota: <span class="n">1</span>}
+
+        c, err := svc.<span class="f">Create</span>(ctx, <span class="n">7</span>, <span class="s">&quot;co.hoa@example.com&quot;</span>, <span class="s">&quot;Lớp 5A&quot;</span>)
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;lỗi không mong muốn: %v&quot;</span>, err)
+        }
+        <span class="k">if</span> c.ID == <span class="n">0</span> || c.TeacherID != <span class="n">7</span> {
+            t.<span class="f">Errorf</span>(<span class="s">&quot;lớp sai: %+v&quot;</span>, c)
+        }
+        <span class="k">if</span> <span class="b">len</span>(ml.sent) != <span class="n">1</span> || ml.sent[<span class="n">0</span>].to != <span class="s">&quot;co.hoa@example.com&quot;</span> {
+            t.<span class="f">Errorf</span>(<span class="s">&quot;thư đã gửi: %+v&quot;</span>, ml.sent)
+        }
+    })
+
+    t.<span class="f">Run</span>(<span class="s">&quot;vượt hạn mức thì báo ErrQuota, không gửi email&quot;</span>, <span class="k">func</span>(t *testing.T) {
+        st := &amp;fakeStore{classes: []Class{{ID: <span class="n">1</span>, TeacherID: <span class="n">7</span>}}}
+        ml := &amp;recordMailer{}
+        svc := &amp;ClassService{Store: st, Mail: ml, FreeQuota: <span class="n">1</span>}
+
+        _, err := svc.<span class="f">Create</span>(ctx, <span class="n">7</span>, <span class="s">&quot;co.hoa@example.com&quot;</span>, <span class="s">&quot;Lớp 5B&quot;</span>)
+        <span class="k">if</span> !errors.<span class="f">Is</span>(err, ErrQuota) {
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;muốn ErrQuota, nhận %v&quot;</span>, err)
+        }
+        <span class="k">if</span> <span class="b">len</span>(ml.sent) != <span class="n">0</span> {
+            t.<span class="f">Errorf</span>(<span class="s">&quot;không được gửi email, nhưng đã gửi %d&quot;</span>, <span class="b">len</span>(ml.sent))
+        }
+    })
+
+    t.<span class="f">Run</span>(<span class="s">&quot;database lỗi thì trả lỗi đó&quot;</span>, <span class="k">func</span>(t *testing.T) {
+        boom := errors.<span class="f">New</span>(<span class="s">&quot;db down&quot;</span>)
+        svc := &amp;ClassService{Store: &amp;fakeStore{failErr: boom}, Mail: &amp;recordMailer{}, FreeQuota: <span class="n">1</span>}
+        <span class="k">if</span> _, err := svc.<span class="f">Create</span>(ctx, <span class="n">7</span>, <span class="s">&quot;x@y.z&quot;</span>, <span class="s">&quot;A&quot;</span>); !errors.<span class="f">Is</span>(err, boom) {
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;muốn lỗi db, nhận %v&quot;</span>, err)
+        }
+    })
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">go test ./service/ -v</span>
+=== RUN   TestCreateClass
+=== RUN   TestCreateClass/tạo_được_lớp_đầu_tiên_và_gửi_email
+=== RUN   TestCreateClass/vượt_hạn_mức_thì_báo_ErrQuota,_không_gửi_email
+=== RUN   TestCreateClass/database_lỗi_thì_trả_lỗi_đó
+--- PASS: TestCreateClass (0.00s)
+    --- PASS: TestCreateClass/tạo_được_lớp_đầu_tiên_và_gửi_email (0.00s)
+    --- PASS: TestCreateClass/vượt_hạn_mức_thì_báo_ErrQuota,_không_gửi_email (0.00s)
+    --- PASS: TestCreateClass/database_lỗi_thì_trả_lỗi_đó (0.00s)
+PASS
+ok      demo/service    0.003s</pre></div>
+
+<h3>Mock sinh tự động: gomock và mockery</h3>
+<p>Nhiều công ty dùng mock sinh code, bạn cần đọc được. <code>go.uber.org/mock</code> (gomock):</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">//go:generate go run go.uber.org/mock/mockgen -source=class.go -destination=mock_test.go -package=service</span>
+
+<span class="k">func</span> <span class="f">TestCreateWithGomock</span>(t *testing.T) {
+    ctrl := gomock.<span class="f">NewController</span>(t)
+    st := <span class="f">NewMockClassStore</span>(ctrl)
+    ml := <span class="f">NewMockMailer</span>(ctrl)
+
+    <span class="c">// Khai báo trước: phải gọi đúng các hàm này, đúng tham số, đúng số lần</span>
+    st.<span class="f">EXPECT</span>().<span class="f">CountByTeacher</span>(gomock.<span class="f">Any</span>(), <span class="t">int64</span>(<span class="n">7</span>)).<span class="f">Return</span>(<span class="n">0</span>, <span class="b">nil</span>)
+    st.<span class="f">EXPECT</span>().<span class="f">Create</span>(gomock.<span class="f">Any</span>(), Class{TeacherID: <span class="n">7</span>, Name: <span class="s">&quot;Lớp 5A&quot;</span>}).<span class="f">Return</span>(Class{ID: <span class="n">1</span>, TeacherID: <span class="n">7</span>, Name: <span class="s">&quot;Lớp 5A&quot;</span>}, <span class="b">nil</span>)
+    ml.<span class="f">EXPECT</span>().<span class="f">Send</span>(gomock.<span class="f">Any</span>(), <span class="s">&quot;co.hoa@example.com&quot;</span>, <span class="s">&quot;Đã tạo lớp&quot;</span>, gomock.<span class="f">Any</span>()).<span class="f">Return</span>(<span class="b">nil</span>).<span class="f">Times</span>(<span class="n">1</span>)
+
+    svc := &amp;ClassService{Store: st, Mail: ml, FreeQuota: <span class="n">1</span>}
+    <span class="k">if</span> _, err := svc.<span class="f">Create</span>(context.<span class="f">Background</span>(), <span class="n">7</span>, <span class="s">&quot;co.hoa@example.com&quot;</span>, <span class="s">&quot;Lớp 5A&quot;</span>); err != <span class="b">nil</span> {
+        t.<span class="f">Fatal</span>(err)
+    }
+    <span class="c">// ctrl tự kiểm tra cuối test: thiếu lời gọi nào đã EXPECT thì test lỗi</span>
+}</code></pre></div>
+<aside class="warn"><p>Mock quá chi tiết (khai báo từng lời gọi store) làm test gắn chặt vào cách cài đặt: đổi <code>CountByTeacher</code> thành một câu SQL kiểm hạn mức ngay trong <code>Create</code> là vỡ hết test dù hành vi đúng. Dùng mock cho <b>ranh giới với bên ngoài</b> (email, thanh toán), dùng fake hoặc database thật cho store.</p></aside>
+
+<h2 id="test-voi-postgres-that-testcontainers"><a href="#test-voi-postgres-that-testcontainers" class="anchor" aria-hidden="true">#</a>Test với Postgres thật: testcontainers</h2>
+<p>Fake store không bắt được lỗi SQL: sai tên cột, thiếu index, vi phạm ràng buộc, khoá dòng. Store phải được test với <b>Postgres thật</b>. <code>testcontainers-go</code> tự bật một container Postgres khi test chạy và tắt khi xong.</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> get github.com/testcontainers/testcontainers-<span class="k">go</span>/modules/postgres</code></pre></div>
+<div class="code"><div class="code-h"><span>store/main_test.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> store
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;log&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;testing&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/jackc/pgx/v5/pgxpool&quot;</span>
+    <span class="s">&quot;github.com/testcontainers/testcontainers-go&quot;</span>
+    <span class="s">&quot;github.com/testcontainers/testcontainers-go/modules/postgres&quot;</span>
+    <span class="s">&quot;github.com/testcontainers/testcontainers-go/wait&quot;</span>
+)
+
+<span class="k">var</span> testPool *pgxpool.Pool
+
+<span class="c">// TestMain chạy MỘT lần cho cả package: bật Postgres, chạy migration, chạy mọi test, tắt Postgres</span>
+<span class="k">func</span> <span class="f">TestMain</span>(m *testing.M) {
+    ctx := context.<span class="f">Background</span>()
+    pg, err := postgres.<span class="f">Run</span>(ctx, <span class="s">&quot;postgres:17-alpine&quot;</span>,
+        postgres.<span class="f">WithDatabase</span>(<span class="s">&quot;test&quot;</span>),
+        postgres.<span class="f">WithUsername</span>(<span class="s">&quot;test&quot;</span>),
+        postgres.<span class="f">WithPassword</span>(<span class="s">&quot;test&quot;</span>),
+        postgres.<span class="f">WithInitScripts</span>(<span class="s">&quot;../migrations/00001_init.sql&quot;</span>),
+        testcontainers.<span class="f">WithWaitStrategy</span>(
+            wait.<span class="f">ForLog</span>(<span class="s">&quot;database system is ready to accept connections&quot;</span>).<span class="f">WithOccurrence</span>(<span class="n">2</span>).<span class="f">WithStartupTimeout</span>(<span class="n">60</span>*time.Second)),
+    )
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        log.<span class="f">Fatal</span>(err)
+    }
+    dsn, _ := pg.<span class="f">ConnectionString</span>(ctx, <span class="s">&quot;sslmode=disable&quot;</span>)
+    testPool, err = pgxpool.<span class="f">New</span>(ctx, dsn)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        log.<span class="f">Fatal</span>(err)
+    }
+
+    code := m.<span class="f">Run</span>()
+
+    testPool.<span class="f">Close</span>()
+    _ = pg.<span class="f">Terminate</span>(ctx)
+    os.<span class="f">Exit</span>(code)
+}
+
+<span class="c">// Mỗi test chạy trong một transaction rồi rollback: dữ liệu test không lẫn sang nhau</span>
+<span class="k">func</span> <span class="f">withTx</span>(t *testing.T, fn <span class="k">func</span>(ctx context.Context, q Querier)) {
+    t.<span class="f">Helper</span>()
+    ctx := context.<span class="f">Background</span>()
+    tx, err := testPool.<span class="f">Begin</span>(ctx)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        t.<span class="f">Fatal</span>(err)
+    }
+    t.<span class="f">Cleanup</span>(<span class="k">func</span>() { tx.<span class="f">Rollback</span>(ctx) })
+    <span class="f">fn</span>(ctx, tx)
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>store/class_test.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> store
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;testing&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">TestCapacityCheck</span>(t *testing.T) {
+    <span class="f">withTx</span>(t, <span class="k">func</span>(ctx context.Context, q Querier) {
+        s := &amp;ClassStore{db: q}
+        _, err := s.<span class="f">Create</span>(ctx, Class{TeacherID: <span class="n">1</span>, Name: <span class="s">&quot;A&quot;</span>, Capacity: <span class="n">120</span>})
+        <span class="k">if</span> !errors.<span class="f">Is</span>(err, ErrInvalid) { <span class="c">// CHECK (capacity BETWEEN 1 AND 80) trong database</span>
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;sĩ số 120 phải bị database từ chối, nhận %v&quot;</span>, err)
+        }
+    })
+}
+
+<span class="k">func</span> <span class="f">TestTeacherCannotSeeOthersClass</span>(t *testing.T) {
+    <span class="f">withTx</span>(t, <span class="k">func</span>(ctx context.Context, q Querier) {
+        s := &amp;ClassStore{db: q}
+        c, _ := s.<span class="f">Create</span>(ctx, Class{TeacherID: <span class="n">1</span>, Name: <span class="s">&quot;A&quot;</span>, Capacity: <span class="n">30</span>})
+        <span class="k">if</span> _, err := s.<span class="f">Get</span>(ctx, <span class="n">2</span>, c.ID); !errors.<span class="f">Is</span>(err, ErrNotFound) {
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;giáo viên 2 không được thấy lớp của giáo viên 1, nhận %v&quot;</span>, err)
+        }
+    })
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">go test ./store/ -v</span>
+2026/11/03 10:40:02 🐳 Creating container for image postgres:17-alpine
+2026/11/03 10:40:03 ✅ Container started: 4c1d2a9e
+2026/11/03 10:40:05 🔔 Container is ready: 4c1d2a9e
+=== RUN   TestCapacityCheck
+--- PASS: TestCapacityCheck (0.01s)
+=== RUN   TestTeacherCannotSeeOthersClass
+--- PASS: TestTeacherCannotSeeOthersClass (0.00s)
+PASS
+2026/11/03 10:40:05 🐳 Terminating container: 4c1d2a9e
+ok      demo/store      3.912s</pre></div>
+<p><b>Giải thích:</b> phần lớn thời gian (khoảng 3 giây) là bật container. Mỗi test chỉ mất vài mili giây vì chạy trong transaction rồi rollback. Container được bật một lần cho cả package nhờ <code>TestMain</code>. Lần đầu chạy cần tải image Postgres (vài chục MB).</p>
+<aside class="tip"><p>Mẹo cho test nhanh: tạo database mẫu đã chạy migration một lần, rồi mỗi test <code>CREATE DATABASE t_xxx TEMPLATE mau</code> (mất khoảng 20ms) để test chạy song song bằng <code>t.Parallel()</code> mà không đụng nhau. Cách rollback ở trên đơn giản hơn nhưng không test được code tự mở transaction hoặc tranh chấp giữa hai kết nối.</p></aside>
+<aside class="prod"><p>Tách test chậm bằng build tag: đầu file ghi <code>//go:build integration</code>, chạy bằng <code>go test -tags=integration ./...</code>. Trên máy chạy nhanh <code>go test ./...</code>, CI chạy cả hai.</p></aside>
+
+<h2 id="test-api-ben-thu-ba-httptest-server"><a href="#test-api-ben-thu-ba-httptest-server" class="anchor" aria-hidden="true">#</a>Test API bên thứ ba: httptest.Server</h2>
+<p>Code gọi API ngân hàng / AI / gửi SMS. Không gọi thật trong test, cũng không cần mock: bật một <b>server HTTP giả</b> ngay trong test và trỏ client vào nó.</p>
+<div class="code"><div class="code-h"><span>payment/client_test.go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">TestCreatePaymentRetriesOn503</span>(t *testing.T) {
+    <span class="k">var</span> calls atomic.Int32
+    srv := httptest.<span class="f">NewServer</span>(http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        <span class="k">if</span> r.Header.<span class="f">Get</span>(<span class="s">&quot;Idempotency-Key&quot;</span>) == <span class="s">&quot;&quot;</span> {
+            t.<span class="f">Error</span>(<span class="s">&quot;thiếu Idempotency-Key&quot;</span>)
+        }
+        <span class="k">if</span> calls.<span class="f">Add</span>(<span class="n">1</span>) &lt; <span class="n">3</span> {
+            w.<span class="f">WriteHeader</span>(<span class="n">503</span>) <span class="c">// hai lần đầu lỗi tạm thời</span>
+            <span class="k">return</span>
+        }
+        w.<span class="f">Write</span>([]<span class="t">byte</span>(<span class="s">`{&quot;id&quot;:&quot;pay_1&quot;,&quot;status&quot;:&quot;pending&quot;}`</span>))
+    }))
+    <span class="k">defer</span> srv.<span class="f">Close</span>()
+
+    c := <span class="f">NewClient</span>(srv.URL, <span class="s">&quot;test-key&quot;</span>) <span class="c">// client nhận baseURL qua tham số: dễ test</span>
+    p, err := c.<span class="f">Create</span>(context.<span class="f">Background</span>(), <span class="n">49000</span>, <span class="s">&quot;order-1&quot;</span>)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        t.<span class="f">Fatal</span>(err)
+    }
+    <span class="k">if</span> p.ID != <span class="s">&quot;pay_1&quot;</span> || calls.<span class="f">Load</span>() != <span class="n">3</span> {
+        t.<span class="f">Fatalf</span>(<span class="s">&quot;p=%+v, calls=%d&quot;</span>, p, calls.<span class="f">Load</span>())
+    }
+}</code></pre></div>
+
+<h2 id="thoi-gian-trong-test"><a href="#thoi-gian-trong-test" class="anchor" aria-hidden="true">#</a>Thời gian trong test</h2>
+<p>Code có "hạn nộp hôm nay", "phiên hết hạn sau 30 ngày", "thử lại sau 1 phút". Đừng gọi <code>time.Now()</code> rải rác: truyền đồng hồ vào.</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Service <span class="k">struct</span> {
+    now <span class="k">func</span>() time.Time <span class="c">// production: time.Now, test: hàm trả giờ cố định</span>
+}
+
+<span class="k">func</span> (s *Service) <span class="f">IsLate</span>(due time.Time) <span class="t">bool</span> { <span class="k">return</span> s.<span class="f">now</span>().<span class="f">After</span>(due) }
+
+<span class="c">// test</span>
+svc := &amp;Service{now: <span class="k">func</span>() time.Time { <span class="k">return</span> time.<span class="f">Date</span>(<span class="n">2026</span>, <span class="n">11</span>, <span class="n">3</span>, <span class="n">23</span>, <span class="n">59</span>, <span class="n">0</span>, <span class="n">0</span>, vn) }}</code></pre></div>
+<p>Go 1.25 có <code>testing/synctest</code>: chạy test trong một "bong bóng" có đồng hồ giả. <code>time.Sleep(time.Hour)</code> trong bong bóng trả về ngay, nhưng thời gian giả vẫn tiến đúng 1 giờ. Rất hợp để test timeout, ticker, retry có chờ.</p>
+<div class="code"><div class="code-h"><span>retry_test.go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">TestDebounce</span>(t *testing.T) {
+    synctest.<span class="f">Test</span>(t, <span class="k">func</span>(t *testing.T) {
+        <span class="k">var</span> d Debouncer
+        <span class="k">var</span> n atomic.Int32
+        <span class="k">for</span> <span class="k">range</span> <span class="n">5</span> {
+            d.<span class="f">Call</span>(<span class="n">2</span>*time.Second, <span class="k">func</span>() { n.<span class="f">Add</span>(<span class="n">1</span>) })
+            time.<span class="f">Sleep</span>(<span class="n">500</span> * time.Millisecond) <span class="c">// đồng hồ giả: không chờ thật</span>
+        }
+        time.<span class="f">Sleep</span>(<span class="n">3</span> * time.Second)
+        synctest.<span class="f">Wait</span>() <span class="c">// chờ mọi goroutine trong bong bóng dừng lại</span>
+        <span class="k">if</span> n.<span class="f">Load</span>() != <span class="n">1</span> {
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;debounce phải chỉ chạy 1 lần, chạy %d&quot;</span>, n.<span class="f">Load</span>())
+        }
+    })
+}</code></pre></div>
+
+<h2 id="golden-file-so-sanh-voi-ket-qua-da-duyet"><a href="#golden-file-so-sanh-voi-ket-qua-da-duyet" class="anchor" aria-hidden="true">#</a>Golden file: so sánh với kết quả đã duyệt</h2>
+<p>Output dài (JSON của báo cáo, file CSV, email HTML): thay vì viết tay chuỗi mong đợi, lưu kết quả đúng vào <code>testdata/*.golden</code> và so sánh. Khi cố ý đổi output, chạy với cờ <code>-update</code> để ghi lại.</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> update = flag.<span class="f">Bool</span>(<span class="s">&quot;update&quot;</span>, <span class="b">false</span>, <span class="s">&quot;ghi lại file golden&quot;</span>)
+
+<span class="k">func</span> <span class="f">TestExportCSV</span>(t *testing.T) {
+    got := <span class="f">exportCSV</span>(<span class="f">sampleClass</span>())
+    path := filepath.<span class="f">Join</span>(<span class="s">&quot;testdata&quot;</span>, <span class="s">&quot;export.golden.csv&quot;</span>) <span class="c">// go test bỏ qua thư mục testdata khi build</span>
+    <span class="k">if</span> *update {
+        os.<span class="f">WriteFile</span>(path, got, 0o644)
+    }
+    want, err := os.<span class="f">ReadFile</span>(path)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        t.<span class="f">Fatal</span>(err)
+    }
+    <span class="k">if</span> !bytes.<span class="f">Equal</span>(got, want) {
+        t.<span class="f">Errorf</span>(<span class="s">&quot;CSV khác bản đã duyệt. Chạy go test -update rồi xem git diff&quot;</span>)
+    }
+}</code></pre></div>
+<p>Khi review pull request, <code>git diff testdata/</code> cho thấy chính xác output đổi thế nào. Thư viện so sánh dễ đọc: <code>github.com/google/go-cmp/cmp</code>, <code>cmp.Diff(want, got)</code> in ra từng chỗ khác.</p>
+
+<h2 id="fuzz-de-may-tim-loi"><a href="#fuzz-de-may-tim-loi" class="anchor" aria-hidden="true">#</a>Fuzz: để máy tìm lỗi</h2>
+<p>Bạn viết test cho các đầu vào bạn nghĩ ra. Fuzz test cho Go <b>tự sinh hàng triệu đầu vào</b>, ưu tiên những đầu vào đi vào nhánh code mới, để tìm panic hay vi phạm tính chất.</p>
+<div class="code"><div class="code-h"><span>name_test.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> name
+
+<span class="k">import</span> (
+    <span class="s">&quot;strings&quot;</span>
+    <span class="s">&quot;testing&quot;</span>
+    <span class="s">&quot;unicode/utf8&quot;</span>
+)
+
+<span class="c">// Chuẩn hoá tên: bỏ khoảng trắng thừa, viết hoa chữ đầu mỗi từ</span>
+<span class="k">func</span> <span class="f">Normalize</span>(s <span class="t">string</span>) <span class="t">string</span> {
+    words := strings.<span class="f">Fields</span>(s)
+    <span class="k">for</span> i, w := <span class="k">range</span> words {
+        words[i] = strings.<span class="f">ToUpper</span>(w[:<span class="n">1</span>]) + strings.<span class="f">ToLower</span>(w[<span class="n">1</span>:]) <span class="c">// lỗi ẩn: cắt theo byte</span>
+    }
+    <span class="k">return</span> strings.<span class="f">Join</span>(words, <span class="s">&quot; &quot;</span>)
+}
+
+<span class="k">func</span> <span class="f">FuzzNormalize</span>(f *testing.F) {
+    f.<span class="f">Add</span>(<span class="s">&quot;nguyễn văn an&quot;</span>) <span class="c">// vài mẫu khởi đầu</span>
+    f.<span class="f">Add</span>(<span class="s">&quot;  AN  &quot;</span>)
+    f.<span class="f">Fuzz</span>(<span class="k">func</span>(t *testing.T, s <span class="t">string</span>) {
+        <span class="k">if</span> !utf8.<span class="f">ValidString</span>(s) {
+            t.<span class="f">Skip</span>()
+        }
+        out := <span class="f">Normalize</span>(s)
+        <span class="c">// Kiểm tra TÍNH CHẤT, không phải giá trị cụ thể</span>
+        <span class="k">if</span> !utf8.<span class="f">ValidString</span>(out) {
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;kết quả không phải UTF-8 hợp lệ: %q → %q&quot;</span>, s, out)
+        }
+        <span class="k">if</span> <span class="f">Normalize</span>(out) != out {
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;chuẩn hoá hai lần ra kết quả khác: %q&quot;</span>, s)
+        }
+    })
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">go test -fuzz=FuzzNormalize -fuzztime=30s</span>
+fuzz: elapsed: 0s, gathering baseline coverage: 0/2 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 2/2 completed, now fuzzing with 8 workers
+fuzz: elapsed: 0s, execs: 1544 (12871/sec), new interesting: 3 (total: 5)
+--- FAIL: FuzzNormalize (0.13s)
+    --- FAIL: FuzzNormalize (0.00s)
+        name_test.go:28: kết quả không phải UTF-8 hợp lệ: &quot;ấn&quot; → &quot;\xe1\xba\xa5n&quot;...
+
+    Failing input written to testdata/fuzz/FuzzNormalize/8c3e1a0b2f7d9e41
+    To re-run:
+    go test -run=FuzzNormalize/8c3e1a0b2f7d9e41
+FAIL</pre></div>
+<p><b>Giải thích:</b> <code>w[:1]</code> lấy <b>byte</b> đầu tiên, nhưng chữ "ấ" dài 3 byte. Cắt giữa ký tự làm hỏng UTF-8. Fuzz tìm ra trong chưa tới 1 giây. Đầu vào gây lỗi được lưu vào <code>testdata/fuzz/</code> và từ nay chạy cùng <code>go test</code> bình thường, thành test hồi quy. Sửa: đổi sang <code>[]rune</code> (bài 2).</p>
+<div class="code good"><div class="code-h"><span>Go · trích đoạn</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code>r := []<span class="t">rune</span>(w)
+words[i] = strings.<span class="f">ToUpper</span>(<span class="t">string</span>(r[:<span class="n">1</span>])) + strings.<span class="f">ToLower</span>(<span class="t">string</span>(r[<span class="n">1</span>:]))</code></pre></div>
+<p>Fuzz hợp với: hàm đọc / phân tích dữ liệu (CSV, JSON tự viết, đường dẫn, mã lớp), chuẩn hoá chuỗi, mã hoá / giải mã (tính chất: <code>Decode(Encode(x)) == x</code>).</p>
+
+<h2 id="race-detector-va-test-lap"><a href="#race-detector-va-test-lap" class="anchor" aria-hidden="true">#</a>Race detector và test lặp</h2>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> test -race ./...            <span class="c"># tìm truy cập dữ liệu chung không có khoá (chậm hơn 5-10 lần, luôn bật trong CI)</span>
+<span class="k">go</span> test -count=<span class="n">50</span> -run TestX   <span class="c"># chạy 50 lần để lộ test chập chờn (flaky)</span>
+<span class="k">go</span> test -shuffle=on ./...      <span class="c"># đổi thứ tự test: lộ test phụ thuộc vào test khác</span></code></pre></div>
+<p>Test chập chờn (lúc qua lúc trượt) nguy hiểm hơn không có test: mọi người quen bấm "chạy lại", tới khi lỗi thật cũng bị bỏ qua. Nguyên nhân thường gặp: <code>time.Sleep</code> để "chờ goroutine xong", phụ thuộc thứ tự của map, dùng chung dữ liệu giữa các test, giờ hệ thống.</p>
+
+<h2 id="coverage-do-dung-chay-theo-con-so"><a href="#coverage-do-dung-chay-theo-con-so" class="anchor" aria-hidden="true">#</a>Coverage: đo, đừng chạy theo con số</h2>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">go test -coverprofile=cover.out ./...</span>
+ok      demo/service    0.004s  coverage: 87.5% of statements
+ok      demo/store      3.902s  coverage: 74.1% of statements
+<span class="t-p">$</span> <span class="t-c">go tool cover -html=cover.out    # mở trình duyệt, tô đỏ các dòng chưa test</span></pre></div>
+<p>Coverage cao không có nghĩa là test tốt (một test gọi hàm mà không kiểm tra gì vẫn tăng coverage). Dùng nó để <b>tìm nhánh quan trọng chưa test</b>: nhánh lỗi, kiểm tra quyền, trường hợp biên. Từ Go 1.20, có thể đo coverage cả khi chạy binary thật (<code>go build -cover</code>), hữu ích cho test e2e.</p>
+
+<h2 id="do-tai-server-chiu-duoc-bao-nhieu"><a href="#do-tai-server-chiu-duoc-bao-nhieu" class="anchor" aria-hidden="true">#</a>Đo tải: server chịu được bao nhiêu</h2>
+<p>Trước khi mở bán hay trước mùa cao điểm (đầu năm học), cần biết: bao nhiêu request mỗi giây thì độ trễ bắt đầu tăng, và chỗ nào nghẽn trước (CPU, database, pool kết nối).</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">brew</span> install k6</code></pre></div>
+<div class="code"><div class="code-h"><span>load.js</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> http <span class="k">from</span> <span class="s">&quot;k6/http&quot;</span>;
+<span class="k">import</span> { check, sleep } <span class="k">from</span> <span class="s">&quot;k6&quot;</span>;
+
+<span class="k">export</span> <span class="k">const</span> options = {
+  stages: [
+    { duration: <span class="s">&quot;30s&quot;</span>, target: <span class="n">50</span> },   <span class="c">// tăng dần lên 50 người dùng ảo</span>
+    { duration: <span class="s">&quot;1m&quot;</span>, target: <span class="n">200</span> },   <span class="c">// rồi 200</span>
+    { duration: <span class="s">&quot;30s&quot;</span>, target: <span class="n">0</span> },
+  ],
+  thresholds: {
+    http_req_duration: [<span class="s">&quot;p(95)&lt;300&quot;</span>],  <span class="c">// 95% request dưới 300ms, không đạt thì k6 báo lỗi (dùng trong CI)</span>
+    http_req_failed: [<span class="s">&quot;rate&lt;0.01&quot;</span>],    <span class="c">// dưới 1% lỗi</span>
+  },
+};
+
+<span class="k">export</span> <span class="k">default</span> <span class="k">function</span> () {
+  <span class="k">const</span> res = http.<span class="f">get</span>(<span class="s">&quot;http://localhost:8080/api/v1/classes/42/assignments&quot;</span>, {
+    headers: { Authorization: <span class="s">`Bearer ${__ENV.TOKEN}`</span> },
+  });
+  <span class="f">check</span>(res, { <span class="s">&quot;status 200&quot;</span>: (r) =&gt; r.status === <span class="n">200</span> });
+  <span class="f">sleep</span>(<span class="n">1</span>); <span class="c">// mỗi người dùng ảo nghỉ 1 giây giữa hai lần, giống người thật</span>
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">k6 run -e TOKEN=$TOKEN load.js</span>
+
+     ✓ status 200
+
+     checks.........................: 100.00% ✓ 21385     ✗ 0
+     http_req_duration..............: avg=18.2ms  min=1.9ms  med=9.4ms  max=1.2s  p(90)=31.7ms  p(95)=212.4ms
+   ✓ { expected_response:true }...: avg=18.2ms  p(95)=212.4ms
+     http_req_failed................: 0.00%   ✓ 0         ✗ 21385
+     http_reqs......................: 21385   178.2/s
+     vus_max........................: 200
+
+   ✓ http_req_duration p(95)&lt;300
+   ✓ http_req_failed rate&lt;0.01</pre></div>
+<p><b>Đọc kết quả:</b> trung bình 18ms nhưng p95 là 212ms và max 1,2 giây. Trung bình che mất đuôi chậm. Khi p95 nhảy vọt trong lúc số người dùng tăng, mở pprof (bài 27) và xem số kết nối database đang chờ (<code>pool.Stat().EmptyAcquireCount()</code>): rất thường gặp là pool 10 kết nối bị dùng hết, request xếp hàng chờ kết nối.</p>
+<aside class="warn"><p>Chỉ đo tải môi trường <b>của bạn</b> (máy cá nhân, môi trường staging). Đo tải hệ thống của người khác, hay production đang có người dùng mà không báo trước, có thể bị coi là tấn công. Chạy k6 ở một máy khác với server, vì k6 cũng ăn CPU.</p></aside>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Store được test bằng fake (map trong bộ nhớ). Câu SQL trong store thật gõ sai tên cột. Test service có bắt được không?</p><div class="qo"><button type="button" class="opt">Có</button><button type="button" class="opt" data-ok>Không. Fake không chạy SQL. Cần test tích hợp store với Postgres thật (testcontainers) hoặc sqlc để bắt lúc sinh code</button><button type="button" class="opt">Có nếu bật -race</button></div><p class="why" hidden>Mỗi tầng test bắt một loại lỗi. Fake kiểm tra logic service, database thật kiểm tra SQL và ràng buộc.</p></div>
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Fuzz test nên kiểm tra điều gì?</p><div class="qo"><button type="button" class="opt">Kết quả bằng đúng một chuỗi cụ thể</button><button type="button" class="opt" data-ok>Tính chất luôn đúng với mọi đầu vào: không panic, kết quả hợp lệ, làm hai lần ra như một lần, giải mã lại ra đầu vào</button><button type="button" class="opt">Thời gian chạy</button></div><p class="why" hidden>Fuzz sinh đầu vào ngẫu nhiên nên bạn không biết trước kết quả cụ thể. Bạn chỉ kiểm tra được những tính chất phải đúng với mọi đầu vào.</p></div>
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Kết quả k6: avg 20ms, p95 900ms. Kết luận nào đúng?</p><div class="qo"><button type="button" class="opt">Server nhanh, trung bình chỉ 20ms</button><button type="button" class="opt" data-ok>5% người dùng chờ gần 1 giây trở lên. Cần tìm vì sao có đuôi chậm (khoá, pool kết nối, GC, truy vấn chậm với một số dữ liệu)</button><button type="button" class="opt">Đo sai</button></div><p class="why" hidden>Người dùng cảm nhận các request chậm, không cảm nhận trung bình. SLO và cảnh báo luôn dùng phân vị (p95, p99).</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Fuzz hàm đọc mã lớp</summary>
+<p>Mã lớp có dạng 8 ký tự gồm chữ in hoa và số, không có <code>O</code>, <code>0</code>, <code>I</code>, <code>1</code> (dễ nhầm). Người dùng có thể gõ chữ thường, có khoảng trắng hoặc dấu gạch: <code>" abcd-5a23 "</code>. Viết <code>ParseCode(s string) (string, error)</code> và fuzz test kiểm tra: không panic, kết quả luôn đúng 8 ký tự hợp lệ khi không lỗi, và <code>ParseCode(kết quả)</code> trả lại chính nó.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Duyệt từng <code>rune</code>, bỏ khoảng trắng và <code>-</code>, đổi <code>unicode.ToUpper</code>.</li>
+<li>Ký tự hợp lệ: <code>strings.ContainsRune("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", r)</code>.</li>
+<li>Bẫy: <code>unicode.ToUpper</code> của vài ký tự Unicode lạ ra chữ Latin? Ví dụ chữ <code>ı</code> (i không chấm của tiếng Thổ Nhĩ Kỳ) viết hoa thành <code>I</code>. Fuzz sẽ tìm ra.</li>
+<li>Tính chất thứ ba gọi là idempotent: chuẩn hoá hai lần như một lần.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>code.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> code
+
+<span class="k">import</span> (
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+    <span class="s">&quot;unicode&quot;</span>
+)
+
+<span class="k">const</span> alphabet = <span class="s">&quot;ABCDEFGHJKLMNPQRSTUVWXYZ23456789&quot;</span>
+
+<span class="k">var</span> ErrBadCode = errors.<span class="f">New</span>(<span class="s">&quot;mã lớp gồm 8 chữ hoặc số&quot;</span>)
+
+<span class="k">func</span> <span class="f">ParseCode</span>(s <span class="t">string</span>) (<span class="t">string</span>, <span class="t">error</span>) {
+    <span class="k">var</span> b strings.Builder
+    <span class="k">for</span> _, r := <span class="k">range</span> s {
+        <span class="k">if</span> unicode.<span class="f">IsSpace</span>(r) || r == <span class="s">'-'</span> {
+            <span class="k">continue</span>
+        }
+        <span class="k">if</span> r &gt; unicode.MaxASCII { <span class="c">// chặn ký tự ngoài ASCII TRƯỚC khi viết hoa (ı → I)</span>
+            <span class="k">return</span> <span class="s">&quot;&quot;</span>, ErrBadCode
+        }
+        r = unicode.<span class="f">ToUpper</span>(r)
+        <span class="k">if</span> !strings.<span class="f">ContainsRune</span>(alphabet, r) {
+            <span class="k">return</span> <span class="s">&quot;&quot;</span>, ErrBadCode
+        }
+        b.<span class="f">WriteRune</span>(r)
+        <span class="k">if</span> b.<span class="f">Len</span>() &gt; <span class="n">8</span> {
+            <span class="k">return</span> <span class="s">&quot;&quot;</span>, ErrBadCode
+        }
+    }
+    <span class="k">if</span> b.<span class="f">Len</span>() != <span class="n">8</span> {
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, ErrBadCode
+    }
+    <span class="k">return</span> b.<span class="f">String</span>(), <span class="b">nil</span>
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>code_test.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> code
+
+<span class="k">import</span> (
+    <span class="s">&quot;strings&quot;</span>
+    <span class="s">&quot;testing&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">FuzzParseCode</span>(f *testing.F) {
+    <span class="k">for</span> _, s := <span class="k">range</span> []<span class="t">string</span>{<span class="s">&quot;ABCD5A23&quot;</span>, <span class="s">&quot; abcd-5a23 &quot;</span>, <span class="s">&quot;ABCD&quot;</span>, <span class="s">&quot;ıııııııı&quot;</span>, <span class="s">&quot;&quot;</span>} {
+        f.<span class="f">Add</span>(s)
+    }
+    f.<span class="f">Fuzz</span>(<span class="k">func</span>(t *testing.T, s <span class="t">string</span>) {
+        got, err := <span class="f">ParseCode</span>(s)
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            <span class="k">return</span> <span class="c">// từ chối thì không sao, miễn không panic</span>
+        }
+        <span class="k">if</span> <span class="b">len</span>(got) != <span class="n">8</span> {
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;%q → %q: không đủ 8 ký tự&quot;</span>, s, got)
+        }
+        <span class="k">for</span> _, r := <span class="k">range</span> got {
+            <span class="k">if</span> !strings.<span class="f">ContainsRune</span>(alphabet, r) {
+                t.<span class="f">Fatalf</span>(<span class="s">&quot;%q → %q: có ký tự %q không hợp lệ&quot;</span>, s, got, r)
+            }
+        }
+        again, err := <span class="f">ParseCode</span>(got)
+        <span class="k">if</span> err != <span class="b">nil</span> || again != got {
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;không idempotent: %q → %q → %q, %v&quot;</span>, s, got, again, err)
+        }
+    })
+}
+
+<span class="k">func</span> <span class="f">TestParseCode</span>(t *testing.T) {
+    cases := <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{<span class="s">&quot; abcd-5a23 &quot;</span>: <span class="s">&quot;ABCD5A23&quot;</span>, <span class="s">&quot;ıııııııı&quot;</span>: <span class="s">&quot;&quot;</span>, <span class="s">&quot;ABCD5A2O&quot;</span>: <span class="s">&quot;&quot;</span>}
+    <span class="k">for</span> in, want := <span class="k">range</span> cases {
+        got, _ := <span class="f">ParseCode</span>(in)
+        <span class="k">if</span> got != want {
+            t.<span class="f">Errorf</span>(<span class="s">&quot;ParseCode(%q) = %q, muốn %q&quot;</span>, in, got, want)
+        }
+    }
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">go test -run TestParseCode -v</span>
+=== RUN   TestParseCode
+--- PASS: TestParseCode (0.00s)
+PASS
+<span class="t-p">$</span> <span class="t-c">go test -fuzz=FuzzParseCode -fuzztime=20s</span>
+fuzz: elapsed: 0s, gathering baseline coverage: 0/5 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 5/5 completed, now fuzzing with 8 workers
+fuzz: elapsed: 3s, execs: 412873 (137612/sec), new interesting: 11 (total: 16)
+fuzz: elapsed: 20s, execs: 2763120 (138110/sec), new interesting: 14 (total: 19)
+PASS
+ok      code    20.112s</pre></div>
+<p><b>Giải thích:</b> 2,7 triệu đầu vào trong 20 giây, không có lỗi. Nếu bỏ dòng chặn ký tự ngoài ASCII, fuzz sẽ tìm ra <code>ı</code> viết hoa thành <code>I</code> (rồi bị chặn vì không có trong bảng) và các ký tự như <code>ǅ</code>, cho thấy việc kiểm tra trước khi đổi chữ hoa quan trọng thế nào. Chữ <code>O</code> trong <code>ABCD5A2O</code> bị từ chối vì không nằm trong bảng ký tự.</p>
+</details>
+</details>
+
+<details class="ex"><summary>Test tích hợp: hai request cùng vào lớp gần đầy</summary>
+<p>Lớp sĩ số 30 đã có 29 em. Hai phụ huynh bấm "vào lớp" cùng lúc. Viết test tích hợp với Postgres thật chứng minh store chỉ cho một người vào. Dùng hàm <code>Join</code> có điều kiện sĩ số nằm trong câu INSERT (bài 19).</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Không dùng <code>withTx</code> (một transaction) được, vì cần hai kết nối thật chạy song song. Dùng <code>testPool</code> trực tiếp và tự dọn dữ liệu bằng <code>t.Cleanup</code>.</li>
+<li>Tạo lớp và 29 em bằng <code>generate_series</code>: <code>INSERT INTO enrollments SELECT $1, g FROM generate_series(1, 29) g</code>.</li>
+<li>Hai goroutine cùng gọi <code>Join</code>, chờ nhau bằng một channel <code>start</code> để thật sự cùng lúc.</li>
+<li>Đếm: đúng một lỗi <code>ErrFull</code>, đúng 30 em.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>store/join.go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> ErrFull = errors.<span class="f">New</span>(<span class="s">&quot;lớp đã đủ sĩ số&quot;</span>)
+
+<span class="c">// Điều kiện sĩ số nằm NGAY trong câu INSERT, khoá dòng lớp để hai câu không cùng đếm 29</span>
+<span class="k">func</span> (s *ClassStore) <span class="f">Join</span>(ctx context.Context, classID, studentID <span class="t">int64</span>) <span class="t">error</span> {
+    tx, err := s.pool.<span class="f">Begin</span>(ctx)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    <span class="k">defer</span> tx.<span class="f">Rollback</span>(ctx)
+
+    <span class="k">var</span> capacity <span class="t">int</span>
+    <span class="k">if</span> err := tx.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT capacity FROM classes WHERE id = $1 FOR UPDATE`</span>, classID).<span class="f">Scan</span>(&amp;capacity); err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    tag, err := tx.<span class="f">Exec</span>(ctx, <span class="s">`
+        INSERT INTO enrollments (class_id, student_id)
+        SELECT $1, $2
+        WHERE (SELECT count(*) FROM enrollments WHERE class_id = $1) &lt; $3`</span>, classID, studentID, capacity)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    <span class="k">if</span> tag.<span class="f">RowsAffected</span>() == <span class="n">0</span> {
+        <span class="k">return</span> ErrFull
+    }
+    <span class="k">return</span> tx.<span class="f">Commit</span>(ctx)
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>store/join_test.go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">TestJoinRace</span>(t *testing.T) {
+    ctx := context.<span class="f">Background</span>()
+    s := &amp;ClassStore{pool: testPool}
+
+    <span class="k">var</span> classID <span class="t">int64</span>
+    err := testPool.<span class="f">QueryRow</span>(ctx,
+        <span class="s">`INSERT INTO classes (teacher_id, name, capacity) VALUES (1, 'Lớp đua', 30) RETURNING id`</span>).<span class="f">Scan</span>(&amp;classID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        t.<span class="f">Fatal</span>(err)
+    }
+    t.<span class="f">Cleanup</span>(<span class="k">func</span>() { testPool.<span class="f">Exec</span>(ctx, <span class="s">`DELETE FROM classes WHERE id = $1`</span>, classID) }) <span class="c">// ON DELETE CASCADE dọn enrollments</span>
+
+    <span class="k">if</span> _, err := testPool.<span class="f">Exec</span>(ctx,
+        <span class="s">`INSERT INTO enrollments (class_id, student_id) SELECT $1, g FROM generate_series(1, 29) g`</span>, classID); err != <span class="b">nil</span> {
+        t.<span class="f">Fatal</span>(err)
+    }
+
+    start := <span class="b">make</span>(<span class="k">chan</span> <span class="k">struct</span>{})
+    errs := <span class="b">make</span>(<span class="k">chan</span> <span class="t">error</span>, <span class="n">2</span>)
+    <span class="k">for</span> _, sid := <span class="k">range</span> []<span class="t">int64</span>{<span class="n">1001</span>, <span class="n">1002</span>} {
+        <span class="k">go</span> <span class="k">func</span>() {
+            &lt;-start <span class="c">// cả hai chờ ở đây rồi cùng chạy</span>
+            errs &lt;- s.<span class="f">Join</span>(ctx, classID, sid)
+        }()
+    }
+    <span class="b">close</span>(start)
+
+    <span class="k">var</span> full, ok <span class="t">int</span>
+    <span class="k">for</span> <span class="k">range</span> <span class="n">2</span> {
+        <span class="k">switch</span> err := &lt;-errs; {
+        <span class="k">case</span> err == <span class="b">nil</span>:
+            ok++
+        <span class="k">case</span> errors.<span class="f">Is</span>(err, ErrFull):
+            full++
+        <span class="k">default</span>:
+            t.<span class="f">Fatalf</span>(<span class="s">&quot;lỗi lạ: %v&quot;</span>, err)
+        }
+    }
+    <span class="k">var</span> n <span class="t">int</span>
+    testPool.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT count(*) FROM enrollments WHERE class_id = $1`</span>, classID).<span class="f">Scan</span>(&amp;n)
+    <span class="k">if</span> ok != <span class="n">1</span> || full != <span class="n">1</span> || n != <span class="n">30</span> {
+        t.<span class="f">Fatalf</span>(<span class="s">&quot;ok=%d full=%d sĩ số=%d, muốn 1, 1, 30&quot;</span>, ok, full, n)
+    }
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">go test ./store/ -run TestJoinRace -count=20</span>
+ok      demo/store      4.316s</pre></div>
+<p><b>Giải thích:</b> chạy 20 lần đều qua. <code>FOR UPDATE</code> khoá dòng lớp: request thứ hai phải chờ request đầu commit, rồi mới đếm và thấy đã đủ 30. Thử bỏ <code>FOR UPDATE</code> và chạy <code>-count=20</code>: sẽ có lần cả hai cùng đếm 29 và cùng chèn được, sĩ số thành 31, test trượt. Đây đúng là loại lỗi fake store không bao giờ bắt được.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="test-nang-cao">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="quan-sat.html"><small>Bài trước</small>Theo dõi hệ thống: log, metrics, tracing</a><a class="next" href="trien-khai.html"><small>Bài tiếp theo</small>Docker, CI/CD và triển khai</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#tu-co-test-den-test-dang-tin">Từ &quot;có test&quot; đến &quot;test đáng tin&quot;</a><a href="#fake-hay-mock">Fake hay mock</a><a href="#test-voi-postgres-that-testcontainers">Test với Postgres thật: testcontainers</a><a href="#test-api-ben-thu-ba-httptest-server">Test API bên thứ ba: httptest.Server</a><a href="#thoi-gian-trong-test">Thời gian trong test</a><a href="#golden-file-so-sanh-voi-ket-qua-da-duyet">Golden file: so sánh với kết quả đã duyệt</a><a href="#fuzz-de-may-tim-loi">Fuzz: để máy tìm lỗi</a><a href="#race-detector-va-test-lap">Race detector và test lặp</a><a href="#coverage-do-dung-chay-theo-con-so">Coverage: đo, đừng chạy theo con số</a><a href="#do-tai-server-chiu-duoc-bao-nhieu">Đo tải: server chịu được bao nhiêu</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

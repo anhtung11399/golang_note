@@ -1,0 +1,597 @@
+<h2>Khi nào hàng đợi bằng Postgres không còn đủ</h2>
+<p>Bài {{n:bat-dong-bo}} làm hàng đợi bằng một bảng <code>jobs</code> với <code>FOR UPDATE SKIP LOCKED</code>. Cách đó đủ cho rất nhiều hệ thống: vài trăm việc mỗi giây, một nhóm worker. Bạn cần một <b>message broker</b> riêng khi:</p>
+<ul>
+<li><b>Nhiều dịch vụ cùng nghe một sự kiện.</b> "Bài đã nộp" → dịch vụ thông báo gửi push, dịch vụ thống kê cập nhật biểu đồ, dịch vụ AI xếp hàng chấm thử. Mỗi bên đọc theo tốc độ riêng, thêm bên thứ tư không cần sửa bên gửi.</li>
+<li><b>Lượng lớn</b>: hàng chục nghìn sự kiện mỗi giây (log, click, vị trí xe).</li>
+<li><b>Cần đọc lại quá khứ</b>: dịch vụ mới muốn xử lý lại toàn bộ sự kiện 7 ngày qua.</li>
+<li><b>Giữ thứ tự theo từng đối tượng</b>: mọi sự kiện của một đơn hàng phải xử lý đúng thứ tự.</li>
+</ul>
+
+<h2>Hai kiểu broker: hàng đợi và nhật ký</h2>
+<arch w="860" h="300" caption="Hàng đợi (RabbitMQ): tin nhắn bị xoá khi đã xử lý. Nhật ký (Kafka): tin nhắn được giữ lại, mỗi nhóm đọc tự nhớ mình đã đọc tới đâu">
+group 20 20 360 260 proc "Hàng đợi: RabbitMQ, SQS"
+group 420 20 420 260 proc "Nhật ký: Kafka, NATS JetStream"
+node p1 80 140 goapi "Producer" ""
+node q 200 140 queue "Queue" "xử lý xong → xoá"
+node c1 320 80 worker "Worker A" ""
+node c2 320 200 worker "Worker B" ""
+edge p1 q ""
+path 226 140 260 140 260 80 294 80 "1 tin"
+path 260 140 260 200 294 200 "1 tin khác"
+node p2 480 140 goapi "Producer" ""
+node t 600 140 topic "Topic" "giữ 7 ngày"
+node g1 750 80 worker "Nhóm thông báo" "offset 1042"
+node g2 750 200 worker "Nhóm thống kê" "offset 980"
+edge p2 t ""
+path 626 140 680 140 680 80 724 80 "mọi tin"
+path 680 140 680 200 724 200 "mọi tin"
+</arch>
+<table>
+<tr><th></th><th>Hàng đợi (RabbitMQ, SQS)</th><th>Nhật ký (Kafka, Redpanda, NATS JetStream)</th></tr>
+<tr><td>Sau khi xử lý</td><td>tin nhắn bị xoá</td><td>tin nhắn vẫn còn tới hết thời hạn giữ</td></tr>
+<tr><td>Nhiều bên cùng nghe</td><td>phải tạo nhiều queue (fanout exchange)</td><td>tự nhiên: mỗi consumer group đọc độc lập</td></tr>
+<tr><td>Đọc lại quá khứ</td><td>không</td><td>có: đặt lại offset</td></tr>
+<tr><td>Thứ tự</td><td>gần như theo thứ tự, mất khi có nhiều consumer</td><td>đúng thứ tự trong từng partition</td></tr>
+<tr><td>Định tuyến phức tạp</td><td>mạnh (exchange, routing key)</td><td>đơn giản (theo topic)</td></tr>
+<tr><td>Hợp với</td><td>việc cần làm (gửi email, tạo ảnh)</td><td>sự kiện đã xảy ra (đã nộp bài, đã thanh toán), luồng dữ liệu lớn</td></tr>
+</table>
+
+<h2>Kafka hoạt động thế nào</h2>
+<p>Năm khái niệm, hiểu là đọc được mọi tài liệu Kafka:</p>
+<ul>
+<li><b>Topic</b>: một dòng sự kiện có tên, ví dụ <code>submissions</code>.</li>
+<li><b>Partition</b>: topic được chia thành N phần. Mỗi partition là một file chỉ ghi thêm vào cuối, mỗi tin có số thứ tự gọi là <b>offset</b>. Thứ tự chỉ được bảo đảm <b>trong một partition</b>.</li>
+<li><b>Key</b>: tin nhắn có key (ví dụ <code>student_id</code>) luôn vào cùng một partition (băm key). Vì vậy mọi sự kiện của một học sinh được xử lý đúng thứ tự.</li>
+<li><b>Consumer group</b>: một nhóm consumer cùng tên chia nhau các partition. Mỗi partition chỉ được <b>một</b> consumer trong nhóm đọc. Nhóm khác đọc độc lập.</li>
+<li><b>Commit offset</b>: consumer báo "tôi đã xử lý tới offset 1042". Khởi động lại thì đọc tiếp từ đó.</li>
+</ul>
+<arch w="820" h="330" caption="Topic 3 partition, nhóm 2 consumer: consumer 1 đọc P0 và P1, consumer 2 đọc P2. Thêm consumer thứ 4 vào nhóm thì nó ngồi chơi, vì chỉ có 3 partition">
+group 250 20 300 290 plain "Topic submissions"
+node prod 90 165 goapi "API Go" "key = student_id"
+node p0 400 75 topic "Partition 0" "offset 0 ... 1042"
+node p1 400 165 topic "Partition 1" "offset 0 ... 877"
+node p2 400 255 topic "Partition 2" "offset 0 ... 951"
+node c1 700 120 worker "Consumer 1" "nhóm notify"
+node c2 700 255 worker "Consumer 2" "nhóm notify"
+path 116 165 200 165 200 75 374 75 ""
+edge prod p1 "băm key"
+path 200 165 200 255 374 255 ""
+path 426 75 600 75 600 120 674 120 ""
+path 426 165 600 165 600 120 674 120 ""
+edge p2 c2 ""
+</arch>
+<aside class="tip"><p>Số partition là <b>giới hạn trên của số consumer chạy song song</b> trong một nhóm. Đặt từ đầu nhiều hơn mức cần (ví dụ 12 hoặc 24), vì tăng partition sau này làm thay đổi partition của các key (mất thứ tự trong lúc chuyển).</p></aside>
+
+<h3>Chạy Kafka trên máy</h3>
+<pre lang="yaml" file="compose.yaml">
+services:
+  kafka:
+    image: apache/kafka:3.9.0   # chế độ KRaft, không cần ZooKeeper
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_NUM_PARTITIONS: 3
+</pre>
+<pre lang="sh">
+docker compose up -d
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+  --create --topic submissions --partitions 3
+</pre>
+<p>Muốn nhẹ hơn: <b>Redpanda</b> (viết lại Kafka bằng C++, cùng giao thức, một container) chạy rất nhanh trên máy cá nhân, code Go không cần đổi.</p>
+
+<h3>Producer bằng Go</h3>
+<p>Hai thư viện phổ biến: <code>github.com/twmb/franz-go</code> (nhanh, đầy đủ, nhiều đội mới chọn) và <code>github.com/segmentio/kafka-go</code> (API đơn giản). Bài này dùng franz-go.</p>
+<pre lang="sh">
+go get github.com/twmb/franz-go/pkg/kgo
+</pre>
+<pre lang="go" file="producer/main.go" check="no">
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "log"
+    "strconv"
+    "time"
+
+    "github.com/twmb/franz-go/pkg/kgo"
+)
+
+type SubmissionEvent struct {
+    EventID      string    `json:"eventId"` // để consumer chống xử lý trùng
+    StudentID    int64     `json:"studentId"`
+    AssignmentID int64     `json:"assignmentId"`
+    At           time.Time `json:"at"`
+}
+
+func main() {
+    cl, err := kgo.NewClient(
+        kgo.SeedBrokers("localhost:9092"),
+        kgo.DefaultProduceTopic("submissions"),
+        kgo.RequiredAcks(kgo.AllISRAcks()), // chỉ coi là gửi xong khi mọi bản sao đã nhận
+        // idempotent producer bật sẵn: gửi lại do lỗi mạng không tạo tin trùng
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer cl.Close()
+
+    ctx := context.Background()
+    for i := 1; i <= 6; i++ {
+        ev := SubmissionEvent{
+            EventID:      fmt.Sprintf("sub-%d", i),
+            StudentID:    int64(i%3 + 1), // 3 học sinh
+            AssignmentID: 9,
+            At:           time.Now(),
+        }
+        b, _ := json.Marshal(ev)
+        rec := &kgo.Record{Key: []byte(strconv.FormatInt(ev.StudentID, 10)), Value: b}
+
+        // ProduceSync: chờ broker xác nhận. Bản thật thường dùng Produce (bất đồng bộ, có callback) để nhanh hơn
+        res := cl.ProduceSync(ctx, rec)
+        if err := res.FirstErr(); err != nil {
+            log.Fatal(err)
+        }
+        r := res[0].Record
+        fmt.Printf("gửi %s học sinh %d → partition %d offset %d\n", ev.EventID, ev.StudentID, r.Partition, r.Offset)
+    }
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run ./producer
+gửi sub-1 học sinh 2 → partition 0 offset 0
+gửi sub-2 học sinh 3 → partition 2 offset 0
+gửi sub-3 học sinh 1 → partition 1 offset 0
+gửi sub-4 học sinh 2 → partition 0 offset 1
+gửi sub-5 học sinh 3 → partition 2 offset 1
+gửi sub-6 học sinh 1 → partition 1 offset 1
+</pre>
+<p><b>Giải thích:</b> cùng một học sinh luôn vào cùng một partition (học sinh 2 luôn ở partition 0), nên hai sự kiện của học sinh 2 được đọc đúng thứ tự. Học sinh nào vào partition nào do hàm băm key quyết định, máy bạn có thể ra số khác, nhưng quy luật "cùng key cùng partition" luôn đúng.</p>
+
+<h3>Consumer bằng Go</h3>
+<pre lang="go" file="consumer/main.go" check="no">
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "log/slog"
+    "os/signal"
+    "syscall"
+
+    "github.com/twmb/franz-go/pkg/kgo"
+)
+
+type SubmissionEvent struct {
+    EventID   string `json:"eventId"`
+    StudentID int64  `json:"studentId"`
+}
+
+func main() {
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    cl, err := kgo.NewClient(
+        kgo.SeedBrokers("localhost:9092"),
+        kgo.ConsumerGroup("notify"),
+        kgo.ConsumeTopics("submissions"),
+        kgo.DisableAutoCommit(), // TỰ commit sau khi xử lý xong, không để thư viện commit trước
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer cl.Close()
+
+    for {
+        fetches := cl.PollFetches(ctx)
+        if fetches.IsClientClosed() || ctx.Err() != nil {
+            return
+        }
+        fetches.EachError(func(t string, p int32, err error) {
+            slog.Error("fetch", "topic", t, "partition", p, "err", err)
+        })
+
+        fetches.EachRecord(func(r *kgo.Record) {
+            var ev SubmissionEvent
+            if err := json.Unmarshal(r.Value, &ev); err != nil {
+                slog.Error("tin hỏng, bỏ qua", "offset", r.Offset, "err", err) // không để 1 tin hỏng chặn cả partition
+                return
+            }
+            if err := handle(ctx, ev); err != nil {
+                // xem phần "Lỗi và thử lại" bên dưới
+                slog.Error("xử lý lỗi", "event", ev.EventID, "err", err)
+            }
+            slog.Info("đã xử lý", "event", ev.EventID, "partition", r.Partition, "offset", r.Offset)
+        })
+
+        // Xử lý xong cả lô mới commit. Sập giữa chừng → lần sau đọc lại từ offset cũ
+        if err := cl.CommitUncommittedOffsets(ctx); err != nil {
+            slog.Error("commit", "err", err)
+        }
+    }
+}
+
+func handle(ctx context.Context, ev SubmissionEvent) error { return nil }
+</pre>
+<pre lang="out" sim="1">
+$ go run ./consumer
+INFO đã xử lý event=sub-1 partition=0 offset=0
+INFO đã xử lý event=sub-4 partition=0 offset=1
+INFO đã xử lý event=sub-3 partition=1 offset=0
+INFO đã xử lý event=sub-6 partition=1 offset=1
+INFO đã xử lý event=sub-2 partition=2 offset=0
+INFO đã xử lý event=sub-5 partition=2 offset=1
+</pre>
+<p><b>Giải thích:</b> thứ tự <b>giữa các partition</b> không cố định (sub-3 đến sau sub-4), nhưng trong mỗi partition thì luôn tăng dần. Chạy thêm một bản consumer cùng nhóm <code>notify</code> ở terminal khác, bạn sẽ thấy Kafka chia lại partition (rebalance): mỗi bản chỉ còn nhận một phần.</p>
+
+<h2>Giao ít nhất một lần, và cái giá của nó</h2>
+<p>Consumer xử lý xong tin, chuẩn bị commit thì sập. Lần sau nó đọc lại tin đó. Đây là <b>at-least-once</b>: không mất tin, nhưng có thể nhận trùng. Ba mức giao nhận:</p>
+<table>
+<tr><th>Mức</th><th>Cách đạt</th><th>Hậu quả</th></tr>
+<tr><td>At-most-once</td><td>commit trước, xử lý sau</td><td>sập giữa chừng → mất tin</td></tr>
+<tr><td>At-least-once</td><td>xử lý trước, commit sau</td><td>sập giữa chừng → xử lý trùng. <b>Dùng cái này</b>, và làm xử lý idempotent</td></tr>
+<tr><td>Exactly-once</td><td>Kafka transaction (đọc - ghi Kafka - commit trong một transaction)</td><td>chỉ đúng khi cả đầu vào và đầu ra đều là Kafka. Ghi ra database / gửi email thì vẫn cần idempotent</td></tr>
+</table>
+<p>Làm xử lý idempotent: ghi <code>event_id</code> đã xử lý vào database <b>trong cùng transaction</b> với việc chính.</p>
+<pre lang="go">
+func handle(ctx context.Context, pool *pgxpool.Pool, ev SubmissionEvent) error {
+    tx, err := pool.Begin(ctx)
+    if err != nil {
+        return err
+    }
+    defer tx.Rollback(ctx)
+
+    tag, err := tx.Exec(ctx,
+        `INSERT INTO processed_events (consumer, event_id) VALUES ('stats', $1) ON CONFLICT DO NOTHING`, ev.EventID)
+    if err != nil {
+        return err
+    }
+    if tag.RowsAffected() == 0 {
+        return nil // đã xử lý rồi (tin trùng) → bỏ qua
+    }
+    if _, err := tx.Exec(ctx,
+        `UPDATE class_stats SET submitted = submitted + 1 WHERE assignment_id = $1`, ev.AssignmentID); err != nil {
+        return err
+    }
+    return tx.Commit(ctx)
+}
+</pre>
+<aside class="warn"><p>Với việc ra bên ngoài (gửi email, gọi API thanh toán), không có "cùng transaction". Dùng idempotency key của bên kia nếu có (nhiều API thanh toán nhận <code>Idempotency-Key</code>), hoặc ghi "đang gửi" trước, gửi, rồi ghi "đã gửi", chấp nhận hiếm khi bị gửi trùng.</p></aside>
+
+<h2>Lỗi và thử lại: retry, DLQ</h2>
+<p>Tin xử lý lỗi thì làm gì? Không commit thì cả partition bị kẹt ở tin đó (vì offset là một con số, không bỏ qua được một tin ở giữa). Cách làm chuẩn:</p>
+<arch w="820" h="280" caption="Lỗi tạm thời: thử lại vài lần ngay. Vẫn lỗi: đẩy sang topic retry có độ trễ. Hết lượt: vào DLQ để người xem">
+node t 80 110 topic "submissions" ""
+node c 240 110 worker "Consumer" "thử lại 3 lần"
+node r 420 110 topic "submissions.retry" "chờ 1 phút"
+node rc 590 110 worker "Retry consumer" ""
+node d 590 200 dlq "submissions.dlq" "người xem"
+node ok 240 30 pg "" ""
+text 208 34 "Postgres" small anchor=end
+edge t c ""
+edge c ok "" c=ok
+edge c r "vẫn lỗi" c=bad
+edge r rc ""
+edge rc d "hết lượt" c=bad
+path 590 84 590 30 266 30 "thành công" c=ok
+</arch>
+<pre lang="go">
+type permanent struct{ error } // lỗi không thể sửa bằng thử lại: dữ liệu sai, bài không tồn tại
+
+func process(ctx context.Context, cl *kgo.Client, r *kgo.Record) {
+    var err error
+    for attempt := 1; attempt <= 3; attempt++ {
+        err = handleRecord(ctx, r)
+        var p permanent
+        if err == nil || errors.As(err, &p) {
+            break
+        }
+        time.Sleep(time.Duration(attempt*attempt) * 100 * time.Millisecond) // 100ms, 400ms, 900ms
+    }
+    if err == nil {
+        return
+    }
+    // Không chặn partition: chuyển tin sang topic khác kèm lý do, rồi coi như đã xử lý
+    out := &kgo.Record{
+        Topic: "submissions.dlq",
+        Key:   r.Key,
+        Value: r.Value,
+        Headers: []kgo.RecordHeader{
+            {Key: "error", Value: []byte(err.Error())},
+            {Key: "source-offset", Value: []byte(strconv.FormatInt(r.Offset, 10))},
+        },
+    }
+    if e := cl.ProduceSync(ctx, out).FirstErr(); e != nil {
+        panic(e) // không ghi được DLQ thì KHÔNG được commit: dừng lại, để lần sau xử lý lại
+    }
+}
+</pre>
+<aside class="prod"><p>Đặt cảnh báo khi DLQ có tin mới. DLQ mà không ai xem thì chỉ là thùng rác có tên đẹp. Có công cụ để đẩy tin trong DLQ quay lại topic chính sau khi sửa lỗi code.</p></aside>
+
+<h2>Thiết kế sự kiện</h2>
+<ul>
+<li><b>Tên ở thì quá khứ</b>: <code>submission.created</code>, <code>payment.succeeded</code>. Sự kiện là điều đã xảy ra, không phải mệnh lệnh.</li>
+<li><b>Luôn có</b>: <code>eventId</code> (duy nhất, để chống trùng), <code>type</code>, <code>occurredAt</code>, phiên bản lược đồ.</li>
+<li><b>Mang đủ dữ liệu hay chỉ id?</b> Chỉ id (<code>submissionId: 42</code>) thì consumer phải gọi lại API để lấy dữ liệu, dễ bị dữ liệu đã đổi. Mang đủ dữ liệu (ảnh chụp lúc xảy ra) thì consumer độc lập hơn. Thường mang đủ dữ liệu mà consumer cần, không mang dữ liệu nhạy cảm.</li>
+<li><b>Chỉ thêm trường, không xoá / đổi nghĩa</b>, giống REST API. Consumer cũ phải đọc được tin mới. Đội lớn dùng schema registry với Protobuf / Avro để kiểm tra điều này tự động.</li>
+<li><b>Gửi sự kiện cùng lúc ghi database thế nào cho không mất?</b> Outbox (bài {{n:bat-dong-bo}}): ghi sự kiện vào bảng <code>outbox</code> cùng transaction, một tiến trình khác đọc outbox và đẩy lên Kafka.</li>
+</ul>
+
+<h2>NATS: nhẹ và nhanh</h2>
+<p>NATS là một file chạy viết bằng Go, khởi động trong mili giây, dùng ít RAM. Có hai lớp: <b>Core NATS</b> (bắn và quên, không lưu, cực nhanh) và <b>JetStream</b> (lưu lại, có consumer, giống Kafka nhưng đơn giản hơn).</p>
+<pre lang="sh">
+docker run -d --name nats -p 4222:4222 nats:2 -js   # -js: bật JetStream
+go get github.com/nats-io/nats.go
+</pre>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+
+    "github.com/nats-io/nats.go"
+    "github.com/nats-io/nats.go/jetstream"
+)
+
+func main() {
+    nc, err := nats.Connect(nats.DefaultURL)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer nc.Drain()
+
+    js, _ := jetstream.New(nc)
+    ctx := context.Background()
+
+    // Stream: lưu mọi tin có subject bắt đầu bằng "submissions."
+    js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+        Name:     "SUBMISSIONS",
+        Subjects: []string{"submissions.>"},
+        MaxAge:   7 * 24 * time.Hour,
+    })
+
+    // Consumer bền (durable): nhớ đã đọc tới đâu, nhiều bản cùng tên chia nhau việc
+    cons, _ := js.CreateOrUpdateConsumer(ctx, "SUBMISSIONS", jetstream.ConsumerConfig{
+        Durable:    "notify",
+        AckPolicy:  jetstream.AckExplicitPolicy,
+        MaxDeliver: 5,                // giao tối đa 5 lần
+        AckWait:    30 * time.Second, // không ack trong 30 giây → giao lại
+    })
+    cc, _ := cons.Consume(func(m jetstream.Msg) {
+        fmt.Printf("nhận %s: %s\n", m.Subject(), m.Data())
+        m.Ack() // lỗi tạm thời thì m.NakWithDelay(time.Minute) để giao lại sau
+    })
+    defer cc.Stop()
+
+    // Gửi: Publish chờ JetStream xác nhận đã lưu
+    js.Publish(ctx, "submissions.class42", []byte(`{"studentId":7,"assignmentId":9}`))
+    js.Publish(ctx, "submissions.class43", []byte(`{"studentId":8,"assignmentId":11}`))
+    time.Sleep(200 * time.Millisecond)
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run .
+nhận submissions.class42: {"studentId":7,"assignmentId":9}
+nhận submissions.class43: {"studentId":8,"assignmentId":11}
+</pre>
+<p>Điểm hay của NATS: subject có dạng phân cấp (<code>submissions.class42</code>) và có ký tự đại diện (<code>submissions.*</code>, <code>submissions.&gt;</code>), có sẵn mẫu hỏi - đáp (request / reply) và kho key-value. Với ít dịch vụ, ít đội vận hành, NATS dễ nuôi hơn Kafka rất nhiều.</p>
+
+<h2>RabbitMQ: khi cần định tuyến</h2>
+<p>RabbitMQ mạnh ở <b>định tuyến</b>: producer gửi tới một <b>exchange</b> với một <b>routing key</b>, exchange chuyển tin tới các queue khớp. Hay gặp ở hệ thống cũ, hệ thống ngân hàng, và các việc cần ưu tiên, độ trễ, TTL từng tin.</p>
+<pre lang="go">
+import amqp "github.com/rabbitmq/amqp091-go"
+
+conn, _ := amqp.Dial("amqp://guest:guest@localhost:5672/")
+ch, _ := conn.Channel()
+ch.ExchangeDeclare("events", "topic", true, false, false, false, nil)
+q, _ := ch.QueueDeclare("email-jobs", true, false, false, false, nil)    // durable: sống sót khi khởi động lại
+ch.QueueBind(q.Name, "submission.*", "events", false, nil)                 // nhận mọi sự kiện submission.*
+ch.Qos(10, 0, false)                                                       // mỗi consumer giữ tối đa 10 tin chưa ack
+
+msgs, _ := ch.Consume(q.Name, "", false /* autoAck */, false, false, false, nil)
+for m := range msgs {
+    if err := sendEmail(m.Body); err != nil {
+        m.Nack(false, true) // trả lại queue để thử lại
+        continue
+    }
+    m.Ack(false)
+}
+</pre>
+
+<h2>Chọn gì</h2>
+<table>
+<tr><th>Tình huống</th><th>Chọn</th></tr>
+<tr><td>Vài trăm việc / giây, một dịch vụ, đã có Postgres</td><td>bảng <code>jobs</code> (bài {{n:bat-dong-bo}}) hoặc River (thư viện Go làm hàng đợi trên Postgres)</td></tr>
+<tr><td>Việc nền đơn giản, đã có Redis</td><td>Asynq (thư viện Go trên Redis, có giao diện xem việc)</td></tr>
+<tr><td>Nhiều dịch vụ nghe sự kiện, ít người vận hành</td><td>NATS JetStream</td></tr>
+<tr><td>Luồng sự kiện lớn, cần đọc lại, nhiều đội</td><td>Kafka (hoặc Redpanda, dịch vụ quản lý như Confluent, MSK)</td></tr>
+<tr><td>Định tuyến phức tạp, ưu tiên, độ trễ từng tin</td><td>RabbitMQ</td></tr>
+<tr><td>Chạy trên AWS, không muốn vận hành</td><td>SQS (hàng đợi) + SNS / EventBridge (phát sự kiện)</td></tr>
+</table>
+<aside class="real"><p>Grab, Uber, Shopee đều dùng Kafka làm "xương sống" sự kiện: mỗi chuyến xe, mỗi đơn hàng sinh ra hàng chục sự kiện, hàng trăm dịch vụ cùng đọc. Nhưng ở những công ty đó cũng có đội riêng chỉ để vận hành Kafka. Với sản phẩm nhỏ, chọn thứ đơn giản nhất đủ dùng.</p></aside>
+
+<quiz q="Topic có 6 partition. Nhóm consumer chạy 10 bản. Bao nhiêu bản thực sự nhận tin?">
+- 10
++ 6, bốn bản còn lại không được giao partition nào
+- 1
+? Mỗi partition chỉ được một consumer trong nhóm đọc. Muốn 10 bản song song thì cần ít nhất 10 partition.
+</quiz>
+<quiz q="Mọi sự kiện của một đơn hàng phải xử lý đúng thứ tự. Producer nên làm gì?">
++ Dùng order_id làm key, để mọi sự kiện của đơn đó vào cùng một partition
+- Dùng 1 partition cho cả topic
+- Gửi kèm timestamp, consumer tự sắp xếp
+? Một partition thì đúng thứ tự nhưng không mở rộng được. Key theo đơn hàng: thứ tự đúng cho từng đơn, các đơn khác nhau vẫn xử lý song song.
+</quiz>
+<quiz q="Consumer commit offset ngay khi nhận tin, rồi mới xử lý. Server sập giữa lúc xử lý. Chuyện gì xảy ra?">
+- Tin được giao lại khi server bật lên
++ Tin bị mất: offset đã commit nên lần sau đọc từ tin tiếp theo
+- Kafka tự phát hiện và giao lại
+? Đây là at-most-once. Muốn không mất tin: xử lý xong mới commit, và làm xử lý idempotent để chịu được tin trùng.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Consumer cập nhật thống kê, chịu được tin trùng</summary>
+<p>Viết consumer Kafka (nhóm <code>stats</code>) đọc topic <code>submissions</code>, tăng bộ đếm số bài đã nộp của mỗi bài tập trong Postgres. Chạy producer gửi cùng một sự kiện 2 lần: bộ đếm chỉ được tăng 1.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Bảng <code>processed_events(consumer text, event_id text, PRIMARY KEY (consumer, event_id))</code> và <code>assignment_stats(assignment_id bigint PRIMARY KEY, submitted int NOT NULL DEFAULT 0)</code>.</li>
+<li>Dùng hàm <code>handle</code> ở phần "Giao ít nhất một lần": INSERT event_id trước, trùng thì bỏ qua.</li>
+<li>Bộ đếm chưa có dòng: <code>INSERT ... ON CONFLICT (assignment_id) DO UPDATE SET submitted = assignment_stats.submitted + 1</code>.</li>
+<li>Xử lý xong cả lô mới <code>CommitUncommittedOffsets</code>.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="sql" file="migrations/00010_stats.sql">
+-- +goose Up
+CREATE TABLE processed_events (
+    consumer   text NOT NULL,
+    event_id   text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (consumer, event_id)
+);
+CREATE TABLE assignment_stats (
+    assignment_id bigint PRIMARY KEY,
+    submitted     int NOT NULL DEFAULT 0
+);
+-- +goose Down
+DROP TABLE assignment_stats;
+DROP TABLE processed_events;
+</pre>
+<pre lang="go" file="stats/main.go" check="no">
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "log/slog"
+    "os"
+    "os/signal"
+    "syscall"
+
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/twmb/franz-go/pkg/kgo"
+)
+
+type Event struct {
+    EventID      string `json:"eventId"`
+    AssignmentID int64  `json:"assignmentId"`
+}
+
+func handle(ctx context.Context, pool *pgxpool.Pool, ev Event) (bool, error) {
+    tx, err := pool.Begin(ctx)
+    if err != nil {
+        return false, err
+    }
+    defer tx.Rollback(ctx)
+
+    tag, err := tx.Exec(ctx,
+        `INSERT INTO processed_events (consumer, event_id) VALUES ('stats', $1) ON CONFLICT DO NOTHING`, ev.EventID)
+    if err != nil {
+        return false, err
+    }
+    if tag.RowsAffected() == 0 {
+        return false, nil // trùng
+    }
+    _, err = tx.Exec(ctx, `
+        INSERT INTO assignment_stats (assignment_id, submitted) VALUES ($1, 1)
+        ON CONFLICT (assignment_id) DO UPDATE SET submitted = assignment_stats.submitted + 1`, ev.AssignmentID)
+    if err != nil {
+        return false, err
+    }
+    return true, tx.Commit(ctx)
+}
+
+func main() {
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+    if err != nil {
+        panic(err)
+    }
+    cl, err := kgo.NewClient(
+        kgo.SeedBrokers("localhost:9092"),
+        kgo.ConsumerGroup("stats"),
+        kgo.ConsumeTopics("submissions"),
+        kgo.DisableAutoCommit(),
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer cl.Close()
+
+    for {
+        fs := cl.PollFetches(ctx)
+        if fs.IsClientClosed() || ctx.Err() != nil {
+            return
+        }
+        ok := true
+        fs.EachRecord(func(r *kgo.Record) {
+            var ev Event
+            if json.Unmarshal(r.Value, &ev) != nil {
+                return
+            }
+            applied, err := handle(ctx, pool, ev)
+            if err != nil {
+                slog.Error("lỗi", "event", ev.EventID, "err", err)
+                ok = false
+                return
+            }
+            slog.Info("sự kiện", "event", ev.EventID, "applied", applied)
+        })
+        if ok { // có lỗi thì không commit: lần poll sau... thực tế nên chuyển sang retry/DLQ như phần trên
+            cl.CommitUncommittedOffsets(ctx)
+        }
+    }
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run ./stats
+INFO sự kiện event=sub-100 applied=true
+INFO sự kiện event=sub-100 applied=false
+INFO sự kiện event=sub-101 applied=true
+
+$ psql "$DATABASE_URL" -c "SELECT * FROM assignment_stats"
+ assignment_id | submitted
+---------------+-----------
+             9 |         2
+(1 row)
+</pre>
+<p><b>Giải thích:</b> sự kiện <code>sub-100</code> được gửi hai lần. Lần hai INSERT vào <code>processed_events</code> bị trùng khoá chính nên 0 dòng, hàm trả <code>applied=false</code> và không tăng bộ đếm. Kết quả 2 (sub-100 và sub-101), đúng. Bảng <code>processed_events</code> lớn dần: xoá định kỳ các dòng cũ hơn thời gian giữ tin của topic (7 ngày), vì tin cũ hơn thế không thể được giao lại.</p>
+</details>
+</details>
+
+<details class="ex"><summary>Thiết kế: sự kiện cho luồng thanh toán</summary>
+<p>Người dùng mua gói Plus. Luồng: tạo đơn → ngân hàng báo có tiền (webhook) → kích hoạt gói → gửi email biên lai → cập nhật doanh thu ở trang quản trị. Hãy thiết kế: tên các sự kiện, key, nội dung, consumer nào nghe sự kiện nào, chỗ nào cần idempotent.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Sự kiện là điều đã xảy ra: đơn đã tạo, tiền đã vào, gói đã kích hoạt.</li>
+<li>Key nào để mọi sự kiện của một đơn theo thứ tự?</li>
+<li>Webhook ngân hàng có thể gửi lại nhiều lần. Kích hoạt gói có thể bị gọi hai lần.</li>
+<li>Email không nằm trong transaction được.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<table>
+<tr><th>Sự kiện</th><th>Key</th><th>Nội dung chính</th><th>Ai nghe</th></tr>
+<tr><td><code>payment.created</code></td><td><code>payment_id</code></td><td>userId, plan, amount, code</td><td>quản trị (đơn chờ)</td></tr>
+<tr><td><code>payment.succeeded</code></td><td><code>payment_id</code></td><td>userId, plan, amount, bankTxId</td><td>dịch vụ gói (kích hoạt), quản trị (doanh thu)</td></tr>
+<tr><td><code>subscription.activated</code></td><td><code>user_id</code></td><td>userId, plan, validUntil</td><td>dịch vụ email (biên lai), dịch vụ thông báo</td></tr>
+</table>
+<ul>
+<li><b>Webhook</b>: lưu giao dịch ngân hàng với UNIQUE trên mã giao dịch của ngân hàng. Trùng thì trả 200 và không làm gì. Đổi trạng thái đơn bằng <code>UPDATE payments SET status='paid' WHERE id=$1 AND status='pending'</code>, ghi <code>payment.succeeded</code> vào outbox trong cùng transaction chỉ khi UPDATE trúng 1 dòng.</li>
+<li><b>Kích hoạt gói</b>: UNIQUE <code>subscriptions.payment_id</code>, nên tin <code>payment.succeeded</code> bị giao hai lần cũng chỉ tạo một gói.</li>
+<li><b>Email</b>: bảng <code>emails_sent(event_id)</code>, ghi trước khi gửi. Chấp nhận trường hợp hiếm: ghi xong rồi sập trước khi gửi → không gửi (có thể có việc định kỳ gửi lại các email "đã ghi nhưng chưa xác nhận").</li>
+<li><b>Doanh thu</b>: consumer quản trị dùng <code>processed_events</code> như bài tập trên. Vì có thể đọc lại topic từ đầu, có thể dựng lại bảng doanh thu bất cứ lúc nào.</li>
+<li>Key <code>payment_id</code> giữ <code>created</code> trước <code>succeeded</code> cho cùng đơn. <code>subscription.activated</code> theo <code>user_id</code> để các lần gia hạn của một người theo thứ tự.</li>
+</ul>
+</details>
+</details>

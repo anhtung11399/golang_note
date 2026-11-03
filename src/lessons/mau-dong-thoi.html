@@ -1,0 +1,759 @@
+<h2>Vì sao cần "mẫu"</h2>
+<p>Bài {{n:dong-thoi}} dạy các viên gạch: goroutine, channel, <code>sync.WaitGroup</code>, <code>sync.Mutex</code>, <code>select</code>. Bài {{n:context-test}} thêm <code>context</code>. Nhưng khi đọc code ở công ty, bạn sẽ thấy người ta ghép các viên gạch đó theo vài kiểu lặp đi lặp lại. Thuộc các kiểu này thì vừa đọc code nhanh, vừa tránh được ba lỗi kinh điển:</p>
+<ul>
+<li><b>Chạy quá nhiều việc cùng lúc</b>: 10.000 goroutine cùng gọi một API bên ngoài, API đó chặn bạn, hoặc database hết kết nối.</li>
+<li><b>Rò rỉ goroutine</b> (goroutine leak): goroutine bị kẹt mãi ở một channel không ai đọc, bộ nhớ tăng dần cho tới khi server bị khởi động lại.</li>
+<li><b>Mất lỗi</b>: 1 trong 50 việc chạy song song bị lỗi nhưng không ai biết.</li>
+</ul>
+<p>Bài này đi qua 9 mẫu. Mỗi mẫu có: bài toán, code chạy được, kết quả, và bẫy hay gặp.</p>
+
+<arch w="820" h="240" caption="Bản đồ các mẫu trong bài: chọn theo câu hỏi &quot;mình đang cần gì&quot;">
+group 20 20 250 200 proc "Chia việc"
+group 290 20 250 200 proc "Giới hạn và an toàn"
+group 560 20 240 200 proc "Thời gian"
+node a 90 80 goroutine "Worker pool" ""
+node b 200 80 chan "Pipeline" ""
+node c 145 170 chan "Fan-out / fan-in" ""
+node d 360 80 mutex "Semaphore" "errgroup.SetLimit"
+node e 470 80 gosvc "sync.Once" ""
+node f 415 170 cpu "atomic, sync.Pool" ""
+node g 630 80 ctx "Timeout, huỷ" ""
+node h 730 80 cron "Ticker" ""
+node i 680 170 mw "Rate limit, debounce" ""
+</arch>
+
+<h2>Mẫu 1: Worker pool</h2>
+<p><b>Bài toán:</b> có 1.000 ảnh cần tạo thumbnail. Mỗi ảnh tốn khoảng 50ms CPU. Máy có 8 lõi. Tạo 1.000 goroutine cùng lúc thì chúng tranh nhau CPU, tốn RAM, và không nhanh hơn 8 goroutine. Cách làm chuẩn: tạo <b>N worker cố định</b>, mỗi worker lấy việc từ một channel chung.</p>
+<arch w="760" h="230" caption="Worker pool: một channel việc, N worker cùng đọc, một channel kết quả">
+node p 80 115 gosvc "Producer" "gửi 1.000 việc"
+node j 250 115 chan "jobs" "chan Job"
+node w1 420 40 worker "Worker 1" ""
+node w2 420 115 worker "Worker 2" ""
+node w3 420 190 worker "Worker N" ""
+node r 590 115 chan "results" "chan Result"
+node c 700 115 gosvc "Collector" ""
+edge p j ""
+path 276 115 330 115 330 40 394 40 ""
+edge j w2 ""
+path 330 115 330 190 394 190 ""
+path 446 40 510 40 510 115 564 115 ""
+edge w2 r ""
+path 446 190 510 190 510 115 564 115 ""
+edge r c ""
+</arch>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "fmt"
+    "sync"
+    "time"
+)
+
+type Job struct{ ID int }
+type Result struct {
+    JobID  int
+    Worker int
+}
+
+func worker(id int, jobs <-chan Job, results chan<- Result, wg *sync.WaitGroup) {
+    defer wg.Done()
+    for j := range jobs { // chạy tới khi jobs bị đóng VÀ đã đọc hết
+        time.Sleep(10 * time.Millisecond) // giả lập việc nặng
+        results <- Result{JobID: j.ID, Worker: id}
+    }
+}
+
+func main() {
+    const numJobs, numWorkers = 12, 3
+    jobs := make(chan Job)
+    results := make(chan Result)
+
+    var wg sync.WaitGroup
+    for w := 1; w <= numWorkers; w++ {
+        wg.Add(1)
+        go worker(w, jobs, results, &wg)
+    }
+
+    // Gửi việc ở goroutine riêng, xong thì đóng jobs để worker biết là hết
+    go func() {
+        for i := 1; i <= numJobs; i++ {
+            jobs <- Job{ID: i}
+        }
+        close(jobs)
+    }()
+
+    // Khi mọi worker xong thì đóng results, để vòng range bên dưới kết thúc
+    go func() {
+        wg.Wait()
+        close(results)
+    }()
+
+    start := time.Now()
+    count := map[int]int{}
+    for r := range results {
+        count[r.Worker]++
+    }
+    fmt.Println("số việc mỗi worker:", count)
+    fmt.Println("thời gian ~", time.Since(start).Round(10*time.Millisecond))
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run .
+số việc mỗi worker: map[1:4 2:4 3:4]
+thời gian ~ 40ms
+</pre>
+<p><b>Giải thích:</b> 12 việc, mỗi việc 10ms, 3 worker chạy song song nên mất khoảng 12 × 10 / 3 = 40ms. Mỗi lần chạy, số việc của từng worker có thể lệch đi một chút (ví dụ <code>map[1:5 2:4 3:3]</code>) vì worker nào rảnh trước thì lấy việc trước.</p>
+<p>Ba chi tiết bắt buộc phải đúng, sai một cái là chương trình treo:</p>
+<ol>
+<li><b>Ai đóng <code>jobs</code>?</b> Bên gửi, sau khi gửi xong. Không đóng thì <code>for j := range jobs</code> của worker chờ mãi.</li>
+<li><b>Ai đóng <code>results</code>?</b> Một goroutine riêng chờ <code>wg.Wait()</code>. Không thể để worker đóng (worker 1 đóng trong khi worker 2 còn gửi → panic "send on closed channel").</li>
+<li><b>Gửi việc phải ở goroutine riêng.</b> Nếu <code>main</code> tự gửi 12 việc rồi mới đọc kết quả, cả hai channel đều không có bộ đệm: worker kẹt ở <code>results &lt;-</code> vì chưa ai đọc, <code>main</code> kẹt ở <code>jobs &lt;-</code> vì worker không rảnh. Go báo <code>fatal error: all goroutines are asleep - deadlock!</code>.</li>
+</ol>
+<aside class="tip"><p>Chọn số worker thế nào? Việc nặng CPU: bằng số lõi, <code>runtime.NumCPU()</code>. Việc chủ yếu chờ mạng / database: nhiều hơn (20 đến 100), nhưng không vượt số kết nối tối đa của database pool (bài {{n:go-postgres}}) hoặc giới hạn của API bên ngoài.</p></aside>
+
+<h2>Mẫu 2: errgroup, cách viết gọn hơn và có lỗi</h2>
+<p>Worker pool tự viết dài và dễ sai. Trong code thật, 90% trường hợp người ta dùng <code>golang.org/x/sync/errgroup</code>. Nó gộp <code>WaitGroup</code> + giữ lỗi đầu tiên + huỷ context của các việc còn lại + giới hạn số việc chạy cùng lúc.</p>
+<pre lang="sh">
+go get golang.org/x/sync
+</pre>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "context"
+    "errors"
+    "fmt"
+    "time"
+
+    "golang.org/x/sync/errgroup"
+)
+
+func fetchUser(ctx context.Context, id int) (string, error) {
+    select {
+    case <-time.After(time.Duration(id*10) * time.Millisecond):
+        if id == 4 {
+            return "", errors.New("user 4: không tìm thấy")
+        }
+        return fmt.Sprintf("user-%d", id), nil
+    case <-ctx.Done(): // việc khác đã lỗi → dừng sớm
+        return "", ctx.Err()
+    }
+}
+
+func main() {
+    g, ctx := errgroup.WithContext(context.Background())
+    g.SetLimit(3) // tối đa 3 việc chạy cùng lúc: đây chính là semaphore
+
+    ids := []int{1, 2, 3, 4, 5, 6, 7, 8}
+    names := make([]string, len(ids)) // mỗi goroutine ghi vào ô riêng → không cần mutex
+
+    for i, id := range ids {
+        g.Go(func() error { // Go 1.22+: i, id là biến riêng của mỗi vòng lặp
+            name, err := fetchUser(ctx, id)
+            if err != nil {
+                return err
+            }
+            names[i] = name
+            return nil
+        })
+    }
+
+    if err := g.Wait(); err != nil { // chờ tất cả, trả lỗi ĐẦU TIÊN
+        fmt.Println("lỗi:", err)
+    }
+    fmt.Printf("%q\n", names)
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run .
+lỗi: user 4: không tìm thấy
+["user-1" "user-2" "user-3" "" "" "" "" ""]
+</pre>
+<p><b>Giải thích:</b> việc 1, 2, 3 chạy trước (giới hạn 3). Việc 1 xong ở 10ms thì việc 4 bắt đầu, việc 4 lỗi ở khoảng 50ms. Lỗi đó huỷ <code>ctx</code>, nên các việc 5, 6, 7 đang chạy nhận <code>ctx.Done()</code> và dừng, việc 8 không còn được chạy. <code>g.Wait()</code> trả lỗi đầu tiên, các lỗi <code>context canceled</code> phía sau bị bỏ qua.</p>
+<aside class="warn"><p><code>g.Go</code> với <code>SetLimit</code> sẽ <b>chặn</b> (block) khi đã đủ số việc đang chạy. Vì vậy vòng <code>for</code> bên ngoài cũng chạy chậm theo. Đó là điều mình muốn: không bao giờ có hơn 3 goroutine tồn tại.</p></aside>
+<p><b>Khi nào không muốn huỷ khi một việc lỗi?</b> Ví dụ gửi email cho 500 phụ huynh: một email lỗi không nên chặn 499 email còn lại. Khi đó dùng <code>errgroup.Group</code> thường (không <code>WithContext</code>), mỗi việc tự ghi lỗi của mình vào một slice, và luôn trả <code>nil</code>:</p>
+<pre lang="go">
+var g errgroup.Group
+g.SetLimit(10)
+errs := make([]error, len(parents))
+for i, p := range parents {
+    g.Go(func() error {
+        errs[i] = sendEmail(ctx, p)
+        return nil // không để một lỗi làm dừng cả nhóm
+    })
+}
+g.Wait()
+err := errors.Join(errs...) // gộp mọi lỗi (nil bị bỏ qua), Go 1.20+
+</pre>
+
+<h2>Mẫu 3: Pipeline</h2>
+<p><b>Bài toán:</b> đọc 1 triệu dòng log, lọc dòng lỗi, tách trường, ghi vào database theo lô. Mỗi bước là một <b>giai đoạn</b> (stage), nối nhau bằng channel. Lợi ích: các giai đoạn chạy song song với nhau (đọc dòng 1.000 trong khi đang ghi lô dòng 1 đến 500), và bộ nhớ dùng ít vì không giữ cả 1 triệu dòng.</p>
+<arch w="800" h="170" caption="Pipeline: mỗi giai đoạn đọc channel vào, ghi channel ra, đóng channel ra khi xong">
+node a 70 80 file "Đọc file" "hàm gen"
+node b 260 80 goroutine "Lọc" "chỉ dòng ERROR"
+node c 450 80 goroutine "Tách trường" "parse"
+node d 640 80 store "Ghi lô" "500 dòng / lần"
+edge a b "chan string"
+edge b c "chan string"
+edge c d "chan Entry"
+</arch>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "context"
+    "fmt"
+    "strings"
+)
+
+// Mỗi giai đoạn: nhận channel vào, trả channel ra, tự đóng channel ra khi xong.
+// Luôn có select với ctx.Done() để có thể dừng giữa chừng mà không rò rỉ goroutine.
+
+func gen(ctx context.Context, lines ...string) <-chan string {
+    out := make(chan string)
+    go func() {
+        defer close(out)
+        for _, l := range lines {
+            select {
+            case out <- l:
+            case <-ctx.Done():
+                return
+            }
+        }
+    }()
+    return out
+}
+
+func filter(ctx context.Context, in <-chan string, keep func(string) bool) <-chan string {
+    out := make(chan string)
+    go func() {
+        defer close(out)
+        for l := range in {
+            if !keep(l) {
+                continue
+            }
+            select {
+            case out <- l:
+            case <-ctx.Done():
+                return
+            }
+        }
+    }()
+    return out
+}
+
+type Entry struct{ Level, Msg string }
+
+func parse(ctx context.Context, in <-chan string) <-chan Entry {
+    out := make(chan Entry)
+    go func() {
+        defer close(out)
+        for l := range in {
+            level, msg, _ := strings.Cut(l, " ")
+            select {
+            case out <- Entry{level, msg}:
+            case <-ctx.Done():
+                return
+            }
+        }
+    }()
+    return out
+}
+
+func main() {
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel() // main thoát sớm → mọi giai đoạn nhận Done và dừng
+
+    src := gen(ctx,
+        "INFO server started",
+        "ERROR db timeout",
+        "INFO request ok",
+        "ERROR disk full",
+    )
+    errorsOnly := filter(ctx, src, func(l string) bool { return strings.HasPrefix(l, "ERROR") })
+
+    for e := range parse(ctx, errorsOnly) {
+        fmt.Printf("%-5s | %s\n", e.Level, e.Msg)
+    }
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run .
+ERROR | db timeout
+ERROR | disk full
+</pre>
+<p><b>Giải thích:</b> <code>gen</code> gửi 4 dòng, <code>filter</code> chỉ cho 2 dòng ERROR đi qua, <code>parse</code> tách "ERROR" và phần còn lại. Khi <code>gen</code> gửi xong, nó đóng channel, <code>filter</code> thoát vòng range và đóng channel của mình, <code>parse</code> cũng vậy, cuối cùng vòng range trong <code>main</code> kết thúc. "Đóng dây chuyền" từ đầu tới cuối.</p>
+<aside class="warn"><p>Vì sao mỗi lần gửi đều phải có <code>select ... ctx.Done()</code>? Giả sử <code>main</code> chỉ lấy kết quả đầu tiên rồi <code>return</code>. Không có <code>ctx.Done()</code>, goroutine <code>parse</code> sẽ kẹt mãi ở <code>out &lt;- ...</code> vì không còn ai đọc, kéo theo <code>filter</code> và <code>gen</code> kẹt theo. Trong server chạy hàng tháng, mỗi request rò 3 goroutine là đủ làm hết RAM.</p></aside>
+
+<h2>Mẫu 4: Fan-out, fan-in</h2>
+<p>Nếu giai đoạn "Tách trường" chậm nhất, ta chạy <b>nhiều bản</b> của nó cùng đọc một channel vào (fan-out), rồi <b>gộp</b> các channel ra thành một (fan-in). Hàm gộp chuẩn:</p>
+<pre lang="go">
+// merge gộp nhiều channel thành một. Channel ra đóng khi MỌI channel vào đã đóng.
+func merge[T any](ctx context.Context, ins ...<-chan T) <-chan T {
+    out := make(chan T)
+    var wg sync.WaitGroup
+    wg.Add(len(ins))
+    for _, in := range ins {
+        go func() {
+            defer wg.Done()
+            for v := range in {
+                select {
+                case out <- v:
+                case <-ctx.Done():
+                    return
+                }
+            }
+        }()
+    }
+    go func() { wg.Wait(); close(out) }()
+    return out
+}
+
+// Dùng: 4 bản parse cùng đọc errorsOnly
+p1, p2, p3, p4 := parse(ctx, errorsOnly), parse(ctx, errorsOnly), parse(ctx, errorsOnly), parse(ctx, errorsOnly)
+for e := range merge(ctx, p1, p2, p3, p4) { ... }
+</pre>
+<p>Lưu ý: fan-out làm <b>mất thứ tự</b>. Dòng 2 có thể ra trước dòng 1. Nếu thứ tự quan trọng, gắn số thứ tự vào mỗi phần tử rồi sắp xếp lại ở cuối, hoặc đừng fan-out.</p>
+
+<h2>Mẫu 5: Semaphore bằng channel có bộ đệm</h2>
+<p>Đôi khi bạn không muốn dùng thư viện, hoặc cần giới hạn số việc cùng lúc ở <b>một đoạn</b> code dùng chung cho cả server (ví dụ: cả server chỉ được gọi tối đa 5 request tới dịch vụ AI cùng lúc, bất kể bao nhiêu người dùng). Channel có bộ đệm N là một semaphore:</p>
+<pre lang="go">
+var aiSlots = make(chan struct{}, 5) // tối đa 5 lượt cùng lúc trên toàn server
+
+func callAI(ctx context.Context, prompt string) (string, error) {
+    select {
+    case aiSlots <- struct{}{}: // lấy một lượt (đầy 5 thì chờ)
+    case <-ctx.Done():          // chờ lâu quá, người dùng đã huỷ
+        return "", ctx.Err()
+    }
+    defer func() { <-aiSlots }() // trả lượt
+
+    return doCallAI(ctx, prompt)
+}
+</pre>
+<p><code>struct{}</code> là kiểu rỗng, chiếm 0 byte: ta chỉ cần "chỗ", không cần giá trị. Thư viện <code>golang.org/x/sync/semaphore</code> có thêm trọng số (một việc lớn chiếm 3 lượt), nhưng bản channel đủ cho hầu hết trường hợp.</p>
+
+<h2>Mẫu 6: sync.Once, khởi tạo một lần</h2>
+<p>Đọc file cấu hình, nạp mẫu email, kết nối tới dịch vụ ít dùng: chỉ làm khi cần lần đầu, và chỉ làm <b>đúng một lần</b> dù 100 goroutine gọi cùng lúc.</p>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "fmt"
+    "sync"
+)
+
+var loadTemplates = sync.OnceValue(func() map[string]string {
+    fmt.Println("đang nạp mẫu email...") // chỉ in MỘT lần
+    return map[string]string{"welcome": "Chào {name}!"}
+})
+
+func main() {
+    var wg sync.WaitGroup
+    for range 5 {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            _ = loadTemplates()["welcome"]
+        }()
+    }
+    wg.Wait()
+    fmt.Println("mẫu:", loadTemplates()["welcome"])
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run .
+đang nạp mẫu email...
+mẫu: Chào {name}!
+</pre>
+<p><code>sync.OnceValue</code> (Go 1.21+) trả về một hàm: gọi lần đầu thì chạy hàm bên trong, các lần sau trả lại kết quả đã có. Có cả <code>sync.OnceValues</code> cho hàm trả <code>(T, error)</code>. Bản cũ là <code>var once sync.Once; once.Do(func(){...})</code>, bạn sẽ gặp nhiều trong code cũ.</p>
+<aside class="warn"><p>Nếu hàm khởi tạo lỗi (ví dụ mạng chập chờn), <code>Once</code> vẫn coi là "đã làm", lần sau không thử lại. Với việc có thể lỗi tạm thời, đừng dùng <code>Once</code>, dùng mutex + biến kiểm tra.</p></aside>
+
+<h2>Mẫu 7: atomic và sync.Pool, khi cần nhanh</h2>
+<p><b>Đếm số request</b> từ nhiều goroutine: dùng mutex được, nhưng <code>sync/atomic</code> nhanh hơn nhiều lần và gọn hơn.</p>
+<pre lang="go">
+var requests atomic.Int64 // Go 1.19+: kiểu có sẵn, không cần con trỏ
+
+func handler(w http.ResponseWriter, r *http.Request) {
+    requests.Add(1)
+    // ...
+}
+
+// ở chỗ khác, đọc an toàn từ goroutine bất kỳ:
+fmt.Println(requests.Load())
+</pre>
+<p>Chỉ dùng atomic cho <b>một biến</b> đơn lẻ. Cần cập nhật hai biến cùng lúc cho khớp nhau (ví dụ <code>sum</code> và <code>count</code> để tính trung bình) thì phải dùng mutex, vì atomic không bảo đảm hai lệnh đi liền nhau.</p>
+<p><b>sync.Pool</b> giữ lại các đối tượng tạm (bộ đệm byte, encoder) để dùng lại, giảm việc cấp phát bộ nhớ và công việc của bộ dọn rác (GC). Thư viện chuẩn dùng nó trong <code>fmt</code> và <code>encoding/json</code>.</p>
+<pre lang="go">
+var bufPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
+
+func render(data any) []byte {
+    buf := bufPool.Get().(*bytes.Buffer)
+    buf.Reset()             // QUAN TRỌNG: xoá dữ liệu của lần dùng trước
+    defer bufPool.Put(buf)  // trả về pool
+
+    json.NewEncoder(buf).Encode(data)
+    return bytes.Clone(buf.Bytes()) // sao chép ra, vì buf sẽ được người khác dùng lại
+}
+</pre>
+<aside class="tip"><p>Đừng dùng <code>sync.Pool</code> khi chưa đo (bài {{n:quan-sat}}, pprof). Với API bình thường, chỗ chậm là database, không phải cấp phát bộ nhớ. Pool chỉ đáng khi profile cho thấy GC chiếm phần lớn CPU.</p></aside>
+
+<h2>Mẫu 8: Ticker, việc lặp lại định kỳ</h2>
+<p>Mỗi 30 giây dọn phiên hết hạn, mỗi phút đẩy số liệu đi. Dùng <code>time.Ticker</code> trong một goroutine, luôn có đường thoát bằng context:</p>
+<pre lang="go">
+func runCleanup(ctx context.Context, every time.Duration) {
+    t := time.NewTicker(every)
+    defer t.Stop()
+    for {
+        select {
+        case <-t.C:
+            if err := deleteExpiredSessions(ctx); err != nil {
+                slog.Error("dọn phiên", "err", err) // lỗi một lần, lần sau thử tiếp
+            }
+        case <-ctx.Done():
+            return // server tắt
+        }
+    }
+}
+
+// trong main:
+go runCleanup(ctx, 30*time.Second)
+</pre>
+<p>Nếu một lần dọn mất lâu hơn 30 giây, ticker <b>bỏ qua</b> các nhịp bị lỡ (channel <code>t.C</code> chỉ chứa 1 nhịp), không dồn lại chạy liên tục. Khi chạy nhiều bản server, cả 3 bản cùng dọn: với việc như xoá phiên hết hạn thì vô hại, với việc như "gửi email tổng kết hằng ngày" thì cần khoá phân tán hoặc một bản riêng chạy cron (bài {{n:bat-dong-bo}}).</p>
+
+<h2>Mẫu 9: Rate limit và debounce</h2>
+<p><b>Giới hạn tần suất phía bạn gọi đi</b>: API bên ngoài chỉ cho 10 request mỗi giây. Dùng <code>golang.org/x/time/rate</code> (thuật toán token bucket):</p>
+<pre lang="go">
+import "golang.org/x/time/rate"
+
+lim := rate.NewLimiter(10, 20) // 10 request/giây, cho dồn tối đa 20 (burst)
+
+for _, item := range items {
+    if err := lim.Wait(ctx); err != nil { // chờ tới lượt, hoặc ctx bị huỷ
+        return err
+    }
+    callExternalAPI(ctx, item)
+}
+</pre>
+<p><b>Debounce</b>: người dùng sửa sơ đồ lớp liên tục, mỗi thay đổi đều muốn "lưu", nhưng chỉ cần lưu khi họ ngừng tay 2 giây. Bạn đã làm việc này ở frontend với <code>setTimeout</code>, Go dùng <code>time.AfterFunc</code>:</p>
+<pre lang="go">
+type Debouncer struct {
+    mu sync.Mutex
+    t  *time.Timer
+}
+
+func (d *Debouncer) Call(wait time.Duration, fn func()) {
+    d.mu.Lock()
+    defer d.mu.Unlock()
+    if d.t != nil {
+        d.t.Stop() // huỷ lần hẹn trước
+    }
+    d.t = time.AfterFunc(wait, fn) // hẹn lại từ đầu
+}
+</pre>
+<aside class="fe"><p>Giống hệt <code>clearTimeout(t); t = setTimeout(fn, 2000)</code>. Khác biệt: <code>fn</code> chạy ở một goroutine khác, nên nếu nó đụng tới dữ liệu dùng chung thì phải có mutex.</p></aside>
+
+<h2>Phát hiện rò rỉ goroutine</h2>
+<p>Ba cách, từ dễ tới chuyên:</p>
+<ol>
+<li><b>Đếm</b>: <code>runtime.NumGoroutine()</code>. In ra định kỳ hoặc đưa lên số liệu (bài {{n:quan-sat}}). Số này tăng mãi không giảm khi tải ổn định = rò rỉ.</li>
+<li><b>Xem chúng đang kẹt ở đâu</b>: bật <code>net/http/pprof</code>, mở <code>/debug/pprof/goroutine?debug=1</code>. Bạn sẽ thấy kiểu "1.204 goroutine đang ở <code>main.parse</code> dòng 54, chan send". Đó là chỗ thiếu <code>ctx.Done()</code>.</li>
+<li><b>Trong test</b>: thư viện <code>go.uber.org/goleak</code> báo lỗi nếu test kết thúc mà còn goroutine chạy.</li>
+</ol>
+<pre lang="go" file="pipeline_test.go" check="no">
+package main
+
+import (
+    "testing"
+
+    "go.uber.org/goleak"
+)
+
+func TestMain(m *testing.M) {
+    goleak.VerifyTestMain(m) // mọi test trong package đều bị kiểm tra rò rỉ
+}
+</pre>
+<pre lang="out" sim="1">
+$ go test ./...
+--- FAIL: TestPipelineTakeFirst
+    leaks.go:78: found unexpected goroutines:
+        [Goroutine 21 in state chan send, with main.parse.func1 on top of the stack:
+        main.parse.func1()
+            /src/pipeline/main.go:54 +0x9c
+        created by main.parse in goroutine 19
+        ]
+FAIL
+</pre>
+<p>Ngoài ra, Go 1.26 có thêm hồ sơ <code>goroutineleak</code> (thử nghiệm) trong pprof, tìm goroutine bị kẹt ở channel mà không còn ai giữ tham chiếu tới channel đó.</p>
+
+<h2>Bảng chọn nhanh</h2>
+<table>
+<tr><th>Bạn cần</th><th>Dùng</th></tr>
+<tr><td>Chạy N việc song song, lấy lỗi đầu tiên, dừng phần còn lại</td><td><code>errgroup.WithContext</code></td></tr>
+<tr><td>Như trên nhưng giới hạn số việc cùng lúc</td><td>thêm <code>g.SetLimit(n)</code></td></tr>
+<tr><td>Chạy mọi việc dù vài việc lỗi</td><td><code>errgroup.Group</code> + slice lỗi + <code>errors.Join</code></td></tr>
+<tr><td>Xử lý dòng dữ liệu dài theo nhiều bước</td><td>pipeline + <code>ctx.Done()</code> ở mọi lần gửi</td></tr>
+<tr><td>Giới hạn tài nguyên dùng chung cả server</td><td>semaphore (channel có bộ đệm)</td></tr>
+<tr><td>Khởi tạo đúng một lần</td><td><code>sync.OnceValue</code></td></tr>
+<tr><td>Bộ đếm</td><td><code>atomic.Int64</code></td></tr>
+<tr><td>Nhiều request trùng nhau, chỉ tính một lần</td><td><code>singleflight</code> (bài {{n:cache}})</td></tr>
+<tr><td>Gọi API bên ngoài có hạn mức</td><td><code>rate.Limiter</code></td></tr>
+<tr><td>Việc định kỳ</td><td><code>time.Ticker</code> + <code>ctx.Done()</code></td></tr>
+</table>
+
+<quiz q="Worker pool có 3 worker. Bên gửi gửi xong 12 việc nhưng quên close(jobs). Chuyện gì xảy ra?">
+- Chương trình chạy bình thường, 12 việc đều xong
++ 12 việc xong, nhưng các worker kẹt mãi ở vòng range jobs, wg.Wait() không bao giờ trả về, results không được đóng, main chờ mãi
+- Go tự đóng channel khi không còn ai gửi
+? Channel không tự đóng. range trên channel chỉ dừng khi channel bị đóng. Nếu không còn goroutine nào chạy được, Go báo deadlock. Trong server (còn goroutine khác chạy), nó chỉ đơn giản là treo.
+</quiz>
+<quiz q="Dùng errgroup.WithContext để gọi 10 API. API thứ 3 lỗi. 7 API còn lại thì sao?">
+- Vẫn chạy hết, errgroup chỉ ghi lại lỗi
++ ctx bị huỷ. Những việc nào kiểm tra ctx (truyền ctx vào http request, select ctx.Done()) sẽ dừng sớm, việc chưa bắt đầu vẫn được gọi nhưng nhận ctx đã huỷ
+- Chúng bị dừng ngay lập tức, kể cả khi không kiểm tra ctx
+? Go không thể "giết" một goroutine từ bên ngoài. Huỷ context chỉ là gửi tín hiệu, goroutine phải tự kiểm tra. Đó là lý do phải truyền ctx xuống mọi hàm gọi mạng / database.
+</quiz>
+<quiz q="Biến total cần cộng từ 50 goroutine, và count cũng tăng theo, để tính trung bình total/count. Dùng gì?">
+- Hai atomic.Int64
++ Một sync.Mutex bao cả hai lệnh cộng
+- Không cần gì, phép cộng số nguyên là nguyên tử
+? Hai atomic riêng lẻ: có lúc goroutine khác đọc được total đã cộng mà count chưa tăng. Cần hai giá trị khớp nhau thì dùng mutex.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Tải nhiều trang web song song, có giới hạn và timeout</summary>
+<p>Viết chương trình nhận một danh sách URL, tải song song tối đa 3 URL cùng lúc, mỗi URL có timeout 2 giây, cả chương trình có timeout 5 giây. In ra mã trạng thái và thời gian của từng URL, theo đúng <b>thứ tự</b> của danh sách. Một URL lỗi không được làm dừng các URL khác.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Kết quả theo thứ tự: tạo slice <code>results := make([]string, len(urls))</code>, goroutine thứ i ghi vào <code>results[i]</code>.</li>
+<li>Không dừng khi lỗi: dùng <code>errgroup.Group</code> (không <code>WithContext</code>), <code>SetLimit(3)</code>, mỗi việc trả <code>nil</code> và ghi lỗi vào ô của mình.</li>
+<li>Timeout tổng: <code>ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)</code>.</li>
+<li>Timeout từng URL: trong mỗi việc, <code>reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)</code>, rồi <code>http.NewRequestWithContext(reqCtx, "GET", u, nil)</code>.</li>
+<li>Nhớ <code>resp.Body.Close()</code>, và đọc hết body bằng <code>io.Copy(io.Discard, resp.Body)</code> để kết nối được dùng lại.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="sh">
+mkdir fetchall && cd fetchall
+go mod init fetchall
+go get golang.org/x/sync
+</pre>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "fmt"
+    "io"
+    "net/http"
+    "os"
+    "time"
+
+    "golang.org/x/sync/errgroup"
+)
+
+func fetch(ctx context.Context, url string) string {
+    reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+    defer cancel()
+
+    start := time.Now()
+    req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
+    if err != nil {
+        return "lỗi URL: " + err.Error()
+    }
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return fmt.Sprintf("lỗi sau %v: %v", time.Since(start).Round(time.Millisecond), err)
+    }
+    defer resp.Body.Close()
+    n, _ := io.Copy(io.Discard, resp.Body)
+    return fmt.Sprintf("%d, %d byte, %v", resp.StatusCode, n, time.Since(start).Round(time.Millisecond))
+}
+
+func main() {
+    urls := os.Args[1:]
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+
+    results := make([]string, len(urls))
+    var g errgroup.Group
+    g.SetLimit(3)
+    for i, u := range urls {
+        g.Go(func() error {
+            results[i] = fetch(ctx, u)
+            return nil // không để một URL lỗi làm dừng cả nhóm
+        })
+    }
+    g.Wait()
+
+    for i, u := range urls {
+        fmt.Printf("%-28s %s\n", u, results[i])
+    }
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run . https://go.dev https://example.com https://httpbin.org/delay/3 https://khong-co-that.invalid
+https://go.dev               200, 61234 byte, 412ms
+https://example.com          200, 1256 byte, 230ms
+https://httpbin.org/delay/3  lỗi sau 2s: Get "https://httpbin.org/delay/3": context deadline exceeded
+https://khong-co-that.invalid lỗi sau 3ms: Get "https://khong-co-that.invalid": dial tcp: lookup khong-co-that.invalid: no such host
+</pre>
+<p><b>Giải thích:</b> URL thứ ba cố tình trả lời sau 3 giây nên bị timeout 2 giây cắt. URL thứ tư không tồn tại nên lỗi ngay ở bước tra DNS. Hai lỗi này không ảnh hưởng hai URL đầu. Kết quả in đúng thứ tự đầu vào dù các URL xong theo thứ tự khác. Số byte và thời gian tuỳ mạng của bạn.</p>
+</details>
+</details>
+
+<details class="ex"><summary>Pipeline đếm từ, có fan-out</summary>
+<p>Cho một slice các câu. Giai đoạn 1 gửi từng câu. Giai đoạn 2 (chạy 4 bản song song) tách câu thành từ, đổi về chữ thường, gửi từng từ. Giai đoạn cuối đếm số lần xuất hiện mỗi từ và in 3 từ nhiều nhất.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Dùng lại <code>gen</code> và <code>merge</code> ở trên.</li>
+<li>Giai đoạn tách: <code>strings.Fields(strings.ToLower(câu))</code> cho các từ.</li>
+<li>Giai đoạn đếm chạy ở <code>main</code> (chỉ một goroutine) nên dùng map thường, không cần mutex.</li>
+<li>Sắp xếp: chuyển map thành slice cặp (từ, số lần) rồi <code>slices.SortFunc</code>, số lần giảm dần, bằng nhau thì theo chữ cái để kết quả cố định.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "cmp"
+    "context"
+    "fmt"
+    "slices"
+    "strings"
+    "sync"
+)
+
+func gen(ctx context.Context, items ...string) <-chan string {
+    out := make(chan string)
+    go func() {
+        defer close(out)
+        for _, it := range items {
+            select {
+            case out <- it:
+            case <-ctx.Done():
+                return
+            }
+        }
+    }()
+    return out
+}
+
+func words(ctx context.Context, in <-chan string) <-chan string {
+    out := make(chan string)
+    go func() {
+        defer close(out)
+        for s := range in {
+            for _, w := range strings.Fields(strings.ToLower(s)) {
+                select {
+                case out <- w:
+                case <-ctx.Done():
+                    return
+                }
+            }
+        }
+    }()
+    return out
+}
+
+func merge[T any](ctx context.Context, ins ...<-chan T) <-chan T {
+    out := make(chan T)
+    var wg sync.WaitGroup
+    wg.Add(len(ins))
+    for _, in := range ins {
+        go func() {
+            defer wg.Done()
+            for v := range in {
+                select {
+                case out <- v:
+                case <-ctx.Done():
+                    return
+                }
+            }
+        }()
+    }
+    go func() { wg.Wait(); close(out) }()
+    return out
+}
+
+func main() {
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
+
+    src := gen(ctx,
+        "Go chạy nhanh",
+        "Go dễ học",
+        "Học Go để viết backend",
+        "backend Go chạy ổn định",
+    )
+    // fan-out: 4 bản words cùng đọc src
+    var outs []<-chan string
+    for range 4 {
+        outs = append(outs, words(ctx, src))
+    }
+
+    count := map[string]int{}
+    for w := range merge(ctx, outs...) { // fan-in
+        count[w]++
+    }
+
+    type kv struct {
+        w string
+        n int
+    }
+    var list []kv
+    for w, n := range count {
+        list = append(list, kv{w, n})
+    }
+    slices.SortFunc(list, func(a, b kv) int {
+        return cmp.Or(cmp.Compare(b.n, a.n), cmp.Compare(a.w, b.w))
+    })
+    for _, x := range list[:3] {
+        fmt.Printf("%-8s %d\n", x.w, x.n)
+    }
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run .
+go       4
+backend  2
+chạy     2
+</pre>
+<p><b>Giải thích:</b> "go" có ở cả 4 câu. "backend", "chạy", "học" cùng có 2 lần, sắp theo chữ cái thì "backend" và "chạy" đứng trước "học". <code>cmp.Or</code> trả giá trị khác 0 đầu tiên: so số lần trước, bằng nhau mới so chữ. Dù 4 bản <code>words</code> xử lý câu theo thứ tự nào, kết quả đếm vẫn giống nhau.</p>
+</details>
+</details>
+
+<details class="ex"><summary>Tìm và sửa chỗ rò rỉ goroutine</summary>
+<p>Hàm dưới đây hỏi 3 máy chủ cùng lúc và lấy câu trả lời nhanh nhất. Nó có lỗi rò rỉ goroutine. Tìm và sửa.</p>
+<pre lang="go" mark="bad">
+func fastest(ctx context.Context, servers []string) string {
+    ch := make(chan string)
+    for _, s := range servers {
+        go func() { ch <- query(ctx, s) }()
+    }
+    return <-ch
+}
+</pre>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li><code>return &lt;-ch</code> chỉ đọc một lần. Hai goroutine còn lại gửi vào <code>ch</code> thì sao?</li>
+<li>Có hai cách sửa: cho channel đủ chỗ chứa, hoặc huỷ các truy vấn còn lại.</li>
+<li>Làm cả hai là tốt nhất: đủ chỗ để không ai kẹt, và huỷ context để các truy vấn chậm dừng sớm, không tốn tài nguyên.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<p>Channel không có bộ đệm, chỉ một lần đọc, nên 2 goroutine chậm hơn kẹt mãi ở <code>ch &lt;-</code>. Mỗi lần gọi <code>fastest</code> rò 2 goroutine.</p>
+<pre lang="go" mark="good">
+func fastest(ctx context.Context, servers []string) string {
+    ctx, cancel := context.WithCancel(ctx)
+    defer cancel() // có kết quả rồi → huỷ các truy vấn còn lại
+
+    ch := make(chan string, len(servers)) // đủ chỗ: không goroutine nào phải chờ người đọc
+    for _, s := range servers {
+        go func() { ch <- query(ctx, s) }()
+    }
+    return <-ch
+}
+</pre>
+<p>Bộ đệm bằng số server bảo đảm mọi goroutine gửi được và thoát. <code>cancel()</code> khi hàm trả về giúp các truy vấn chưa xong dừng sớm (nếu <code>query</code> truyền ctx xuống HTTP / database). Kết quả của chúng nằm trong channel rồi bị bộ dọn rác thu hồi cùng channel.</p>
+</details>
+</details>

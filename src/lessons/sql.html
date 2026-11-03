@@ -19,7 +19,7 @@ psql postgres                       # mở cửa sổ gõ SQL
 
 <h2>Thiết kế bảng cho "Sổ bài tập"</h2>
 <p>Nghiệp vụ: giáo viên có nhiều lớp. Lớp có nhiều học sinh, một học sinh có thể học nhiều lớp (học thêm). Lớp có nhiều bài tập. Mỗi học sinh nộp mỗi bài tập một lần, có điểm.</p>
-<p>Năm bảng dưới đây được dùng xuyên suốt bài 14, 15, 16. Đọc sơ đồ trước: mũi tên đi từ bảng "một" tới bảng "nhiều" (một giáo viên có nhiều lớp).</p>
+<p>Năm bảng dưới đây được dùng xuyên suốt bài {{n:sql}}, {{n:go-postgres}}, {{n:toi-uu-query}}. Đọc sơ đồ trước: mũi tên đi từ bảng "một" tới bảng "nhiều" (một giáo viên có nhiều lớp).</p>
 <figure class="dg">
 <svg viewBox="0 0 760 330" style="min-width:620px;max-width:760px" role="img" aria-label="Sơ đồ quan hệ các bảng">
   <g class="nd go"><rect x="20" y="20" width="170" height="110" rx="10"/></g>
@@ -98,7 +98,7 @@ CREATE TABLE submissions (
 <li><code>text NOT NULL UNIQUE</code>: chuỗi, không được để trống, không được trùng với dòng khác.</li>
 <li><code>REFERENCES users(id)</code>: khoá ngoại. Giá trị cột này phải là một <code>id</code> có thật trong bảng <code>users</code>.</li>
 <li><code>timestamptz NOT NULL DEFAULT now()</code>: thời điểm, không gửi thì lấy giờ hiện tại.</li>
-<li><code>numeric(4,2)</code>: số thập phân chính xác, tối đa 4 chữ số, 2 chữ số sau dấu chấm (từ 0.00 đến 99.99). Không dùng số thực cho điểm, cùng lý do như tiền ở bài 02.</li>
+<li><code>numeric(4,2)</code>: số thập phân chính xác, tối đa 4 chữ số, 2 chữ số sau dấu chấm (từ 0.00 đến 99.99). Không dùng số thực cho điểm, cùng lý do như tiền ở bài {{n:bien-kieu}}.</li>
 </ul>
 <p>Dán toàn bộ khối trên vào <code>psql</code>. Mỗi bảng tạo xong, psql in <code>CREATE TABLE</code>.</p>
 
@@ -135,7 +135,7 @@ INSERT INTO submissions (assignment_id, student_id, score, submitted_at) VALUES
   (10, 104, 3.50, '2026-11-04 21:10+07'),
   (10, 103, NULL, '2026-11-04 21:30+07');
 </pre>
-<p>Tóm tắt dữ liệu: Cô Hoa (id 7) dạy hai lớp 42 (Lớp 5A, 4 học sinh An, Bình, Chi, Dũng) và 43. Lớp 42 có bài tập 9 và 10. Bình chưa nộp bài nào, Chi nộp bài 10 nhưng chưa được chấm (<code>score</code> là <code>NULL</code>).</p>
+<p>Tóm tắt dữ liệu: Cô Hoa (id 7) dạy hai lớp 42 (Lớp 5A, 4 học sinh An, Bình, Chi, Dũng) và 43. Lớp 42 có bài tập 9 và 10. Bình chưa nộp bài nào, Chi nộp bài {{n:context-test}} nhưng chưa được chấm (<code>score</code> là <code>NULL</code>).</p>
 
 <h2>Ràng buộc: để database giữ dữ liệu đúng</h2>
 <table>
@@ -169,7 +169,7 @@ INSERT INTO classes (teacher_id, name, capacity) VALUES (999, 'Lớp ma', 10);
 ERROR:  insert or update on table "classes" violates foreign key constraint "classes_teacher_id_fkey"
 DETAIL:  Key (teacher_id)=(999) is not present in table "users".
 </pre>
-<p>Ba lỗi lần lượt là: email đã có người dùng (UNIQUE), điểm 11 ngoài khoảng 0 đến 10 (CHECK), giáo viên 999 không tồn tại (khoá ngoại). Ở bài 15 bạn sẽ bắt các lỗi này trong Go và đổi thành response <code>409</code> / <code>400</code>.</p>
+<p>Ba lỗi lần lượt là: email đã có người dùng (UNIQUE), điểm 11 ngoài khoảng 0 đến 10 (CHECK), giáo viên 999 không tồn tại (khoá ngoại). Ở bài {{n:go-postgres}} bạn sẽ bắt các lỗi này trong Go và đổi thành response <code>409</code> / <code>400</code>.</p>
 <aside class="prod"><p>Kiểm tra ở Go là tốt, nhưng <b>ràng buộc trong database là lớp phòng thủ cuối cùng</b>: nó vẫn đúng khi có bug trong code, khi hai request chạy song song, khi ai đó sửa dữ liệu bằng tay hay viết script nhập liệu. Code bạn viết hôm nay sẽ được người khác sửa trong 3 năm tới, còn ràng buộc thì vẫn ở đó.</p></aside>
 
 <h3>Khoá chính: số tự tăng hay UUID?</h3>
@@ -180,7 +180,7 @@ DETAIL:  Key (teacher_id)=(999) is not present in table "users".
 <tr><td>Tạo ở client / nhiều máy</td><td>Không, phải hỏi database</td><td>Được</td></tr>
 <tr><td>Hiệu năng index</td><td>Rất tốt (luôn chèn vào cuối)</td><td>UUID v4 ngẫu nhiên làm index phân mảnh. UUID v7 / ULID (có thời gian ở đầu) khắc phục được</td></tr>
 </table>
-<p>Cả hai đều phổ biến. Lưu ý: id đoán được <b>không</b> phải lỗ hổng nếu mọi endpoint đều kiểm quyền (bài 19). Đừng dựa vào id khó đoán để bảo mật.</p>
+<p>Cả hai đều phổ biến. Lưu ý: id đoán được <b>không</b> phải lỗ hổng nếu mọi endpoint đều kiểm quyền (bài {{n:bao-mat-api}}). Đừng dựa vào id khó đoán để bảo mật.</p>
 
 <h2>CRUD cơ bản</h2>
 <p>CRUD = Create, Read, Update, Delete: bốn việc cơ bản với dữ liệu. Trong SQL là <code>INSERT</code>, <code>SELECT</code>, <code>UPDATE</code>, <code>DELETE</code>.</p>
@@ -222,7 +222,7 @@ UPDATE classes SET name = 'Lớp của tôi' WHERE id = 50 AND teacher_id = 7;
 <pre lang="out">
 UPDATE 0
 </pre>
-<p><code>UPDATE 1</code> nghĩa là một dòng bị sửa. <code>UPDATE 0</code>: không dòng nào, vì lớp 50 là của Thầy Nam (id 8), không phải của giáo viên 7. Câu SQL không báo lỗi, chỉ là không sửa gì. Trong Go, bạn đọc con số này để trả <code>404</code> (bài 15).</p>
+<p><code>UPDATE 1</code> nghĩa là một dòng bị sửa. <code>UPDATE 0</code>: không dòng nào, vì lớp 50 là của Thầy Nam (id 8), không phải của giáo viên 7. Câu SQL không báo lỗi, chỉ là không sửa gì. Trong Go, bạn đọc con số này để trả <code>404</code> (bài {{n:go-postgres}}).</p>
 <pre lang="sql">
 DELETE FROM classes WHERE id = 1 AND teacher_id = 7;   -- xoá lớp 5B vừa tạo
 </pre>
@@ -246,7 +246,7 @@ WHERE c.teacher_id = 7;
 (3 rows)
 </pre>
 <p><code>AS class_name</code> đặt tên cho cột kết quả. <code>JOIN</code> (đầy đủ là <code>INNER JOIN</code>) chỉ giữ những dòng khớp được ở cả hai bên.</p>
-<p>Bài toán khó hơn: <b>mọi</b> học sinh của lớp 42 kèm điểm bài 9, kể cả em chưa nộp. Dùng <code>LEFT JOIN</code>: giữ mọi dòng của bảng bên trái, bên phải không có thì điền NULL.</p>
+<p>Bài toán khó hơn: <b>mọi</b> học sinh của lớp 42 kèm điểm bài {{n:dong-thoi}}, kể cả em chưa nộp. Dùng <code>LEFT JOIN</code>: giữ mọi dòng của bảng bên trái, bên phải không có thì điền NULL.</p>
 <pre lang="sql">
 SELECT u.id, u.name, s.score, s.submitted_at
 FROM enrollments e                                    -- bắt đầu từ danh sách học sinh của lớp
@@ -355,7 +355,7 @@ submissions: student_id | student_name | student_email | class_name | score
 <li>Muốn psql hiện giờ Việt Nam như các kết quả trong bài: <code>SET TIME ZONE 'Asia/Ho_Chi_Minh';</code> (chỉ đổi cách hiển thị, dữ liệu lưu vẫn là một thời điểm duy nhất).</li>
 </ul>
 
-<quiz q="Bạn muốn liệt kê <b>mọi</b> học sinh trong lớp kèm điểm bài 9, kể cả em chưa nộp. Viết <code>LEFT JOIN submissions s ON s.student_id = e.student_id WHERE s.assignment_id = 9</code>. Kết quả?">
+<quiz q="Bạn muốn liệt kê <b>mọi</b> học sinh trong lớp kèm điểm bài {{n:dong-thoi}}, kể cả em chưa nộp. Viết <code>LEFT JOIN submissions s ON s.student_id = e.student_id WHERE s.assignment_id = 9</code>. Kết quả?">
 - Đúng như mong muốn
 + Mất các em chưa nộp, vì WHERE loại các dòng có s.assignment_id là NULL
 - Lỗi cú pháp
@@ -372,7 +372,7 @@ submissions: student_id | student_name | student_email | class_name | score
 </ol>
 <p><b>Gợi ý</b></p>
 <ol class="steps">
-<li>Câu 1: bắt đầu từ câu LEFT JOIN "mọi học sinh kèm điểm bài 9" ở trên. Em chưa nộp là em có cột của <code>submissions</code> bị NULL. Thêm điều kiện <code>s.student_id IS NULL</code>.</li>
+<li>Câu 1: bắt đầu từ câu LEFT JOIN "mọi học sinh kèm điểm bài {{n:dong-thoi}}" ở trên. Em chưa nộp là em có cột của <code>submissions</code> bị NULL. Thêm điều kiện <code>s.student_id IS NULL</code>.</li>
 <li>Câu 2: mỗi bài tập một dòng. Có thể đếm bằng <b>truy vấn con</b>: viết một câu <code>SELECT count(*)</code> nhỏ trong ngoặc ngay ở danh sách cột.</li>
 <li>Câu 3: giống ví dụ <code>HAVING</code>, bỏ <code>HAVING</code>, thêm <code>ORDER BY avg_score DESC LIMIT 5</code>, và JOIN thêm <code>users</code> để có tên.</li>
 </ol>

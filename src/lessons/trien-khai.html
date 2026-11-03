@@ -116,9 +116,9 @@ path 496 240 650 240 650 188 "deploy" c=ok
 [ext] Gộp vào main / CI xanh
 -> build image, gắn tag theo commit
 [go] Image sobaitap-api:9f3c1a2
--> chạy migration (phải tương thích với code cũ, bài 15)
+-> chạy migration (phải tương thích với code cũ, bài {{n:go-postgres}})
 [db] Database đã có lược đồ mới
--> rolling update: bật bản mới, chờ /readyz, tắt dần bản cũ (SIGTERM, bài 13)
+-> rolling update: bật bản mới, chờ /readyz, tắt dần bản cũ (SIGTERM, bài {{n:kien-truc}})
 [ok] Bản mới phục vụ 100% / theo dõi tỉ lệ lỗi, p99
 -> có vấn đề: quay lại image trước (rollback) trong vài phút
 [warn] Rollback / vì vậy migration không được phá code cũ
@@ -167,7 +167,7 @@ func version() string {
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Đóng gói và chạy API có đăng nhập</summary>
-<p>Lấy API ở lời giải bài 18 (đăng ký, đăng nhập, ghi chú, Postgres). Viết:</p>
+<p>Lấy API ở lời giải bài {{n:xac-thuc}} (đăng ký, đăng nhập, ghi chú, Postgres). Viết:</p>
 <ul>
 <li><code>Dockerfile</code> nhiều giai đoạn.</li>
 <li><code>compose.yaml</code> chạy API + Postgres, database tự tạo bảng lần đầu.</li>
@@ -177,13 +177,13 @@ func version() string {
 <p>So sánh kích thước image cuối với image <code>golang</code>.</p>
 <p><b>Gợi ý từng bước</b></p>
 <ol class="steps">
-<li>Dockerfile: chép mẫu ở đầu bài, sửa dòng build thành <code>go build ... -o /out/api .</code> (dự án bài 18 có <code>main</code> ở thư mục gốc, không phải <code>./cmd/api</code>).</li>
+<li>Dockerfile: chép mẫu ở đầu bài, sửa dòng build thành <code>go build ... -o /out/api .</code> (dự án bài {{n:xac-thuc}} có <code>main</code> ở thư mục gốc, không phải <code>./cmd/api</code>).</li>
 <li>Postgres chính thức tự chạy mọi file <code>.sql</code> trong <code>/docker-entrypoint-initdb.d/</code> khi database còn trống. Gắn <code>schema.sql</code> vào đó là có bảng.</li>
 <li>Trong compose, các container gọi nhau bằng <b>tên service</b>: API kết nối tới <code>db:5432</code>, không phải <code>localhost</code> (<code>localhost</code> bên trong container API là chính container API).</li>
-<li><code>docker stop</code> gửi tín hiệu <code>SIGTERM</code> rồi chờ 10 giây. Thêm vào <code>main</code> phần <code>signal.NotifyContext</code> + <code>srv.Shutdown</code> như bài 13, thời gian chờ ngắn hơn 10 giây.</li>
+<li><code>docker stop</code> gửi tín hiệu <code>SIGTERM</code> rồi chờ 10 giây. Thêm vào <code>main</code> phần <code>signal.NotifyContext</code> + <code>srv.Shutdown</code> như bài {{n:kien-truc}}, thời gian chờ ngắn hơn 10 giây.</li>
 </ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<p>Giữ nguyên <code>auth.go</code>, <code>notes.go</code>, <code>schema.sql</code> của bài 18. Thay hàm <code>main</code> trong <code>main.go</code> bằng bản có tắt an toàn (thêm import <code>"errors"</code>, <code>"os/signal"</code>, <code>"syscall"</code>), kèm hai route <code>/livez</code> và <code>/slow</code> để thử:</p>
+<p>Giữ nguyên <code>auth.go</code>, <code>notes.go</code>, <code>schema.sql</code> của bài {{n:xac-thuc}}. Thay hàm <code>main</code> trong <code>main.go</code> bằng bản có tắt an toàn (thêm import <code>"errors"</code>, <code>"os/signal"</code>, <code>"syscall"</code>), kèm hai route <code>/livez</code> và <code>/slow</code> để thử:</p>
 <pre lang="go" file="main.go (hàm main)">
 func main() {
     ctx := context.Background()
@@ -328,7 +328,7 @@ docker compose ps              # hai dòng db và api, cột STATUS là "Up"
 curl localhost:8080/livez      # ok
 docker images                  # so cột SIZE của image api với image golang
 </pre>
-<p>Image API chỉ cỡ vài chục MB (file chạy khoảng 10 MB cộng image distroless), trong khi image <code>golang</code> hơn 800 MB. Sau đó thử lại các lệnh <code>curl</code> đăng ký, đăng nhập của bài 18: kết quả giống hệt.</p>
+<p>Image API chỉ cỡ vài chục MB (file chạy khoảng 10 MB cộng image distroless), trong khi image <code>golang</code> hơn 800 MB. Sau đó thử lại các lệnh <code>curl</code> đăng ký, đăng nhập của bài {{n:xac-thuc}}: kết quả giống hệt.</p>
 <p><b>Thử tắt an toàn:</b> gọi request chậm rồi dừng container ngay khi nó đang chạy:</p>
 <pre lang="sh">
 curl localhost:8080/slow &     # chạy nền, chờ 5 giây
@@ -336,7 +336,7 @@ docker compose stop api        # gửi SIGTERM trong lúc request đang chạy
 docker compose logs api
 </pre>
 <p>Kết quả đúng: curl vẫn in ra <code>xong việc chậm</code>, và log của api có hai dòng <code>đang tắt, chờ các request dở dang</code> rồi vài giây sau mới tới <code>đã tắt</code>. Container chỉ dừng sau khi request xong.</p>
-<aside class="warn"><p>Để ý dòng <code>&lt;-done</code> trong <code>main</code>. Khi <code>Shutdown</code> bắt đầu, <code>ListenAndServe</code> trả về <b>ngay lập tức</b>. Nếu <code>main</code> kết thúc luôn ở đó, chương trình thoát và cắt ngang request đang chạy, dù đã gọi <code>Shutdown</code>. Đây là lỗi rất hay gặp, chính bản nháp đầu của lời giải này cũng mắc: curl nhận về rỗng. Phải đứng chờ <code>Shutdown</code> làm xong (ở đây bằng channel <code>done</code>, bài 09).</p></aside>
+<aside class="warn"><p>Để ý dòng <code>&lt;-done</code> trong <code>main</code>. Khi <code>Shutdown</code> bắt đầu, <code>ListenAndServe</code> trả về <b>ngay lập tức</b>. Nếu <code>main</code> kết thúc luôn ở đó, chương trình thoát và cắt ngang request đang chạy, dù đã gọi <code>Shutdown</code>. Đây là lỗi rất hay gặp, chính bản nháp đầu của lời giải này cũng mắc: curl nhận về rỗng. Phải đứng chờ <code>Shutdown</code> làm xong (ở đây bằng channel <code>done</code>, bài {{n:dong-thoi}}).</p></aside>
 <p><b>CI:</b> đẩy dự án lên GitHub (có thư mục <code>.github/workflows</code>), mở tab Actions để xem. Thử sửa một test cho hỏng rồi push: job đỏ. Sửa lại: xanh.</p>
 </details>
 </details>

@@ -162,7 +162,7 @@ func (h *Handler) paymentWebhook(w http.ResponseWriter, r *http.Request) {
 <aside class="real"><p>Stripe, GitHub, Shopify đều ký webhook bằng HMAC-SHA256 và khuyên kiểm thêm <b>thời điểm</b> trong chữ ký (từ chối sự kiện cũ hơn vài phút) để chống phát lại. Các dịch vụ báo giao dịch ngân hàng ở Việt Nam cũng làm theo kiểu này: cấu hình một URL nhận, kèm khoá bí mật hoặc API key để xác minh.</p></aside>
 
 <h2>Idempotency key cho API của bạn</h2>
-<p>Quay lại bài 12: client gửi <code>Idempotency-Key</code> cho thao tác tạo thanh toán.</p>
+<p>Quay lại bài {{n:rest}}: client gửi <code>Idempotency-Key</code> cho thao tác tạo thanh toán.</p>
 <pre lang="sql">
 CREATE TABLE idempotency_keys (
     user_id     bigint NOT NULL,
@@ -207,13 +207,13 @@ CREATE TABLE idempotency_keys (
 </ul>
 <p><b>Gợi ý từng bước</b></p>
 <ol class="steps">
-<li>Một chương trình, hai lệnh cho gọn: <code>go run . giao-bai</code> (giả làm API: tạo bài + việc) và <code>go run . worker A</code> (chạy worker tên A). Đọc lệnh bằng <code>os.Args</code> như bài 01.</li>
+<li>Một chương trình, hai lệnh cho gọn: <code>go run . giao-bai</code> (giả làm API: tạo bài + việc) và <code>go run . worker A</code> (chạy worker tên A). Đọc lệnh bằng <code>os.Args</code> như bài {{n:cai-dat}}.</li>
 <li>Chống gửi trùng: bảng <code>notifications_sent(job_id, user_id)</code> có khoá chính kép. Trước khi gửi cho ai, kiểm tra đã có dòng chưa. Gửi xong thì chèn dòng đó ngay.</li>
 <li>Lấy việc và cập nhật trạng thái trong một transaction (<code>pgx.BeginFunc</code>), giống đoạn <code>runOnce</code> ở trên. Lỗi thì <b>vẫn commit</b>, chỉ là cập nhật <code>attempts</code> và dời <code>run_at</code> ra sau.</li>
-<li>Dừng an toàn: <code>signal.NotifyContext</code> (bài 13) cho một ctx bị huỷ khi bấm Ctrl+C. Vòng lặp chính kiểm tra <code>ctx.Err()</code> <b>giữa</b> các việc. Việc đang làm dùng ctx riêng (<code>context.WithoutCancel</code>) để không bị cắt ngang.</li>
+<li>Dừng an toàn: <code>signal.NotifyContext</code> (bài {{n:kien-truc}}) cho một ctx bị huỷ khi bấm Ctrl+C. Vòng lặp chính kiểm tra <code>ctx.Err()</code> <b>giữa</b> các việc. Việc đang làm dùng ctx riêng (<code>context.WithoutCancel</code>) để không bị cắt ngang.</li>
 </ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<p>Bảng dùng cho bài này (dán vào <code>psql</code>, dùng chung database bài 14 được, tên bảng không trùng):</p>
+<p>Bảng dùng cho bài này (dán vào <code>psql</code>, dùng chung database bài {{n:sql}} được, tên bảng không trùng):</p>
 <pre lang="sql" file="schema.sql">
 CREATE TABLE parents (
     id        bigint PRIMARY KEY,

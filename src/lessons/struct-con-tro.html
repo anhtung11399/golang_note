@@ -36,7 +36,7 @@ Trần An [9.5]
 <tr><td><code>interface Student { id: number; fullName: string }</code></td><td><code>type Student struct { ID int64; FullName string }</code></td></tr>
 <tr><td><code>const s = { id: 1, fullName: "An" }</code></td><td><code>s := Student{ID: 1, FullName: "An"}</code></td></tr>
 <tr><td><code>class Student { constructor(...) {} }</code></td><td>Hàm thường tên <code>NewStudent(...)</code> trả về <code>*Student</code></td></tr>
-<tr><td><code>private</code> / <code>public</code></td><td>Tên viết <b>Hoa</b> là public (ngoài package thấy được), viết thường là private (bài 08)</td></tr>
+<tr><td><code>private</code> / <code>public</code></td><td>Tên viết <b>Hoa</b> là public (ngoài package thấy được), viết thường là private (bài {{n:package-module}})</td></tr>
 </table>
 
 <h3>Struct tag: nói cho JSON và database biết tên trường</h3>
@@ -162,7 +162,7 @@ sau renameCopy: An
 sau renamePtr:  Bình
 </pre>
 <p>Trong JS, <code>function rename(s) { s.fullName = "Bình" }</code> luôn sửa được object gốc. Go thì phải chọn: muốn hàm sửa được bản gốc thì nhận con trỏ.</p>
-<aside class="fe"><p>Slice, map và channel chứa sẵn một con trỏ bên trong, nên truyền chúng vào hàm thì hàm sửa được <b>nội dung</b> (giống truyền mảng trong JS). Nhưng <code>append</code> trong hàm thì có thể không phản ánh ra ngoài (bài 04), nên hàm thêm phần tử thường trả về slice mới.</p></aside>
+<aside class="fe"><p>Slice, map và channel chứa sẵn một con trỏ bên trong, nên truyền chúng vào hàm thì hàm sửa được <b>nội dung</b> (giống truyền mảng trong JS). Nhưng <code>append</code> trong hàm thì có thể không phản ánh ra ngoài (bài {{n:slice-map}}), nên hàm thêm phần tử thường trả về slice mới.</p></aside>
 <aside class="tip"><p>Go không có phép toán trên con trỏ (<code>p++</code> như C), và bạn không phải tự giải phóng bộ nhớ. Hàm trả về con trỏ tới biến cục bộ là hoàn toàn an toàn: trình biên dịch tự quyết định đặt biến đó lên heap (gọi là <i>escape analysis</i>).</p></aside>
 
 <h3>nil pointer: lỗi runtime hay gặp nhất</h3>
@@ -190,7 +190,7 @@ main.main()
 exit status 2
 </pre>
 <p>Đọc báo lỗi panic từ trên xuống: dòng đầu nói lỗi gì, phần <code>goroutine 1</code> chỉ ra lỗi xảy ra ở hàm nào, dòng nào (<code>main.go:10</code>, tức dòng <code>fmt.Println(u.FullName)</code>).</p>
-<p>Giống lỗi <code>Cannot read properties of null</code> của JS, nhưng ở backend nó làm hỏng cả request (server Go tự bắt panic cho từng request nên không sập cả server, bài 11).</p>
+<p>Giống lỗi <code>Cannot read properties of null</code> của JS, nhưng ở backend nó làm hỏng cả request (server Go tự bắt panic cho từng request nên không sập cả server, bài {{n:http}}).</p>
 <p>Hàm trả về con trỏ thì phải nói rõ khi nào trả <code>nil</code>, và người gọi phải kiểm tra. Mẫu chuẩn: hàm "tìm" trả về <code>(*T, error)</code>, nếu không tìm thấy thì trả lỗi riêng thay vì <code>nil, nil</code>.</p>
 
 <h2>Method: hàm gắn với kiểu</h2>
@@ -266,7 +266,7 @@ func main() {
 <pre lang="out">
 :8080 10s
 </pre>
-<p>Hàm <code>NewX</code> là quy ước, không phải cú pháp đặc biệt. Ở bài 13, <code>NewServer</code> sẽ nhận thêm kết nối database, logger... để ghép các thành phần của server lại (dependency injection).</p>
+<p>Hàm <code>NewX</code> là quy ước, không phải cú pháp đặc biệt. Ở bài {{n:kien-truc}}, <code>NewServer</code> sẽ nhận thêm kết nối database, logger... để ghép các thành phần của server lại (dependency injection).</p>
 
 <h2>Dùng con trỏ để biết "có gửi hay không"</h2>
 <p>Quay lại bài toán ở bài 02: API cập nhật một phần (PATCH). Client chỉ gửi trường nào muốn đổi.</p>

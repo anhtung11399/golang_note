@@ -46,7 +46,7 @@ func main() {
 <p><b>Đọc chương trình:</b> <code>*EmailNotifier</code> và <code>*PushNotifier</code> đều có method <code>Notify</code> với đúng tham số và kiểu trả về như interface yêu cầu, nên cả hai truyền được vào <code>remindHomework</code>. Thử đổi tên method của <code>PushNotifier</code> thành <code>Send</code> rồi chạy: trình biên dịch báo <code>*PushNotifier does not implement Notifier (missing method Notify)</code>.</p>
 <p>Các method dùng receiver con trỏ (<code>*EmailNotifier</code>), nên phải truyền con trỏ <code>&amp;EmailNotifier{...}</code>. Truyền <code>EmailNotifier{...}</code> (không có <code>&amp;</code>) sẽ bị báo lỗi tương tự.</p>
 <aside class="fe"><p>Rất giống TypeScript: TS cũng kiểm tra theo cấu trúc (structural typing), một object có đủ thuộc tính là thoả interface. Khác biệt: trong Go chỉ tính <b>method</b>, không tính trường dữ liệu.</p></aside>
-<aside class="tip"><p>Trong code thật, <code>Notify</code> sẽ nhận thêm tham số đầu tiên <code>ctx context.Context</code> để huỷ được khi request bị huỷ (bài 10). Ở đây bỏ đi cho gọn.</p></aside>
+<aside class="tip"><p>Trong code thật, <code>Notify</code> sẽ nhận thêm tham số đầu tiên <code>ctx context.Context</code> để huỷ được khi request bị huỷ (bài {{n:context-test}}). Ở đây bỏ đi cho gọn.</p></aside>
 
 <h2>Interface nhỏ là interface tốt</h2>
 <p>Thư viện chuẩn của Go đầy những interface chỉ có một method. Hai cái nổi tiếng nhất, nằm trong package <code>io</code>:</p>
@@ -92,7 +92,7 @@ func main() {
 <pre lang="out">
 An <nil>
 </pre>
-<p>Một interface quen thuộc khác là <code>error</code>: bất kỳ kiểu nào có method <code>Error() string</code> đều là lỗi (bài 07). Và <code>fmt.Stringer</code>: kiểu nào có method <code>String() string</code> thì <code>fmt.Println</code> dùng nó để in:</p>
+<p>Một interface quen thuộc khác là <code>error</code>: bất kỳ kiểu nào có method <code>Error() string</code> đều là lỗi (bài {{n:xu-ly-loi}}). Và <code>fmt.Stringer</code>: kiểu nào có method <code>String() string</code> thì <code>fmt.Println</code> dùng nó để in:</p>
 <pre lang="go">
 package main
 
@@ -123,7 +123,7 @@ func main() {
 -> lúc chạy thật
 [db] PostgresStore / SQL thật
 </fig>
-<p>Chương trình dưới chạy được ngay, không cần database: nó dùng bản giả <code>memStore</code>. Khi có database (bài 15), bạn viết thêm <code>PostgresStore</code> có cùng hai method, và <code>HomeworkService</code> không phải sửa dòng nào.</p>
+<p>Chương trình dưới chạy được ngay, không cần database: nó dùng bản giả <code>memStore</code>. Khi có database (bài {{n:go-postgres}}), bạn viết thêm <code>PostgresStore</code> có cùng hai method, và <code>HomeworkService</code> không phải sửa dòng nào.</p>
 <pre lang="go">
 package main
 
@@ -258,7 +258,7 @@ kiểu khác: float64
 xin chào true
 0 false
 </pre>
-<p><code>len("xin chào")</code> là 9 chứ không phải 8, vì chữ <code>à</code> chiếm 2 byte (bài 02).</p>
+<p><code>len("xin chào")</code> là 9 chứ không phải 8, vì chữ <code>à</code> chiếm 2 byte (bài {{n:bien-kieu}}).</p>
 <aside class="tip"><p>Hạn chế dùng <code>any</code> trong code nghiệp vụ, giống như hạn chế <code>any</code> trong TypeScript. Nơi hợp lý để gặp nó: đọc JSON không biết trước cấu trúc (<code>map[string]any</code>), log, và các thư viện chung.</p></aside>
 
 <h3>Cạm bẫy: interface chứa con trỏ nil thì không nil</h3>
@@ -508,7 +508,7 @@ Văn: [Tả cây]
 <ol class="steps">
 <li>Tương tự <code>lodash.groupBy(items, x =&gt; x.subject)</code>.</li>
 <li>Tạo <code>out := make(map[K][]T)</code>. Duyệt <code>items</code>, tính <code>k := key(it)</code>, rồi <code>out[k] = append(out[k], it)</code>. Khoá chưa có thì <code>out[k]</code> là slice nil, <code>append</code> vào nil vẫn chạy.</li>
-<li>In kết quả theo thứ tự cố định (map duyệt ngẫu nhiên): lấy khoá và sắp xếp như bài 04.</li>
+<li>In kết quả theo thứ tự cố định (map duyệt ngẫu nhiên): lấy khoá và sắp xếp như bài {{n:slice-map}}.</li>
 </ol>
 <details class="sol"><summary>Xem lời giải</summary>
 <pre lang="go" file="main.go">

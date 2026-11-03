@@ -64,8 +64,8 @@ Giỏi
 Chưa đạt
 </pre>
 <p>Bỏ dấu <code>//</code> ở dòng <code>grade.isPass(6)</code> rồi chạy lại: Go báo <code>undefined: grade.isPass</code>, vì tên viết thường không ra được khỏi package. Đó là cách Go làm "private".</p>
-<p>Lưu ý <code>grade/grade_test.go</code> trong cây thư mục là file test, bài 10 mới viết. Chưa có nó thì chương trình vẫn chạy.</p>
-<aside class="fe"><p>Thay cho <code>export</code> / không <code>export</code> trong ES module, Go dùng chữ hoa / chữ thường của <b>chính cái tên</b>. Quy tắc áp dụng cho mọi thứ: hàm, kiểu, hằng, biến, trường của struct, method. Vì vậy trường struct viết thường thì <code>encoding/json</code> (một package khác) không nhìn thấy (bài 05).</p></aside>
+<p>Lưu ý <code>grade/grade_test.go</code> trong cây thư mục là file test, bài {{n:context-test}} mới viết. Chưa có nó thì chương trình vẫn chạy.</p>
+<aside class="fe"><p>Thay cho <code>export</code> / không <code>export</code> trong ES module, Go dùng chữ hoa / chữ thường của <b>chính cái tên</b>. Quy tắc áp dụng cho mọi thứ: hàm, kiểu, hằng, biến, trường của struct, method. Vì vậy trường struct viết thường thì <code>encoding/json</code> (một package khác) không nhìn thấy (bài {{n:struct-con-tro}}).</p></aside>
 
 <h2>Đặt tên package</h2>
 <ul>
@@ -90,7 +90,7 @@ Chưa đạt
 <p>Với ứng dụng backend (không phải thư viện cho người khác dùng), đặt gần như mọi thứ trong <code>internal/</code>.</p>
 
 <h2>Cấu trúc một dự án API thật</h2>
-<pre lang="text" file="Cấu trúc gợi ý (dùng ở dự án cuối, bài 24)">
+<pre lang="text" file="Cấu trúc gợi ý (dùng ở dự án cuối, bài {{n:du-an}})">
 sobaitap/
 ├── go.mod
 ├── go.sum
@@ -125,7 +125,7 @@ go mod why github.com/x/y                 # vì sao module này có trong dự �
 go install golang.org/x/vuln/cmd/govulncheck@latest
 govulncheck ./...
 </pre>
-<p>Nó chỉ báo những lỗ hổng mà code của bạn <b>thật sự gọi tới</b>, nên ít báo động giả hơn <code>npm audit</code> nhiều. Nên chạy trong CI (bài 22).</p></aside>
+<p>Nó chỉ báo những lỗ hổng mà code của bạn <b>thật sự gọi tới</b>, nên ít báo động giả hơn <code>npm audit</code> nhiều. Nên chạy trong CI (bài {{n:trien-khai}}).</p></aside>
 
 <h2>Thư viện hay dùng cho backend</h2>
 <p>Văn hoá Go là dùng thư viện chuẩn trước, chỉ thêm thư viện ngoài khi thật cần. Đây là những cái gần như dự án backend nào cũng gặp:</p>
@@ -163,7 +163,7 @@ import _ "net/http/pprof" // đăng ký các đường dẫn /debug/pprof vào D
 <details class="ex"><summary>Tách package tiền tệ</summary>
 <p>Tạo dự án <code>example.com/money</code> có một package riêng tên <code>vnd</code>, chứa:</p>
 <ul>
-<li>kiểu <code>VND int64</code>, có method <code>String()</code> in dạng <code>1.234.000đ</code> (dùng lại lời giải "Định dạng tiền Việt" ở bài 02).</li>
+<li>kiểu <code>VND int64</code>, có method <code>String()</code> in dạng <code>1.234.000đ</code> (dùng lại lời giải "Định dạng tiền Việt" ở bài {{n:bien-kieu}}).</li>
 <li>hàm <code>Parse(s string) (VND, error)</code> đọc chuỗi người dùng gõ như <code>"1.234.000"</code>, <code>"49000đ"</code> thành số.</li>
 </ul>
 <p>Viết <code>main.go</code> import package <code>vnd</code> và dùng nó. Kết quả mong muốn:</p>
@@ -178,7 +178,7 @@ lỗi: số tiền không hợp lệ "abc": strconv.ParseInt: parsing "abc": inv
 <li>Làm giống ví dụ <code>grade</code> ở trên: <code>mkdir money &amp;&amp; cd money</code>, <code>go mod init example.com/money</code>, <code>mkdir vnd</code>.</li>
 <li>File <code>vnd/vnd.go</code> bắt đầu bằng <code>package vnd</code>. Tên <code>VND</code>, <code>Parse</code>, <code>String</code> viết hoa để <code>main</code> dùng được. Hàm định dạng phụ đặt tên viết thường (<code>format</code>), chỉ dùng bên trong.</li>
 <li><code>Parse</code>: bỏ khoảng trắng, bỏ chữ <code>đ</code> ở cuối (<code>strings.TrimSuffix</code>), bỏ mọi dấu chấm (<code>strings.ReplaceAll</code>), rồi <code>strconv.ParseInt</code>.</li>
-<li>Trong <code>main.go</code>: <code>import "example.com/money/vnd"</code>, rồi gọi <code>vnd.Parse(...)</code>. Vì <code>VND</code> có method <code>String()</code>, <code>fmt.Println</code> tự in dạng đẹp (bài 06).</li>
+<li>Trong <code>main.go</code>: <code>import "example.com/money/vnd"</code>, rồi gọi <code>vnd.Parse(...)</code>. Vì <code>VND</code> có method <code>String()</code>, <code>fmt.Println</code> tự in dạng đẹp (bài {{n:interface}}).</li>
 </ol>
 <details class="sol"><summary>Xem lời giải</summary>
 <pre lang="text" file="Cấu trúc">

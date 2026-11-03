@@ -1,0 +1,486 @@
+<h2>Kubernetes giải quyết việc gì</h2>
+<p>Bài {{n:trien-khai}} đóng gói API thành image Docker. Chạy một container thì dễ. Nhưng ở công ty có hàng chục dịch vụ, mỗi dịch vụ 3 đến 30 bản, chạy trên hàng chục máy. Ai lo:</p>
+<ul>
+<li>bản nào chết thì bật lại, máy nào hỏng thì dời container sang máy khác?</li>
+<li>deploy bản mới từ từ, lỗi thì quay về bản cũ?</li>
+<li>đông người thì tự thêm bản, vắng thì bớt?</li>
+<li>dịch vụ này tìm dịch vụ kia ở đâu khi IP liên tục đổi?</li>
+</ul>
+<p>Đó là việc của <b>Kubernetes</b> (viết tắt K8s, viết bằng Go). Bạn khai báo <b>trạng thái mong muốn</b> ("luôn có 3 bản API phiên bản 1.4.2"), Kubernetes liên tục so sánh với thực tế và sửa cho khớp.</p>
+<aside class="fe"><p>Giống React: bạn mô tả UI mong muốn (khai báo), React tự tính phải đổi DOM thế nào (reconcile). Kubernetes làm điều đó với container: bạn viết YAML mô tả, các "controller" chạy vòng lặp đưa cụm về đúng trạng thái đó.</p></aside>
+<p>Là lập trình viên backend, bạn thường <b>không</b> dựng cụm Kubernetes (đội hạ tầng hoặc dịch vụ quản lý như EKS, GKE, AKS lo). Bạn cần: viết / đọc YAML cho dịch vụ của mình, làm cho chương trình Go chạy đúng trong Kubernetes, và gỡ lỗi khi pod không chạy.</p>
+
+<h2>Bức tranh tổng thể</h2>
+<arch w="840" h="400" caption="Request đi từ Ingress tới Service, Service chia cho các Pod. Deployment giữ đúng số Pod, HPA đổi số đó theo tải">
+group 20 20 800 360 k8s "Cụm Kubernetes"
+group 190 60 610 300 plain "Namespace sobaitap"
+node u 90 200 users "Người dùng" ""
+node ing 270 200 ingress "Ingress" "api.sobaitap.vn"
+node svc 420 200 svc "Service" "api:80"
+node p1 590 110 pod "Pod api" "v1.4.2"
+node p2 590 200 pod "Pod api" "v1.4.2"
+node p3 590 290 pod "Pod api" "v1.4.2"
+node dep 730 110 deploy "Deployment" "replicas: 3"
+node hpa 730 290 hpa "HPA" "CPU 70%"
+node cm 420 90 cm "ConfigMap" ""
+node sec 420 310 secret "Secret" ""
+edge u ing "HTTPS"
+edge ing svc ""
+path 446 200 500 200 500 110 564 110 ""
+edge svc p2 ""
+path 500 200 500 290 564 290 ""
+edge dep p1 "" dash
+edge hpa p3 "" dash
+path 730 266 730 160 "đổi replicas" dash
+</arch>
+<table>
+<tr><th>Đối tượng</th><th>Là gì</th><th>Ví von</th></tr>
+<tr><td><b>Pod</b></td><td>đơn vị chạy nhỏ nhất: một (hoặc vài) container chung mạng, có IP riêng, <b>có thể chết bất cứ lúc nào</b></td><td>một bản chạy của chương trình</td></tr>
+<tr><td><b>Deployment</b></td><td>giữ N pod giống nhau, lo cập nhật phiên bản từ từ</td><td>"luôn có 3 bản API"</td></tr>
+<tr><td><b>Service</b></td><td>một địa chỉ cố định (DNS <code>api</code>) chia tải cho các pod đang sẵn sàng</td><td>load balancer nội bộ</td></tr>
+<tr><td><b>Ingress</b> / Gateway</td><td>đưa request từ Internet vào Service theo tên miền / đường dẫn, gắn TLS</td><td>Nginx đứng ngoài cửa</td></tr>
+<tr><td><b>ConfigMap</b> / <b>Secret</b></td><td>cấu hình / bí mật, đưa vào pod thành biến môi trường hoặc file</td><td>file <code>.env</code></td></tr>
+<tr><td><b>HPA</b></td><td>tự đổi số pod theo CPU / bộ nhớ / số liệu riêng</td><td>tự thuê thêm người khi đông khách</td></tr>
+<tr><td><b>Job</b> / <b>CronJob</b></td><td>chạy một việc tới khi xong (migration) / chạy định kỳ</td><td>cron</td></tr>
+<tr><td><b>Namespace</b></td><td>chia cụm thành các vùng riêng (theo đội, theo môi trường)</td><td>thư mục</td></tr>
+</table>
+
+<h2>Chạy thử trên máy</h2>
+<pre lang="sh">
+brew install kubectl kind
+kind create cluster --name hoc       # một cụm Kubernetes chạy trong Docker
+kubectl get nodes
+</pre>
+<pre lang="out" sim="1">
+$ kubectl get nodes
+NAME                STATUS   ROLES           AGE   VERSION
+hoc-control-plane   Ready    control-plane   42s   v1.34.0
+</pre>
+<p>Đưa image tự build vào cụm kind (không cần đẩy lên registry):</p>
+<pre lang="sh">
+docker build -t sobaitap-api:1.4.2 .
+kind load docker-image sobaitap-api:1.4.2 --name hoc
+</pre>
+
+<h2>Deployment cho API Go</h2>
+<pre lang="yaml" file="k8s/deployment.yaml">
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: sobaitap
+  labels: { app: api }
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: api }        # Deployment quản lý các pod có nhãn app=api
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0              # khi deploy, không bao giờ để thiếu pod
+      maxSurge: 1                    # thêm tối đa 1 pod mới mỗi lần
+  template:                          # khuôn để tạo pod
+    metadata:
+      labels: { app: api }
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: sobaitap-api:1.4.2  # luôn ghi phiên bản cụ thể, không dùng :latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: GOMEMLIMIT          # báo cho Go biết giới hạn bộ nhớ của container
+              valueFrom:
+                resourceFieldRef: { resource: limits.memory }
+            - name: GOMAXPROCS          # Go 1.25+ tự đọc giới hạn CPU, dòng này cho bản Go cũ
+              valueFrom:
+                resourceFieldRef: { resource: limits.cpu }
+          envFrom:
+            - configMapRef: { name: api-config }
+            - secretRef: { name: api-secrets }
+          resources:
+            requests: { cpu: 250m, memory: 128Mi }   # để xếp chỗ: cần ít nhất chừng này
+            limits: { cpu: "1", memory: 256Mi }      # vượt memory → bị giết (OOMKilled)
+          readinessProbe:               # sẵn sàng nhận request chưa?
+            httpGet: { path: /readyz, port: 8080 }
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:                # còn sống không? lỗi liên tục → khởi động lại
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 10
+            failureThreshold: 3
+          startupProbe:                 # cho thời gian khởi động, trước đó chưa xét liveness
+            httpGet: { path: /healthz, port: 8080 }
+            failureThreshold: 30
+            periodSeconds: 1
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+</pre>
+<p><code>250m</code> nghĩa là 250 mili-CPU, tức một phần tư lõi. <code>128Mi</code> là 128 mebibyte.</p>
+
+<h3>Ba loại probe: hay bị cấu hình sai nhất</h3>
+<table>
+<tr><th>Probe</th><th>Hỏi</th><th>Thất bại thì</th><th>Nên kiểm tra</th></tr>
+<tr><td><b>readiness</b></td><td>có nên gửi request cho pod này không?</td><td>bị rút khỏi Service (không bị giết)</td><td>đã khởi động xong, kết nối được database</td></tr>
+<tr><td><b>liveness</b></td><td>chương trình có bị treo cứng không?</td><td><b>bị giết và khởi động lại</b></td><td>chỉ tiến trình còn trả lời. <b>Không</b> kiểm tra database</td></tr>
+<tr><td><b>startup</b></td><td>đã khởi động xong chưa?</td><td>chờ thêm, hết lượt thì giết</td><td>giống liveness, cho app khởi động chậm</td></tr>
+</table>
+<aside class="warn"><p>Lỗi kinh điển: liveness kiểm tra database. Database chậm 30 giây → liveness của <b>mọi</b> pod lỗi → Kubernetes giết toàn bộ pod cùng lúc → khởi động lại → dồn kết nối vào database đang yếu → sập hẳn. Database lỗi chỉ nên làm readiness lỗi (ngừng nhận request), không làm pod bị giết.</p></aside>
+<pre lang="go">
+var ready atomic.Bool
+
+mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(200) // còn trả lời được = còn sống
+})
+mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+    ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+    defer cancel()
+    if !ready.Load() || pool.Ping(ctx) != nil {
+        w.WriteHeader(503)
+        return
+    }
+    w.WriteHeader(200)
+})
+
+// main: sau khi kết nối xong mọi thứ
+ready.Store(true)
+</pre>
+
+<h3>Tắt êm trong Kubernetes</h3>
+<p>Khi deploy bản mới hoặc dời pod, Kubernetes gửi <code>SIGTERM</code>, chờ <code>terminationGracePeriodSeconds</code> (30 giây), rồi <code>SIGKILL</code>. Đồng thời, nó rút pod khỏi Service, nhưng việc rút này lan tới mọi nơi <b>mất vài giây</b>. Nếu server tắt ngay khi nhận SIGTERM, request đang trên đường tới sẽ lỗi.</p>
+<arch w="820" h="200" caption="Nhận SIGTERM: báo không sẵn sàng, chờ vài giây cho Service cập nhật, rồi mới Shutdown và chờ request đang chạy">
+node a 80 90 kubectl "SIGTERM" "t = 0"
+node b 250 90 goapi "readyz → 503" "ngừng nhận mới"
+node c 420 90 cron "Chờ 5 giây" "Service rút pod"
+node d 590 90 goapi "srv.Shutdown" "chờ request đang chạy"
+node e 750 90 pod "Thoát" "trước 30 giây"
+edge a b ""
+edge b c ""
+edge c d ""
+edge d e ""
+</arch>
+<pre lang="go">
+ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+defer stop()
+
+go func() {
+    if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+        log.Fatal(err)
+    }
+}()
+
+<-ctx.Done()
+slog.Info("nhận tín hiệu tắt")
+ready.Store(false)          // 1. readiness trả 503
+time.Sleep(5 * time.Second) // 2. chờ Service / Ingress ngừng gửi request mới
+
+shutdownCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+defer cancel()
+srv.Shutdown(shutdownCtx)   // 3. không nhận kết nối mới, chờ request đang chạy xong
+pool.Close()                // 4. đóng database sau cùng
+</pre>
+<p>Tổng thời gian (5 + 20 giây) phải nhỏ hơn <code>terminationGracePeriodSeconds</code>. Worker đọc hàng đợi cũng vậy: ngừng lấy việc mới, làm nốt việc đang làm.</p>
+
+<h3>GOMEMLIMIT: tránh bị OOMKilled</h3>
+<p>Bộ dọn rác của Go mặc định chạy khi heap tăng gấp đôi so với lần dọn trước. Với limit 256Mi, heap 140MB có thể vọt lên 280MB trước khi GC kịp chạy, container bị giết với trạng thái <code>OOMKilled</code>. Đặt <code>GOMEMLIMIT</code> (Go 1.19+) bằng khoảng 80 đến 90% limit, Go sẽ dọn rác tích cực hơn khi gần chạm ngưỡng. Ở YAML trên, <code>resourceFieldRef</code> đặt bằng đúng limit, an toàn hơn thì đặt tay <code>GOMEMLIMIT: "220MiB"</code>.</p>
+
+<h2>Service, Ingress, cấu hình</h2>
+<pre lang="yaml" file="k8s/service.yaml">
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: sobaitap
+spec:
+  selector: { app: api }       # chia tải cho mọi pod nhãn app=api ĐANG READY
+  ports:
+    - port: 80                 # các dịch vụ khác gọi http://api (hoặc api.sobaitap.svc.cluster.local)
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  namespace: sobaitap
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt   # tự xin chứng chỉ TLS
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api.sobaitap.vn]
+      secretName: api-tls
+  rules:
+    - host: api.sobaitap.vn
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: api, port: { number: 80 } }
+</pre>
+<pre lang="yaml" file="k8s/config.yaml">
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: api-config, namespace: sobaitap }
+data:
+  APP_ORIGIN: https://app.sobaitap.vn
+  LOG_LEVEL: info
+---
+apiVersion: v1
+kind: Secret
+metadata: { name: api-secrets, namespace: sobaitap }
+type: Opaque
+stringData:                     # chỉ để ví dụ: KHÔNG commit secret thật vào git
+  DATABASE_URL: postgres://app:doi-mat-khau@postgres:5432/sobaitap
+  AUTH_SECRET: thay-bang-chuoi-ngau-nhien
+</pre>
+<aside class="warn"><p>Secret của Kubernetes chỉ được mã hoá base64, <b>không phải mã hoá</b>. Ai đọc được YAML là đọc được mật khẩu. Ở công ty, secret thật được lấy từ kho bí mật (AWS Secrets Manager, Vault) qua External Secrets Operator, hoặc mã hoá trước khi commit bằng Sealed Secrets / SOPS.</p></aside>
+<pre lang="sh">
+kubectl create namespace sobaitap
+kubectl apply -f k8s/
+kubectl -n sobaitap get pods -w        # -w: theo dõi liên tục
+</pre>
+<pre lang="out" sim="1">
+$ kubectl -n sobaitap get pods
+NAME                   READY   STATUS    RESTARTS   AGE
+api-7d9c6b8f5c-4xk2p   1/1     Running   0          38s
+api-7d9c6b8f5c-9mtzq   1/1     Running   0          38s
+api-7d9c6b8f5c-hb7wd   1/1     Running   0          38s
+</pre>
+<p>Tên pod gồm tên Deployment, mã của bản template (<code>7d9c6b8f5c</code>, đổi image là đổi mã này) và một đuôi ngẫu nhiên. <code>READY 1/1</code> là readiness đã qua.</p>
+
+<h2>Deploy bản mới và quay lại</h2>
+<pre lang="sh">
+kubectl -n sobaitap set image deployment/api api=sobaitap-api:1.4.3
+kubectl -n sobaitap rollout status deployment/api
+</pre>
+<pre lang="out" sim="1">
+$ kubectl -n sobaitap rollout status deployment/api
+Waiting for deployment "api" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "api" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "api" rollout to finish: 1 old replicas are pending termination...
+deployment "api" successfully rolled out
+</pre>
+<p>Với <code>maxSurge: 1, maxUnavailable: 0</code>: tạo 1 pod mới, chờ nó ready, tắt 1 pod cũ, lặp lại. Nếu pod mới không bao giờ ready (bản lỗi), quá trình dừng ở đó, 3 pod cũ vẫn phục vụ. Quay lại:</p>
+<pre lang="sh">
+kubectl -n sobaitap rollout undo deployment/api
+kubectl -n sobaitap rollout history deployment/api
+</pre>
+<p>Ở công ty, hiếm ai chạy <code>kubectl set image</code> tay. Mẫu phổ biến là <b>GitOps</b>: YAML nằm trong repo git, CI sửa tag image và commit, công cụ (Argo CD, Flux) thấy git đổi thì áp vào cụm. Lịch sử deploy chính là lịch sử git.</p>
+
+<h2>Migration với Job</h2>
+<pre lang="yaml" file="k8s/migrate-job.yaml">
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-1-4-3
+  namespace: sobaitap
+spec:
+  backoffLimit: 0               # lỗi thì dừng, không chạy lại migration tự động
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: sobaitap-api:1.4.3
+          command: ["/app/api", "migrate"]   # cùng binary, lệnh con migrate (dùng goose nhúng, bài sqlc)
+          envFrom:
+            - secretRef: { name: api-secrets }
+</pre>
+<p>Thứ tự trong pipeline: chạy Job migration, chờ thành công (<code>kubectl wait --for=condition=complete job/migrate-1-4-3</code>), rồi mới cập nhật Deployment. Migration phải tương thích với code cũ (expand / contract, bài {{n:orm-sqlc}}), vì trong lúc rolling update, pod cũ và mới cùng chạy.</p>
+
+<h2>Tự co giãn với HPA</h2>
+<pre lang="yaml" file="k8s/hpa.yaml">
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: api, namespace: sobaitap }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: api }
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }   # 70% của requests.cpu
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300   # chờ 5 phút ổn định mới giảm, tránh tăng giảm liên tục
+</pre>
+<p>HPA tính % CPU theo <code>requests</code>, không phải <code>limits</code>. Không đặt requests thì HPA không chạy. Với worker đọc hàng đợi, CPU không phản ánh đúng lượng việc: dùng KEDA để co giãn theo độ dài hàng đợi (số tin Kafka chưa đọc, số dòng <code>jobs</code> đang chờ).</p>
+<aside class="prod"><p>Tăng pod không giải quyết được nghẽn ở database. 20 pod × pool 20 kết nối = 400 kết nối, vượt <code>max_connections</code> mặc định (100) của Postgres. Tính trước: <code>maxReplicas × pool size</code> phải nhỏ hơn giới hạn database, hoặc đặt PgBouncer ở giữa.</p></aside>
+
+<h2>Gỡ lỗi: pod không chạy</h2>
+<p>Năm lệnh dùng 90% thời gian:</p>
+<pre lang="sh">
+kubectl -n sobaitap get pods                         # trạng thái
+kubectl -n sobaitap describe pod api-7d9c6b8f5c-4xk2p  # sự kiện: vì sao không chạy (đọc phần Events cuối cùng)
+kubectl -n sobaitap logs api-7d9c6b8f5c-4xk2p          # log hiện tại
+kubectl -n sobaitap logs api-7d9c6b8f5c-4xk2p --previous   # log của lần chạy TRƯỚC (đã crash)
+kubectl -n sobaitap port-forward svc/api 8080:80       # gọi thử dịch vụ từ máy mình: curl localhost:8080
+</pre>
+<table>
+<tr><th>Trạng thái</th><th>Nghĩa là</th><th>Thường do</th></tr>
+<tr><td><code>Pending</code></td><td>chưa được xếp vào máy nào</td><td><code>requests</code> quá lớn so với chỗ trống, không đủ máy</td></tr>
+<tr><td><code>ImagePullBackOff</code></td><td>không tải được image</td><td>sai tên / tag, registry riêng mà thiếu quyền</td></tr>
+<tr><td><code>CrashLoopBackOff</code></td><td>chạy rồi thoát, khởi động lại liên tục</td><td>thiếu biến môi trường, không kết nối được database, panic lúc khởi động. Xem <code>logs --previous</code></td></tr>
+<tr><td><code>OOMKilled</code></td><td>vượt limit bộ nhớ</td><td>limit quá thấp, rò rỉ bộ nhớ, thiếu <code>GOMEMLIMIT</code></td></tr>
+<tr><td><code>Running</code> nhưng <code>0/1</code> READY</td><td>readiness lỗi</td><td>sai đường dẫn / cổng probe, database chưa sẵn sàng</td></tr>
+<tr><td>Restarts tăng dần</td><td>liveness giết pod</td><td>liveness quá khắt khe, hoặc server thật sự bị treo (xem pprof)</td></tr>
+</table>
+<pre lang="out" sim="1">
+$ kubectl -n sobaitap get pods
+NAME                   READY   STATUS             RESTARTS      AGE
+api-5f8d7c9b6d-qw7rt   0/1     CrashLoopBackOff   4 (32s ago)   2m10s
+
+$ kubectl -n sobaitap logs api-5f8d7c9b6d-qw7rt --previous
+time=2026-11-03T03:52:11Z level=ERROR msg="thiếu cấu hình" key=AUTH_SECRET
+</pre>
+<p>Ở ví dụ này: bản mới cần biến <code>AUTH_SECRET</code> nhưng Secret chưa có. Chương trình Go kiểm tra cấu hình lúc khởi động và thoát với log rõ ràng (bài {{n:kien-truc}}), nên chỉ cần một lệnh là thấy nguyên nhân. Vì <code>maxUnavailable: 0</code>, các pod cũ vẫn chạy, người dùng không bị ảnh hưởng.</p>
+
+<h2>Helm và Kustomize</h2>
+<p>Có môi trường staging và production, khác nhau số replicas, tên miền, tài nguyên. Không chép YAML hai lần:</p>
+<ul>
+<li><b>Kustomize</b> (có sẵn trong <code>kubectl apply -k</code>): một thư mục <code>base/</code> và các thư mục <code>overlays/staging</code>, <code>overlays/prod</code> chỉ ghi phần khác.</li>
+<li><b>Helm</b>: YAML có chỗ trống dạng template Go (<code>{{ .Values.replicas }}</code>), mỗi môi trường một file <code>values.yaml</code>. Cũng là cách cài phần mềm có sẵn (Postgres, Redis, Prometheus) bằng một lệnh.</li>
+</ul>
+
+<aside class="real"><p>Không phải lúc nào cũng cần Kubernetes. Một sản phẩm mới, vài dịch vụ, vài nghìn người dùng chạy rất tốt trên Cloud Run, Fly.io, Render, ECS Fargate hay một máy chủ với Docker Compose. Kubernetes đáng giá khi có nhiều dịch vụ, nhiều đội, và có người lo vận hành cụm. Nhưng vì phần lớn công ty vừa và lớn đã dùng, đọc được YAML và biết gỡ lỗi pod là kỹ năng gần như bắt buộc của backend.</p></aside>
+
+<quiz q="livenessProbe gọi /healthz, và /healthz kiểm tra Postgres. Postgres chậm 1 phút. Chuyện gì xảy ra?">
+- Pod ngừng nhận request cho tới khi Postgres ổn
++ Mọi pod bị coi là chết và bị khởi động lại cùng lúc, dồn thêm tải lên Postgres, có thể sập toàn bộ dịch vụ
+- Không có gì
+? Kiểm tra phụ thuộc bên ngoài chỉ đặt ở readiness: pod ngừng nhận request nhưng không bị giết. Liveness chỉ kiểm tra tiến trình còn trả lời.
+</quiz>
+<quiz q="Pod ở trạng thái CrashLoopBackOff. Lệnh nào cho thấy nguyên nhân nhanh nhất?">
+- kubectl get pods
++ kubectl logs &lt;pod&gt; --previous (và kubectl describe pod để xem sự kiện)
+- kubectl delete pod
+? Pod đang khởi động lại, log hiện tại có thể trống. --previous cho log của lần chạy vừa crash. Xoá pod chỉ tạo pod mới bị lỗi giống hệt.
+</quiz>
+<quiz q="Container có limits.memory 512Mi, chương trình Go hay bị OOMKilled dù heap bình thường chỉ khoảng 300MB. Nên thử gì đầu tiên?">
++ Đặt GOMEMLIMIT khoảng 450MiB để GC dọn sớm hơn khi gần chạm giới hạn
+- Tăng CPU
+- Đặt GOGC=off
+? GC mặc định cho heap tăng gấp đôi trước khi dọn. GOMEMLIMIT báo cho Go biết trần bộ nhớ thật. GOGC=off thì ngược lại, càng dễ OOM.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Deploy API lên kind, thử rolling update và rollback</summary>
+<p>Dùng API của bài {{n:trien-khai}} (có Dockerfile, <code>/healthz</code>, <code>/readyz</code>, graceful shutdown). Deploy 3 bản lên cụm kind, gọi thử qua <code>port-forward</code>. Build bản 2 cố tình lỗi (thoát ngay khi khởi động), deploy và quan sát: dịch vụ vẫn chạy bằng bản cũ. Rollback.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Image đặt <code>imagePullPolicy: IfNotPresent</code> để kind dùng image đã <code>kind load</code>, không cố tải từ Internet.</li>
+<li>Bản lỗi: thêm <code>if os.Getenv("BROKEN") == "" { log.Fatal("thiếu BROKEN") }</code> ở đầu <code>main</code>, build tag <code>:2</code>.</li>
+<li>Theo dõi bằng <code>kubectl get pods -w</code> ở một terminal trong khi deploy ở terminal khác.</li>
+<li>Trong lúc deploy bản lỗi, chạy vòng <code>while true; do curl -s -o /dev/null -w "%{http_code} " localhost:8080/healthz; sleep 0.5; done</code>: luôn thấy 200.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="sh">
+kind create cluster --name hoc
+docker build -t sobaitap-api:1 . && kind load docker-image sobaitap-api:1 --name hoc
+kubectl create namespace sobaitap
+# deployment.yaml như trong bài, image: sobaitap-api:1, imagePullPolicy: IfNotPresent
+kubectl apply -f k8s/
+kubectl -n sobaitap rollout status deployment/api
+kubectl -n sobaitap port-forward svc/api 8080:80 &
+curl -s localhost:8080/healthz -w "%{http_code}\n"
+
+# bản lỗi
+docker build -t sobaitap-api:2 . && kind load docker-image sobaitap-api:2 --name hoc
+kubectl -n sobaitap set image deployment/api api=sobaitap-api:2
+kubectl -n sobaitap get pods
+</pre>
+<pre lang="out" sim="1">
+$ kubectl -n sobaitap get pods
+NAME                   READY   STATUS             RESTARTS      AGE
+api-6c9f8d7b54-2lqvn   1/1     Running            0             4m
+api-6c9f8d7b54-8hj4x   1/1     Running            0             4m
+api-6c9f8d7b54-tw9cp   1/1     Running            0             4m
+api-84b7d6f9c8-zx5mk   0/1     CrashLoopBackOff   3 (21s ago)   70s
+
+$ kubectl -n sobaitap logs api-84b7d6f9c8-zx5mk --previous
+2026/11/03 04:05:31 thiếu BROKEN
+
+$ kubectl -n sobaitap rollout undo deployment/api
+deployment.apps/api rolled back
+
+$ kubectl -n sobaitap get pods
+NAME                   READY   STATUS    RESTARTS   AGE
+api-6c9f8d7b54-2lqvn   1/1     Running   0          5m
+api-6c9f8d7b54-8hj4x   1/1     Running   0          5m
+api-6c9f8d7b54-tw9cp   1/1     Running   0          5m
+</pre>
+<p><b>Giải thích:</b> với <code>maxUnavailable: 0</code> và <code>maxSurge: 1</code>, Kubernetes chỉ tạo 1 pod bản 2 và chờ nó ready. Pod đó crash liên tục nên không bao giờ ready, ba pod bản 1 không bị đụng tới. Vòng curl luôn trả 200. <code>rollout undo</code> quay Deployment về template trước, pod lỗi bị xoá. Bản thật nên đặt <code>progressDeadlineSeconds</code> để rollout bị đánh dấu thất bại sau một thời gian, CI thấy và báo động.</p>
+</details>
+</details>
+
+<details class="ex"><summary>Đọc YAML và tìm 6 lỗi cấu hình</summary>
+<p>Deployment dưới đây chạy được nhưng có 6 vấn đề sẽ gây sự cố ở production. Tìm và sửa.</p>
+<pre lang="yaml" mark="bad">
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: api }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: api } }
+  template:
+    metadata: { labels: { app: api } }
+    spec:
+      containers:
+        - name: api
+          image: registry.local/api:latest
+          env:
+            - name: DATABASE_URL
+              value: postgres://app:Matkhau123@db:5432/app
+          livenessProbe:
+            httpGet: { path: /readyz, port: 8080 }
+            initialDelaySeconds: 0
+            periodSeconds: 2
+            failureThreshold: 1
+</pre>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Bao nhiêu pod còn lại khi máy chứa pod đó bảo trì?</li>
+<li><code>:latest</code> thì rollback về đâu?</li>
+<li>Mật khẩu nằm ở đâu?</li>
+<li>Probe nào, kiểm tra cái gì, chịu lỗi được mấy lần?</li>
+<li>Thiếu những phần nào so với Deployment mẫu trong bài?</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<ol>
+<li><b>replicas: 1</b>: một pod chết hoặc bị dời là dịch vụ ngừng. Ít nhất 2, thường 3, kèm PodDisruptionBudget.</li>
+<li><b>:latest</b>: không biết đang chạy bản nào, rollback không có ý nghĩa, mỗi pod có thể chạy một bản khác. Dùng tag cố định (phiên bản hoặc mã commit).</li>
+<li><b>Mật khẩu viết thẳng trong YAML</b> (commit vào git). Đưa vào Secret, lấy từ kho bí mật.</li>
+<li><b>Liveness gọi /readyz</b> (kiểm tra database), <b>failureThreshold: 1, periodSeconds: 2, không có startupProbe</b>: một lần chậm 2 giây là pod bị giết, database chập chờn là mọi pod bị giết. Liveness gọi <code>/healthz</code>, thêm readinessProbe gọi <code>/readyz</code>, thêm startupProbe, failureThreshold 3.</li>
+<li><b>Không có resources</b>: không có requests thì scheduler xếp bừa, HPA không chạy. Không có limits thì một pod rò bộ nhớ ảnh hưởng cả máy.</li>
+<li><b>Không có securityContext, strategy, terminationGracePeriodSeconds, GOMEMLIMIT</b>: chạy bằng root, deploy có thể làm thiếu pod, không kiểm soát thời gian tắt.</li>
+</ol>
+<pre lang="yaml" mark="good">
+spec:
+  replicas: 3
+  strategy: { rollingUpdate: { maxUnavailable: 0, maxSurge: 1 } }
+  template:
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: registry.local/api:1.4.3
+          envFrom: [{ secretRef: { name: api-secrets } }]
+          env: [{ name: GOMEMLIMIT, value: "220MiB" }]
+          resources:
+            requests: { cpu: 250m, memory: 128Mi }
+            limits: { memory: 256Mi }
+          startupProbe: { httpGet: { path: /healthz, port: 8080 }, failureThreshold: 30, periodSeconds: 1 }
+          livenessProbe: { httpGet: { path: /healthz, port: 8080 }, periodSeconds: 10, failureThreshold: 3 }
+          readinessProbe: { httpGet: { path: /readyz, port: 8080 }, periodSeconds: 5, failureThreshold: 2 }
+          securityContext: { runAsNonRoot: true, readOnlyRootFilesystem: true, allowPrivilegeEscalation: false }
+</pre>
+<p>Ghi chú: nhiều đội cố ý không đặt <code>limits.cpu</code> (chỉ đặt requests), vì giới hạn CPU làm Go bị "bóp" (throttling) gây đuôi độ trễ cao, trong khi bộ nhớ thì luôn phải có limit.</p>
+</details>
+</details>

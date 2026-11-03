@@ -1,0 +1,732 @@
+<h2>Ba việc mọi sản phẩm đều cần</h2>
+<p>Bài này gom ba việc "nhìn thì đơn giản" nhưng làm sai rất tốn kém:</p>
+<ul>
+<li><b>Đẩy dữ liệu realtime</b> xuống trình duyệt: giáo viên thấy bài nộp mới ngay, không cần tải lại trang.</li>
+<li><b>Upload file</b>: phụ huynh nộp ảnh bài làm, giáo viên đính kèm PDF.</li>
+<li><b>Gửi email</b>: xác nhận, biên lai, nhắc việc.</li>
+</ul>
+
+<h2>Realtime: chọn polling, SSE hay WebSocket</h2>
+<table>
+<tr><th></th><th>Polling</th><th>SSE (Server-Sent Events)</th><th>WebSocket</th></tr>
+<tr><td>Hướng</td><td>client hỏi định kỳ</td><td>server → client</td><td>hai chiều</td></tr>
+<tr><td>Giao thức</td><td>HTTP thường</td><td>HTTP thường, một response không đóng</td><td>nâng cấp HTTP thành kết nối riêng</td></tr>
+<tr><td>Tự kết nối lại</td><td>không cần</td><td>có sẵn trong <code>EventSource</code></td><td>tự viết</td></tr>
+<tr><td>Qua proxy, CDN, tường lửa công ty</td><td>luôn được</td><td>gần như luôn được</td><td>đôi khi bị chặn</td></tr>
+<tr><td>Hợp với</td><td>cập nhật vài phút một lần</td><td>thông báo, tiến độ, bảng tin</td><td>chat, chỉnh sửa chung, game</td></tr>
+</table>
+<aside class="tip"><p>Phần lớn nhu cầu "realtime" chỉ là server báo cho client. SSE đơn giản hơn WebSocket nhiều: dùng HTTP bình thường, cookie và middleware xác thực vẫn chạy, trình duyệt tự kết nối lại. Chỉ chọn WebSocket khi client cần gửi liên tục.</p></aside>
+
+<h3>SSE bằng thư viện chuẩn</h3>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "fmt"
+    "log"
+    "net/http"
+    "time"
+)
+
+func events(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "text/event-stream")
+    w.Header().Set("Cache-Control", "no-cache")
+    w.Header().Set("X-Accel-Buffering", "no") // báo Nginx đừng gom response lại
+
+    rc := http.NewResponseController(w) // Go 1.20+: Flush, đặt deadline ghi
+    rc.SetWriteDeadline(time.Time{})     // bỏ WriteTimeout của server cho kết nối dài này
+
+    tick := time.NewTicker(time.Second)
+    defer tick.Stop()
+    for i := 1; ; i++ {
+        select {
+        case <-r.Context().Done(): // trình duyệt đóng tab
+            log.Println("client ngắt")
+            return
+        case t := <-tick.C:
+            // Định dạng SSE: "id:", "event:", "data:", kết thúc bằng một dòng trống
+            fmt.Fprintf(w, "id: %d\nevent: tick\ndata: {\"n\":%d,\"at\":%q}\n\n", i, i, t.Format("15:04:05"))
+            if err := rc.Flush(); err != nil { // đẩy ngay xuống client, không chờ đầy bộ đệm
+                return
+            }
+        }
+    }
+}
+
+func main() {
+    http.HandleFunc("GET /events", events)
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
+</pre>
+<pre lang="out" sim="1">
+$ curl -N localhost:8080/events
+id: 1
+event: tick
+data: {"n":1,"at":"10:20:01"}
+
+id: 2
+event: tick
+data: {"n":2,"at":"10:20:02"}
+
+^C
+</pre>
+<pre lang="ts" file="frontend">
+const es = new EventSource("/api/events", { withCredentials: true });
+es.addEventListener("tick", (e) => console.log(JSON.parse(e.data)));
+// mất mạng → trình duyệt tự kết nối lại, gửi header Last-Event-ID: 2 để server gửi tiếp từ đó
+</pre>
+<aside class="warn"><p>Mỗi tab mở là một kết nối giữ suốt. Với HTTP/1.1, trình duyệt chỉ cho 6 kết nối mỗi tên miền: mở 7 tab là tab thứ 7 treo. Phục vụ qua HTTP/2 (hầu hết CDN / load balancer đã bật) thì không bị giới hạn này.</p></aside>
+
+<h3>WebSocket: hub nhiều client</h3>
+<p>Thư viện: <code>github.com/coder/websocket</code> (trước là nhooyr.io/websocket, gọn, hỗ trợ context) hoặc <code>github.com/gorilla/websocket</code> (lâu đời, rất nhiều code cũ dùng). Bài này dùng coder/websocket.</p>
+<arch w="820" h="320" caption="Mỗi kết nối có một goroutine đọc và một goroutine ghi. Hub giữ danh sách kết nối theo phòng (lớp)">
+group 220 20 400 280 proc "Một server Go"
+node a 80 70 browser "Giáo viên" ""
+node b 80 160 browser "Phụ huynh 1" ""
+node c 80 250 browser "Phụ huynh 2" ""
+node r1 300 70 goroutine "conn 1" ""
+node r2 300 160 goroutine "conn 2" ""
+node r3 300 250 goroutine "conn 3" ""
+node h 520 160 chan "Hub" "phòng lớp 42"
+node api 730 160 goapi "Handler nộp bài" ""
+edge a r1 "" both
+edge b r2 "" both
+edge c r3 "" both
+path 494 160 440 160 440 70 326 70 ""
+edge h r2 ""
+path 440 160 440 250 326 250 ""
+edge api h "publish" c=go
+</arch>
+<pre lang="go" file="ws.go" check="no">
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "log/slog"
+    "net/http"
+    "sync"
+    "time"
+
+    "github.com/coder/websocket"
+)
+
+type client struct {
+    send chan []byte // bộ đệm ra: hub ghi vào, goroutine ghi của client đọc ra
+}
+
+type Hub struct {
+    mu    sync.Mutex
+    rooms map[string]map[*client]struct{}
+}
+
+func NewHub() *Hub { return &Hub{rooms: map[string]map[*client]struct{}{}} }
+
+func (h *Hub) join(room string, c *client) {
+    h.mu.Lock()
+    defer h.mu.Unlock()
+    if h.rooms[room] == nil {
+        h.rooms[room] = map[*client]struct{}{}
+    }
+    h.rooms[room][c] = struct{}{}
+}
+
+func (h *Hub) leave(room string, c *client) {
+    h.mu.Lock()
+    defer h.mu.Unlock()
+    delete(h.rooms[room], c)
+    if len(h.rooms[room]) == 0 {
+        delete(h.rooms, room)
+    }
+}
+
+func (h *Hub) Publish(room string, msg any) {
+    b, _ := json.Marshal(msg)
+    h.mu.Lock()
+    defer h.mu.Unlock()
+    for c := range h.rooms[room] {
+        select {
+        case c.send <- b:
+        default:
+            // client quá chậm (mạng yếu), bộ đệm đầy: bỏ tin thay vì làm treo cả hub
+            slog.Warn("bỏ tin cho client chậm", "room", room)
+        }
+    }
+}
+
+func (h *Hub) Handle(w http.ResponseWriter, r *http.Request) {
+    room := "class:" + r.PathValue("id")
+    // QUAN TRỌNG: kiểm tra quyền vào phòng TRƯỚC khi nâng cấp kết nối (như mọi API khác)
+
+    conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+        OriginPatterns: []string{"app.sobaitap.vn", "localhost:5173"}, // chống trang lạ mở WebSocket bằng cookie của người dùng
+    })
+    if err != nil {
+        return
+    }
+    defer conn.CloseNow()
+
+    c := &client{send: make(chan []byte, 32)}
+    h.join(room, c)
+    defer h.leave(room, c)
+
+    ctx, cancel := context.WithCancel(r.Context())
+    defer cancel()
+
+    // Goroutine đọc: bắt buộc phải đọc để xử lý ping/pong và phát hiện client đóng
+    go func() {
+        defer cancel()
+        for {
+            if _, _, err := conn.Read(ctx); err != nil {
+                return
+            }
+            // ứng dụng này không nhận tin từ client, bỏ qua
+        }
+    }()
+
+    ping := time.NewTicker(25 * time.Second) // giữ kết nối sống qua proxy (nhiều proxy cắt sau 60 giây im lặng)
+    defer ping.Stop()
+    for {
+        select {
+        case b := <-c.send:
+            wctx, wcancel := context.WithTimeout(ctx, 5*time.Second)
+            err := conn.Write(wctx, websocket.MessageText, b)
+            wcancel()
+            if err != nil {
+                return
+            }
+        case <-ping.C:
+            if err := conn.Ping(ctx); err != nil {
+                return
+            }
+        case <-ctx.Done():
+            conn.Close(websocket.StatusNormalClosure, "")
+            return
+        }
+    }
+}
+</pre>
+<pre lang="go">
+// main:
+hub := NewHub()
+mux.HandleFunc("GET /ws/classes/{id}", requireAuth(hub.Handle))
+
+// trong handler nộp bài, sau khi lưu database thành công:
+hub.Publish("class:"+strconv.FormatInt(classID, 10), map[string]any{
+    "type": "submission.created", "studentId": sid, "assignmentId": aid,
+})
+</pre>
+<pre lang="ts" file="frontend">
+function connect() {
+  const ws = new WebSocket(`wss://${location.host}/api/ws/classes/42`);
+  ws.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+    if (ev.type === "submission.created") toGrade.update((n) => n + 1);
+  };
+  ws.onclose = () => setTimeout(connect, 1000 + Math.random() * 4000); // tự nối lại, có độ trễ ngẫu nhiên
+}
+connect();
+</pre>
+<aside class="warn"><p>Ba lỗi bảo mật hay gặp với WebSocket: (1) không kiểm tra quyền vào phòng, ai biết id lớp cũng nghe được. (2) Không kiểm tra Origin: trang độc hại mở WebSocket tới API của bạn, trình duyệt tự gửi kèm cookie (giống CSRF). (3) Tin gửi xuống có dữ liệu của người khác: chỉ gửi đúng thứ người nghe được phép xem.</p></aside>
+
+<h3>Chạy nhiều server: Redis pub/sub</h3>
+<p>Hub ở trên nằm trong bộ nhớ một server. Có 3 bản server sau load balancer thì giáo viên nối vào server A, phụ huynh nộp bài ở server B: hub của B không biết giáo viên. Cách sửa: mọi server cùng nghe một kênh chung.</p>
+<arch w="820" h="250" caption="Server nhận việc publish lên Redis. Mọi server đều subscribe và chuyển tiếp cho các client của mình">
+node t 80 70 browser "Giáo viên" "nối vào A"
+node p 80 190 browser "Phụ huynh" "nộp bài ở B"
+node a 300 70 goapi "Server A" "hub"
+node b 300 190 goapi "Server B" "hub"
+node r 560 130 redis "Redis pub/sub" "kênh class:42"
+edge t a "WebSocket" both
+edge p b "POST nộp bài"
+path 326 190 450 190 450 130 534 130 "1 PUBLISH" c=go
+path 534 130 450 130 450 70 326 70 "2 tin tới A" c=ok
+</arch>
+<pre lang="go">
+// Server nào nhận việc cũng chỉ publish lên Redis, KHÔNG gọi hub trực tiếp
+func (s *Service) notify(ctx context.Context, room string, msg any) {
+    b, _ := json.Marshal(msg)
+    s.rdb.Publish(ctx, "ws:"+room, b)
+}
+
+// Mỗi server chạy một goroutine nghe mọi kênh ws:* và đưa vào hub của mình
+func (h *Hub) RunRedis(ctx context.Context, rdb *redis.Client) {
+    sub := rdb.PSubscribe(ctx, "ws:*")
+    defer sub.Close()
+    for m := range sub.Channel() { // channel đóng khi sub.Close()
+        room := strings.TrimPrefix(m.Channel, "ws:")
+        h.publishRaw(room, []byte(m.Payload))
+    }
+}
+</pre>
+<p>Redis pub/sub không lưu tin: client đang mất kết nối thì mất tin. Vì vậy client khi nối lại nên <b>tải lại trạng thái từ API</b> (số bài chờ chấm), chỉ dùng tin realtime để cập nhật nhanh. Muốn không mất tin thì dùng Redis Streams hoặc NATS JetStream (bài {{n:message-queue}}).</p>
+
+<h2>Upload file đúng cách: presigned URL</h2>
+<p>Cách đơn giản nhất là trình duyệt gửi file lên server Go, server Go lưu file. Nhưng với ảnh 5MB, hàng nghìn phụ huynh nộp cùng tối, server tốn băng thông, RAM, và giữ kết nối rất lâu với mạng điện thoại chậm. Cách mọi hệ thống lớn dùng: <b>trình duyệt upload thẳng lên kho file</b> (S3, Cloudflare R2, Google Cloud Storage, MinIO) bằng một URL có chữ ký do server cấp.</p>
+<arch w="820" h="330" caption="Server chỉ cấp quyền và ghi nhận. File đi thẳng từ trình duyệt tới kho, không qua server Go">
+node b 90 170 browser "Trình duyệt" ""
+node api 470 70 goapi "API Go" "kiểm quyền, ký URL"
+node s3 470 265 s3 "Kho file" "S3 / R2 / MinIO"
+node db 730 70 pg "Postgres" ""
+path 90 144 90 70 444 70 "1 xin URL · 2 nhận URL có chữ ký" both
+path 90 196 90 265 444 265 "3 PUT file thẳng" c=go
+path 116 170 340 170 340 86 444 86 "4 báo đã xong (khoá file)"
+edge api db "5 ghi bài nộp"
+edge api s3 "6 kiểm tra file" dash
+</arch>
+<pre lang="sh">
+go get github.com/aws/aws-sdk-go-v2/config github.com/aws/aws-sdk-go-v2/service/s3
+</pre>
+<pre lang="go" file="upload.go" check="no">
+package main
+
+import (
+    "context"
+    "fmt"
+    "net/http"
+    "time"
+
+    "github.com/aws/aws-sdk-go-v2/aws"
+    "github.com/aws/aws-sdk-go-v2/config"
+    "github.com/aws/aws-sdk-go-v2/service/s3"
+    "github.com/oklog/ulid/v2"
+)
+
+const maxSize = 5 << 20 // 5 MB
+
+var allowed = map[string]string{"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "application/pdf": ".pdf"}
+
+type Uploader struct {
+    s3     *s3.Client
+    presig *s3.PresignClient
+    bucket string
+}
+
+func NewUploader(ctx context.Context, bucket, endpoint string) (*Uploader, error) {
+    cfg, err := config.LoadDefaultConfig(ctx) // đọc AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+    if err != nil {
+        return nil, err
+    }
+    c := s3.NewFromConfig(cfg, func(o *s3.Options) {
+        if endpoint != "" { // R2 / MinIO: đổi địa chỉ, giao thức vẫn là S3
+            o.BaseEndpoint = aws.String(endpoint)
+            o.UsePathStyle = true
+        }
+    })
+    return &Uploader{s3: c, presig: s3.NewPresignClient(c), bucket: bucket}, nil
+}
+
+type presignReq struct {
+    ContentType string `json:"contentType"`
+    Size        int64  `json:"size"`
+}
+
+// POST /uploads/presign → {key, url}
+func (u *Uploader) Presign(w http.ResponseWriter, r *http.Request) {
+    var in presignReq
+    if err := readJSON(r, &in); err != nil {
+        writeErr(w, 400, "BAD_JSON", "Dữ liệu không đúng")
+        return
+    }
+    ext, ok := allowed[in.ContentType]
+    if !ok {
+        writeErr(w, 400, "BAD_TYPE", "Chỉ nhận ảnh JPG, PNG, WebP hoặc PDF")
+        return
+    }
+    if in.Size <= 0 || in.Size > maxSize {
+        writeErr(w, 400, "TOO_LARGE", "Mỗi file tối đa 5MB")
+        return
+    }
+    userID := userIDFrom(r.Context())
+    // Server TỰ đặt tên khoá: người dùng không chọn được đường dẫn (không ghi đè được file của người khác)
+    key := fmt.Sprintf("uploads/%d/%s%s", userID, ulid.Make(), ext)
+
+    req, err := u.presig.PresignPutObject(r.Context(), &s3.PutObjectInput{
+        Bucket:        aws.String(u.bucket),
+        Key:           aws.String(key),
+        ContentType:   aws.String(in.ContentType), // ký cả kiểu: upload kiểu khác thì S3 từ chối
+        ContentLength: aws.Int64(in.Size),         // ký cả kích thước: gửi file to hơn thì bị từ chối
+    }, s3.WithPresignExpires(5*time.Minute))
+    if err != nil {
+        writeErr(w, 500, "INTERNAL", "Lỗi máy chủ")
+        return
+    }
+    writeJSON(w, 200, map[string]string{"key": key, "url": req.URL})
+}
+</pre>
+<pre lang="ts" file="frontend">
+async function upload(file: File): Promise<string> {
+  const { key, url } = await api.post("/uploads/presign", { contentType: file.type, size: file.size });
+  const res = await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+  if (!res.ok) throw new Error("Tải ảnh lên không được");
+  return key; // gửi key này kèm khi nộp bài
+}
+</pre>
+<p>Khi client báo "đã nộp kèm khoá X", server <b>phải kiểm tra lại</b>:</p>
+<pre lang="go">
+func (s *Service) Submit(ctx context.Context, userID, assignmentID int64, keys []string) error {
+    prefix := fmt.Sprintf("uploads/%d/", userID)
+    for _, k := range keys {
+        if !strings.HasPrefix(k, prefix) { // khoá phải do chính người này upload
+            return ErrForbidden
+        }
+        head, err := s.s3.HeadObject(ctx, &s3.HeadObjectInput{Bucket: &s.bucket, Key: &k})
+        if err != nil {
+            return ErrFileMissing // client nói đã upload nhưng chưa có file thật
+        }
+        if aws.ToInt64(head.ContentLength) > maxSize {
+            return ErrTooLarge
+        }
+    }
+    return s.store.Submit(ctx, userID, assignmentID, keys)
+}
+</pre>
+<h3>Cho xem file: URL đọc có hạn</h3>
+<p>Kho file để <b>riêng tư</b> (không ai đọc được nếu không có chữ ký). Khi giáo viên mở bài nộp, server kiểm tra quyền rồi cấp URL đọc có hạn ngắn:</p>
+<pre lang="go">
+func (u *Uploader) ViewURL(ctx context.Context, key string) (string, error) {
+    req, err := u.presig.PresignGetObject(ctx, &s3.GetObjectInput{
+        Bucket:                     aws.String(u.bucket),
+        Key:                        aws.String(key),
+        ResponseContentDisposition: aws.String("inline"), // mở trong trình duyệt thay vì tải về
+    }, s3.WithPresignExpires(10*time.Minute))
+    if err != nil {
+        return "", err
+    }
+    return req.URL, nil
+}
+</pre>
+<aside class="warn"><p>Đừng tin <code>Content-Type</code> do trình duyệt gửi. Kẻ xấu có thể gửi file HTML với kiểu <code>image/png</code>. Bảo vệ: phục vụ file từ một <b>tên miền khác</b> với ứng dụng (ví dụ <code>files.sobaitap-cdn.net</code>), luôn trả header <code>X-Content-Type-Options: nosniff</code>, và với ảnh thì nên có bước xử lý lại (đọc bằng <code>image.Decode</code>, thu nhỏ, mã hoá lại) để vừa kiểm tra đúng là ảnh, vừa xoá thông tin vị trí GPS trong EXIF.</p></aside>
+<aside class="real"><p>Dọn rác: người dùng xin URL, upload, rồi không bấm nộp. File nằm mãi trong kho. Đặt <b>lifecycle rule</b> xoá file trong <code>uploads/</code> sau 1 ngày, và khi nộp thành công thì chép / đổi tên sang <code>submissions/</code>. Hoặc lưu bảng "file chờ" và có việc định kỳ dọn.</p></aside>
+
+<h3>Khi buộc phải nhận file qua server</h3>
+<p>Ví dụ file Excel cần đọc ngay. Luôn giới hạn kích thước <b>trước khi</b> đọc:</p>
+<pre lang="go">
+func importExcel(w http.ResponseWriter, r *http.Request) {
+    r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // tối đa 10 MB, vượt thì đọc trả lỗi
+    if err := r.ParseMultipartForm(2 << 20); err != nil { // 2 MB giữ trong RAM, phần còn lại ra file tạm
+        writeErr(w, 413, "TOO_LARGE", "File tối đa 10MB")
+        return
+    }
+    defer r.MultipartForm.RemoveAll() // xoá file tạm
+
+    f, hdr, err := r.FormFile("file")
+    if err != nil {
+        writeErr(w, 400, "NO_FILE", "Chưa chọn file")
+        return
+    }
+    defer f.Close()
+
+    head := make([]byte, 512)
+    n, _ := f.Read(head)
+    kind := http.DetectContentType(head[:n]) // đoán kiểu từ nội dung, không tin tên file
+    f.Seek(0, io.SeekStart)
+    slog.Info("nhận file", "name", hdr.Filename, "size", hdr.Size, "kind", kind)
+    // ... đọc Excel
+}
+</pre>
+
+<h2>Gửi email</h2>
+<p>Không ai tự chạy máy chủ email để gửi cho khách hàng: email từ IP lạ gần như chắc chắn vào thư rác. Dùng dịch vụ: Amazon SES, Postmark, Resend, Mailgun, SendGrid. Bạn cần cấu hình <b>SPF, DKIM, DMARC</b> cho tên miền (các bản ghi DNS chứng minh "dịch vụ này được phép gửi thay tên miền của tôi").</p>
+<arch w="820" h="210" caption="Không gửi email trong request: ghi việc vào hàng đợi, worker gửi, lỗi thì thử lại">
+node api 80 100 goapi "API Go" "đăng ký xong"
+node q 260 100 queue "Hàng đợi" "jobs / outbox"
+node w 440 100 worker "Email worker" "thử lại 5 lần"
+node ses 620 100 email "SES / Postmark" ""
+node u 750 100 user "Hộp thư" ""
+edge api q "1 việc: welcome"
+edge q w ""
+edge w ses "API HTTPS"
+edge ses u ""
+path 620 74 620 30 440 30 440 74 "webhook: bounce, khiếu nại" dash
+</arch>
+<p>Vì sao không gửi ngay trong handler: dịch vụ email có thể chậm 2 giây hoặc lỗi tạm thời, người dùng không nên chờ. Và nếu lỗi, cần thử lại mà không bắt người dùng bấm lại. Dùng hàng đợi của bài {{n:bat-dong-bo}}.</p>
+<pre lang="go" file="mail.go" check="no">
+package mail
+
+import (
+    "bytes"
+    "context"
+    "embed"
+    "html/template"
+    "net"
+    "net/smtp"
+)
+
+//go:embed templates/*.html
+var files embed.FS
+
+var tpl = template.Must(template.ParseFS(files, "templates/*.html"))
+
+type Message struct {
+    To, Subject string
+    HTML        string
+}
+
+// Render dùng html/template: tự escape tên người dùng, không chèn được mã HTML độc vào email
+func Render(name string, data any) (string, error) {
+    var buf bytes.Buffer
+    if err := tpl.ExecuteTemplate(&buf, name, data); err != nil {
+        return "", err
+    }
+    return buf.String(), nil
+}
+
+// Sender là interface: test dùng bản giả, dev dùng Mailpit, production dùng SES
+type Sender interface {
+    Send(ctx context.Context, m Message) error
+}
+
+type SMTPSender struct {
+    Addr, User, Pass, From string
+}
+
+func (s SMTPSender) Send(ctx context.Context, m Message) error {
+    body := "From: " + s.From + "\r\n" +
+        "To: " + m.To + "\r\n" +
+        "Subject: " + m.Subject + "\r\n" +
+        "MIME-Version: 1.0\r\n" +
+        "Content-Type: text/html; charset=UTF-8\r\n\r\n" + m.HTML
+    host, _, _ := net.SplitHostPort(s.Addr)
+    auth := smtp.PlainAuth("", s.User, s.Pass, host)
+    return smtp.SendMail(s.Addr, auth, s.From, []string{m.To}, []byte(body))
+}
+</pre>
+<p>Ví dụ trên dùng SMTP của thư viện chuẩn để bạn thấy bản chất (mọi dịch vụ đều nhận SMTP). Khi chạy thật, dùng SDK / API HTTP của dịch vụ (có id tin, có idempotency key, có timeout theo ctx). Tiêu đề có dấu tiếng Việt cần mã hoá: <code>mime.QEncoding.Encode("utf-8", subject)</code>.</p>
+<p><b>Khi phát triển</b>: chạy Mailpit, một hộp thư giả có giao diện web. Mọi email gửi tới nó hiện ở <code>localhost:8025</code>, không email nào lọt ra ngoài.</p>
+<pre lang="sh">
+docker run -d --name mailpit -p 1025:1025 -p 8025:8025 axllent/mailpit
+# cấu hình SMTP_ADDR=localhost:1025, mở http://localhost:8025 để xem thư
+</pre>
+<aside class="prod"><p>Nhận webhook <b>bounce</b> (địa chỉ không tồn tại) và <b>complaint</b> (người nhận bấm "thư rác"), đánh dấu địa chỉ đó không gửi nữa. Tỉ lệ bounce / complaint cao làm dịch vụ khoá tài khoản gửi của bạn. Email marketing phải có link huỷ đăng ký, email giao dịch (biên lai, đặt lại mật khẩu) thì không bắt buộc.</p></aside>
+
+<quiz q="Có 3 server, giáo viên mở WebSocket tới server A. Phụ huynh nộp bài ở server B, B gọi hub.Publish của chính nó. Giáo viên có nhận được không?">
+- Có, vì cùng một ứng dụng
++ Không, hub của B không có kết nối của giáo viên. Cần kênh chung (Redis pub/sub, NATS) để mọi server cùng nhận
+- Có nếu dùng sticky session
+? Sticky session chỉ giữ một người dùng ở một server, không giúp hai người dùng khác nhau ở hai server nhìn thấy nhau.
+</quiz>
+<quiz q="Presigned URL upload: vì sao server tự đặt khoá file thay vì dùng tên file người dùng gửi?">
++ Để người dùng không ghi đè file của người khác hay ghi vào đường dẫn tuỳ ý, và tránh tên file chứa ký tự lạ
+- Vì S3 không nhận tên file tiếng Việt
+- Để file nhỏ hơn
+? URL có chữ ký cho phép ghi đúng khoá đó. Nếu khoá do người dùng chọn, họ chọn được khoá của người khác. Tên gốc có thể lưu riêng trong database để hiển thị.
+</quiz>
+<quiz q="Gửi email xác nhận ngay trong handler đăng ký. Dịch vụ email lỗi 30 giây. Hậu quả?">
+- Không sao, email tự gửi lại
++ Request đăng ký treo hoặc lỗi, người dùng bấm lại, có thể tạo trùng hoặc không bao giờ nhận email
+- Tài khoản không được tạo
+? Gửi email là việc nền: ghi vào hàng đợi trong cùng transaction tạo tài khoản, worker gửi và thử lại khi lỗi.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Bảng tin realtime bằng SSE cho nhiều người nghe</summary>
+<p>Viết server có <code>GET /events?class=42</code> (SSE) và <code>POST /submit?class=42&amp;student=An</code>. Mỗi lần có người nộp, mọi trình duyệt đang nghe lớp 42 nhận sự kiện <code>submission</code>. Lớp khác không nhận. Người nghe ngắt thì phải được gỡ khỏi danh sách.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Dùng lại cấu trúc Hub ở phần WebSocket nhưng đơn giản hơn: <code>map[string]map[chan string]struct{}</code> + mutex.</li>
+<li>Handler SSE: đăng ký một channel, <code>defer</code> gỡ ra, vòng <code>select</code> giữa channel và <code>r.Context().Done()</code>.</li>
+<li>Mỗi tin: <code>fmt.Fprintf(w, "event: submission\ndata: %s\n\n", msg)</code> rồi <code>Flush</code>.</li>
+<li>Thử: mở 2 terminal <code>curl -N</code> lớp 42, 1 terminal lớp 43, terminal thứ tư gọi POST.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "log"
+    "net/http"
+    "sync"
+    "time"
+)
+
+type Hub struct {
+    mu   sync.Mutex
+    subs map[string]map[chan string]struct{}
+}
+
+func (h *Hub) add(room string) chan string {
+    ch := make(chan string, 8)
+    h.mu.Lock()
+    defer h.mu.Unlock()
+    if h.subs[room] == nil {
+        h.subs[room] = map[chan string]struct{}{}
+    }
+    h.subs[room][ch] = struct{}{}
+    return ch
+}
+
+func (h *Hub) remove(room string, ch chan string) {
+    h.mu.Lock()
+    defer h.mu.Unlock()
+    delete(h.subs[room], ch)
+    log.Printf("gỡ người nghe phòng %s, còn %d", room, len(h.subs[room]))
+}
+
+func (h *Hub) publish(room, msg string) int {
+    h.mu.Lock()
+    defer h.mu.Unlock()
+    n := 0
+    for ch := range h.subs[room] {
+        select {
+        case ch <- msg:
+            n++
+        default:
+        }
+    }
+    return n
+}
+
+func main() {
+    hub := &Hub{subs: map[string]map[chan string]struct{}{}}
+
+    http.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
+        room := r.URL.Query().Get("class")
+        w.Header().Set("Content-Type", "text/event-stream")
+        w.Header().Set("Cache-Control", "no-cache")
+        rc := http.NewResponseController(w)
+
+        ch := hub.add(room)
+        defer hub.remove(room, ch)
+
+        fmt.Fprint(w, ": connected\n\n") // dòng bắt đầu bằng ":" là chú thích, client bỏ qua
+        rc.Flush()
+        for {
+            select {
+            case msg := <-ch:
+                fmt.Fprintf(w, "event: submission\ndata: %s\n\n", msg)
+                if rc.Flush() != nil {
+                    return
+                }
+            case <-r.Context().Done():
+                return
+            }
+        }
+    })
+
+    http.HandleFunc("POST /submit", func(w http.ResponseWriter, r *http.Request) {
+        q := r.URL.Query()
+        b, _ := json.Marshal(map[string]string{"student": q.Get("student"), "at": time.Now().Format("15:04:05")})
+        n := hub.publish(q.Get("class"), string(b))
+        fmt.Fprintf(w, "đã báo cho %d người nghe\n", n)
+    })
+
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
+</pre>
+<pre lang="out" file="Terminal 1 và 2 — curl -N 'localhost:8080/events?class=42'" sim="1">
+: connected
+
+event: submission
+data: {"at":"10:31:07","student":"An"}
+
+</pre>
+<pre lang="out" file="Terminal 3 — curl -N 'localhost:8080/events?class=43'" sim="1">
+: connected
+
+</pre>
+<pre lang="out" file="Terminal 4" sim="1">
+$ curl -X POST 'localhost:8080/submit?class=42&student=An'
+đã báo cho 2 người nghe
+</pre>
+<pre lang="out" file="Terminal — server (sau khi bấm Ctrl+C ở terminal 1)" sim="1">
+2026/11/03 10:31:20 gỡ người nghe phòng 42, còn 1
+</pre>
+<p><b>Giải thích:</b> hai người nghe lớp 42 cùng nhận sự kiện, người nghe lớp 43 không nhận gì. Khi tắt curl ở terminal 1, <code>r.Context()</code> bị huỷ, handler thoát và <code>defer hub.remove</code> gỡ channel: không rò rỉ. Gọi POST lần nữa sẽ báo "1 người nghe".</p>
+</details>
+</details>
+
+<details class="ex"><summary>API cấp presigned URL chạy với MinIO trên máy</summary>
+<p>Chạy MinIO (S3 chạy trên máy) bằng Docker, viết <code>POST /uploads/presign</code> như trong bài, upload một ảnh bằng curl, rồi viết <code>GET /files?key=</code> trả URL đọc có hạn 10 phút.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>MinIO: <code>docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 minio/minio server /data --console-address :9001</code>. Tạo bucket <code>sobaitap</code> ở <code>localhost:9001</code>.</li>
+<li>Biến môi trường cho SDK: <code>AWS_ACCESS_KEY_ID=minio</code>, <code>AWS_SECRET_ACCESS_KEY=minio12345</code>, <code>AWS_REGION=us-east-1</code>, endpoint <code>http://localhost:9000</code>.</li>
+<li>Upload bằng curl: <code>curl -X PUT -H "Content-Type: image/jpeg" --data-binary @anh.jpg "$URL"</code>. Kích thước file phải đúng bằng <code>size</code> đã xin.</li>
+<li>Thử gửi file lớn hơn hoặc đổi Content-Type: MinIO phải từ chối vì sai chữ ký.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "log"
+    "net/http"
+    "time"
+
+    "github.com/aws/aws-sdk-go-v2/aws"
+    "github.com/aws/aws-sdk-go-v2/config"
+    "github.com/aws/aws-sdk-go-v2/service/s3"
+)
+
+const bucket = "sobaitap"
+
+func main() {
+    ctx := context.Background()
+    cfg, err := config.LoadDefaultConfig(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    c := s3.NewFromConfig(cfg, func(o *s3.Options) {
+        o.BaseEndpoint = aws.String("http://localhost:9000")
+        o.UsePathStyle = true
+    })
+    ps := s3.NewPresignClient(c)
+    n := 0
+
+    http.HandleFunc("POST /uploads/presign", func(w http.ResponseWriter, r *http.Request) {
+        var in struct {
+            ContentType string `json:"contentType"`
+            Size        int64  `json:"size"`
+        }
+        if json.NewDecoder(r.Body).Decode(&in) != nil || in.ContentType != "image/jpeg" || in.Size <= 0 || in.Size > 5<<20 {
+            http.Error(w, "chỉ nhận ảnh JPG tối đa 5MB", 400)
+            return
+        }
+        n++
+        key := fmt.Sprintf("uploads/7/%d-%d.jpg", time.Now().Unix(), n) // bản thật dùng ULID như trong bài
+        req, err := ps.PresignPutObject(r.Context(), &s3.PutObjectInput{
+            Bucket: aws.String(bucket), Key: aws.String(key),
+            ContentType: aws.String(in.ContentType), ContentLength: aws.Int64(in.Size),
+        }, s3.WithPresignExpires(5*time.Minute))
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+        json.NewEncoder(w).Encode(map[string]string{"key": key, "url": req.URL})
+    })
+
+    http.HandleFunc("GET /files", func(w http.ResponseWriter, r *http.Request) {
+        key := r.URL.Query().Get("key")
+        // bản thật: kiểm tra người xem có quyền với file này
+        req, err := ps.PresignGetObject(r.Context(), &s3.GetObjectInput{Bucket: aws.String(bucket), Key: aws.String(key)},
+            s3.WithPresignExpires(10*time.Minute))
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+        json.NewEncoder(w).Encode(map[string]string{"url": req.URL})
+    })
+
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
+</pre>
+<pre lang="out" sim="1">
+$ SIZE=$(stat -f%z anh.jpg)      # Linux: stat -c%s anh.jpg
+$ curl -s -X POST localhost:8080/uploads/presign -d "{\"contentType\":\"image/jpeg\",\"size\":$SIZE}"
+{"key":"uploads/7/1793708400-1.jpg","url":"http://localhost:9000/sobaitap/uploads/7/1793708400-1.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minio%2F20261103%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261103T033000Z&X-Amz-Expires=300&X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost&X-Amz-Signature=5f2c..."}
+
+$ curl -s -o /dev/null -w "%{http_code}\n" -X PUT -H "Content-Type: image/jpeg" --data-binary @anh.jpg "$URL"
+200
+
+$ curl -s -o /dev/null -w "%{http_code}\n" -X PUT -H "Content-Type: text/html" --data-binary @anh.jpg "$URL"
+403
+</pre>
+<p><b>Giải thích:</b> <code>X-Amz-SignedHeaders=content-length;content-type;host</code> cho thấy kích thước và kiểu file nằm trong chữ ký. Upload đúng kiểu trả 200. Đổi Content-Type thì chữ ký không khớp, MinIO trả 403 <code>SignatureDoesNotMatch</code>. Sau 5 phút, URL hết hạn và cũng bị 403. Mở <code>localhost:9001</code> sẽ thấy file trong bucket.</p>
+</details>
+</details>

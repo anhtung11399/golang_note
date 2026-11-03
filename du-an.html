@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Bài 24: Dự án: API &quot;Sổ bài tập&quot; chuẩn production · Go cho dân Frontend</title>
+<title>Bài 32: Dự án: API &quot;Sổ bài tập&quot; chuẩn production · Go cho dân Frontend</title>
 <meta name="description" content="Tự xây API cho giáo viên và phụ huynh: đăng nhập, lớp, bài tập, nộp bài, phân quyền, phân trang, việc chạy nền, Docker, test.">
 <meta name="theme-color" content="#00ADD8">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -24,13 +24,13 @@
 </header>
 <div class="layout">
   <aside class="side" aria-label="Danh sách bài">
-    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
-    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an" aria-current="page"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/33</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li><li><a href="mau-dong-thoi.html" data-slug="mau-dong-thoi"><i class="dot"></i><span class="no">11</span><span class="tx">Các mẫu xử lý đồng thời hay dùng</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">12</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">13</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">14</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li><li><a href="framework.html" data-slug="framework"><i class="dot"></i><span class="no">15</span><span class="tx">Framework: Chi, Gin, Echo và tài liệu OpenAPI</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">16</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">17</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="orm-sqlc.html" data-slug="orm-sqlc"><i class="dot"></i><span class="no">18</span><span class="tx">sqlc, GORM và migration trong thực tế</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">19</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">20</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">21</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">22</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">23</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="message-queue.html" data-slug="message-queue"><i class="dot"></i><span class="no">24</span><span class="tx">Message queue: Kafka, NATS, RabbitMQ</span></a></li><li><a href="grpc.html" data-slug="grpc"><i class="dot"></i><span class="no">25</span><span class="tx">gRPC và Protocol Buffers</span></a></li><li><a href="realtime-file.html" data-slug="realtime-file"><i class="dot"></i><span class="no">26</span><span class="tx">WebSocket, upload file và gửi email</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">27</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="test-nang-cao.html" data-slug="test-nang-cao"><i class="dot"></i><span class="no">28</span><span class="tx">Test nâng cao: mock, database thật, fuzz, load test</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">29</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="kubernetes.html" data-slug="kubernetes"><i class="dot"></i><span class="no">30</span><span class="tx">Kubernetes cho lập trình viên Go</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">31</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an" aria-current="page"><i class="dot"></i><span class="no">32</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
   </aside>
   <div class="scrim"></div>
   <main id="main"><article class="lesson" data-slug="du-an">
   <header class="l-head">
-    <div class="l-meta"><span class="ph" style="--pc:#0f766e">Chặng 6 · Dự án cuối</span><span>Bài 24</span><span>240 phút đọc + làm bài</span></div>
+    <div class="l-meta"><span class="ph" style="--pc:#0f766e">Chặng 6 · Dự án cuối</span><span>Bài 32</span><span>240 phút đọc + làm bài</span></div>
     <h1>Dự án: API &quot;Sổ bài tập&quot; chuẩn production</h1>
     <p class="lead">Tự xây API cho giáo viên và phụ huynh: đăng nhập, lớp, bài tập, nộp bài, phân quyền, phân trang, việc chạy nền, Docker, test.</p>
     <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Ghép mọi kiến thức thành một dịch vụ hoàn chỉnh</li><li>Có một dự án để đưa vào CV</li><li>Tự tin nhận task backend Go</li></ul></div>
@@ -42,7 +42,7 @@
 <tr><td>Giáo viên</td><td>Tạo lớp (miễn phí tối đa 2 lớp), xem mã lớp, xem danh sách học sinh, giao bài, xem ai đã nộp / chưa nộp, chấm điểm và nhận xét</td></tr>
 <tr><td>Học sinh</td><td>Vào lớp bằng mã lớp (không vượt sĩ số), xem bài tập của các lớp mình học, nộp bài (văn bản), xem điểm của chính mình, nộp lại khi chưa được chấm</td></tr>
 </table>
-<p>Yêu cầu phi chức năng: chỉ dùng Go + PostgreSQL (+ Redis tuỳ chọn), có test, chạy được bằng một lệnh <code>docker compose up</code>, đạt checklist bảo mật ở bài 19.</p>
+<p>Yêu cầu phi chức năng: chỉ dùng Go + PostgreSQL (+ Redis tuỳ chọn), có test, chạy được bằng một lệnh <code>docker compose up</code>, đạt checklist bảo mật ở bài 22.</p>
 
 <h2 id="kien-truc"><a href="#kien-truc" class="anchor" aria-hidden="true">#</a>Kiến trúc</h2>
 <figure class="dg"><svg viewBox="0 0 968.3200000000002 86" style="min-width:600px;max-width:968.3200000000002px" role="img" aria-label="Một repo, hai chương trình: API và worker dùng chung database"><g class="nd fe"><rect x="10" y="10" width="120.08000000000001" height="66" rx="10"/><text x="70.04" y="40" class="tt" text-anchor="middle">Client</text><text x="70.04" y="58" class="ts" text-anchor="middle">web, app, curl</text></g><line x1="132.08" y1="43" x2="252" y2="43" class="ln" marker-end="url(#ar)"/><text x="193.04000000000002" y="34" class="tl" text-anchor="middle">HTTPS + cookie</text><g class="nd go"><rect x="256" y="10" width="194.00000000000003" height="66" rx="10"/><text x="353" y="40" class="tt" text-anchor="middle">cmd/api</text><text x="353" y="58" class="ts" text-anchor="middle">handler → service → store</text></g><line x1="452" y1="43" x2="516" y2="43" class="ln" marker-end="url(#ar)"/><text x="485" y="34" class="tl" text-anchor="middle">SQL</text><g class="nd db"><rect x="520" y="10" width="153.68" height="66" rx="10"/><text x="596.84" y="40" class="tt" text-anchor="middle">PostgreSQL</text><text x="596.84" y="58" class="ts" text-anchor="middle">dữ liệu + bảng jobs</text></g><line x1="675.6800000000001" y1="43" x2="773.7600000000001" y2="43" class="ln" marker-end="url(#ar)"/><text x="725.72" y="34" class="tl" text-anchor="middle">SKIP LOCKED</text><g class="nd go"><rect x="777.7600000000001" y="10" width="180.56" height="66" rx="10"/><text x="868.0400000000001" y="40" class="tt" text-anchor="middle">cmd/worker</text><text x="868.0400000000001" y="58" class="ts" text-anchor="middle">gửi thông báo, nhắc hạn</text></g></svg><figcaption>Một repo, hai chương trình: API và worker dùng chung database</figcaption></figure>
@@ -154,24 +154,24 @@
 <h2 id="lo-trinh-lam-tung-buoc"><a href="#lo-trinh-lam-tung-buoc" class="anchor" aria-hidden="true">#</a>Lộ trình làm từng bước</h2>
 <p>Làm theo thứ tự. Mỗi bước có tiêu chí "xong" rõ ràng, commit sau mỗi bước. Phần lớn code bạn đã có sẵn trong lời giải bài tập của các bài trước, mục "Bắt đầu từ" ở mỗi bước chỉ chỗ để chép sang rồi sửa.</p>
 
-<h3>Bước 1: khung dự án (bài 08, 11, 13)</h3>
+<h3>Bước 1: khung dự án (bài 8, 12, 14)</h3>
 <ul>
 <li><code>go mod init</code>, cấu trúc thư mục, <code>config.Load()</code>, logger slog JSON.</li>
 <li><code>http.Server</code> có timeout, graceful shutdown, middleware RequestID / Logger / Recover / SecurityHeaders.</li>
 <li><code>GET /livez</code>, <code>GET /readyz</code>.</li>
-<li><b>Bắt đầu từ:</b> lời giải bài tập bài 13 (dự án <code>notes-api</code>): đã có đủ cấu trúc thư mục, ba middleware, <code>run()</code> với graceful shutdown. Đổi tên module, bỏ phần ghi chú.</li>
+<li><b>Bắt đầu từ:</b> lời giải bài tập bài 14 (dự án <code>notes-api</code>): đã có đủ cấu trúc thư mục, ba middleware, <code>run()</code> với graceful shutdown. Đổi tên module, bỏ phần ghi chú.</li>
 <li><b>Xong khi:</b> <code>go run ./cmd/api</code> chạy, Ctrl+C tắt sạch, mỗi request có một dòng log JSON.</li>
 </ul>
 
-<h3>Bước 2: database (bài 14, 15)</h3>
+<h3>Bước 2: database (bài 16, 17)</h3>
 <ul>
 <li>Compose với Postgres, migration bằng goose, pool pgx, <code>/readyz</code> ping database.</li>
 <li>Helper test: tạo database / schema riêng cho mỗi test.</li>
-<li><b>Bắt đầu từ:</b> lược đồ bài 14 làm file migration đầu tiên (thêm dòng <code>-- +goose Up</code> / <code>-- +goose Down</code> như ví dụ bài 15), <code>compose.yaml</code> ở lời giải bài 22.</li>
+<li><b>Bắt đầu từ:</b> lược đồ bài 16 làm file migration đầu tiên (thêm dòng <code>-- +goose Up</code> / <code>-- +goose Down</code> như ví dụ bài 17), <code>compose.yaml</code> ở lời giải bài 29.</li>
 <li><b>Xong khi:</b> <code>goose up</code> rồi <code>goose down</code> rồi <code>goose up</code> chạy sạch.</li>
 </ul>
 
-<h3>Bước 3: đăng ký, đăng nhập (bài 18)</h3>
+<h3>Bước 3: đăng ký, đăng nhập (bài 21)</h3>
 <div class="code"><div class="code-h"><span>internal/service/auth.go (trích) · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Auth) <span class="f">Login</span>(ctx context.Context, email, password <span class="t">string</span>) (token <span class="t">string</span>, err <span class="t">error</span>) {
     email = strings.<span class="f">ToLower</span>(strings.<span class="f">TrimSpace</span>(email))
     ok, err := s.limiter.<span class="f">Allow</span>(ctx, <span class="s">&quot;login:&quot;</span>+email) <span class="c">// 5 lần / 15 phút</span>
@@ -200,11 +200,11 @@
     <span class="k">return</span> token, s.store.<span class="f">CreateSession</span>(ctx, hash, u.ID, time.<span class="f">Now</span>().<span class="f">Add</span>(<span class="n">30</span>*<span class="n">24</span>*time.Hour))
 }</code></pre></div>
 <ul>
-<li><b>Bắt đầu từ:</b> <code>auth.go</code> trong lời giải bài 18. Đoạn trích ở trên là cùng logic đó, chỉ tách sang tầng service (bài 13) và thêm một chi tiết: so mật khẩu với một chuỗi băm giả khi không có email, để thời gian trả lời như nhau.</li>
+<li><b>Bắt đầu từ:</b> <code>auth.go</code> trong lời giải bài 21. Đoạn trích ở trên là cùng logic đó, chỉ tách sang tầng service (bài 14) và thêm một chi tiết: so mật khẩu với một chuỗi băm giả khi không có email, để thời gian trả lời như nhau.</li>
 <li><b>Xong khi:</b> có test cho: đăng ký trùng email (kể cả khác hoa thường), đăng nhập sai không lộ email tồn tại, quá 5 lần bị 429, đăng xuất thì cookie cũ bị 401.</li>
 </ul>
 
-<h3>Bước 4: lớp học và hạn mức (bài 16)</h3>
+<h3>Bước 4: lớp học và hạn mức (bài 19)</h3>
 <div class="code"><div class="code-h"><span>Vào lớp: kiểm sĩ số NGAY trong câu ghi</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> enrollments (class_id, student_id)
 <span class="k">SELECT</span> c.id, $<span class="n">2</span>
 <span class="k">FROM</span> classes c
@@ -212,14 +212,14 @@
   <span class="k">AND</span> (<span class="k">SELECT</span> <span class="k">count</span>(*) <span class="k">FROM</span> enrollments e <span class="k">WHERE</span> e.class_id = c.id) &lt; c.capacity
 <span class="k">ON</span> <span class="k">CONFLICT</span> <span class="k">DO</span> <span class="k">NOTHING</span>
 <span class="k">RETURNING</span> class_id;</code></pre></div>
-<aside class="warn"><p>Câu trên vẫn có khe hở ở mức cô lập Read Committed: hai học sinh vào lớp còn đúng 1 chỗ có thể cùng đếm thấy chỗ trống. Hãy khoá dòng lớp trước trong transaction (<code>SELECT ... FROM classes WHERE join_code = $1 FOR UPDATE</code>), giống cách khoá dòng giáo viên ở bài 16. Viết test 20 goroutine cùng vào lớp sĩ số 5 để chứng minh.</p></aside>
+<aside class="warn"><p>Câu trên vẫn có khe hở ở mức cô lập Read Committed: hai học sinh vào lớp còn đúng 1 chỗ có thể cùng đếm thấy chỗ trống. Hãy khoá dòng lớp trước trong transaction (<code>SELECT ... FROM classes WHERE join_code = $1 FOR UPDATE</code>), giống cách khoá dòng giáo viên ở bài 19. Viết test 20 goroutine cùng vào lớp sĩ số 5 để chứng minh.</p></aside>
 <ul>
 <li>Mã lớp: 8 ký tự ngẫu nhiên từ <code>crypto/rand</code>, bỏ các ký tự dễ nhầm (0/O, 1/I/L), UNIQUE, trùng thì sinh lại.</li>
-<li><b>Bắt đầu từ:</b> <code>CreateClassWithQuota</code> và test 10 goroutine trong lời giải bài 16. Vào lớp làm y hệt, chỉ đổi dòng bị khoá từ giáo viên sang lớp.</li>
+<li><b>Bắt đầu từ:</b> <code>CreateClassWithQuota</code> và test 10 goroutine trong lời giải bài 19. Vào lớp làm y hệt, chỉ đổi dòng bị khoá từ giáo viên sang lớp.</li>
 <li><b>Xong khi:</b> test đồng thời chứng minh không vượt hạn mức 2 lớp và không vượt sĩ số.</li>
 </ul>
 
-<h3>Bước 5: bài tập, nộp bài, chấm bài (bài 12, 15, 19)</h3>
+<h3>Bước 5: bài tập, nộp bài, chấm bài (bài 13, 17, 22)</h3>
 <div class="code"><div class="code-h"><span>Nộp bài: học sinh phải thuộc lớp, bài chưa được chấm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> submissions (assignment_id, student_id, content)
 <span class="k">SELECT</span> a.id, $<span class="n">2</span>, $<span class="n">3</span>
 <span class="k">FROM</span> assignments a
@@ -241,23 +241,23 @@
 <span class="k">ORDER</span> <span class="k">BY</span> u.name, u.id
 <span class="k">LIMIT</span> $<span class="n">3</span> <span class="k">OFFSET</span> $<span class="n">4</span>;</code></pre></div>
 <ul>
-<li><b>Bắt đầu từ:</b> <code>AssignmentStore</code> trong lời giải bài 15 (đã kiểm quyền giáo viên trong mọi câu SQL), cách đọc lỗi <code>23505</code> ở bài 15, <code>Validate()</code> ở bài 12.</li>
+<li><b>Bắt đầu từ:</b> <code>AssignmentStore</code> trong lời giải bài 17 (đã kiểm quyền giáo viên trong mọi câu SQL), cách đọc lỗi <code>23505</code> ở bài 17, <code>Validate()</code> ở bài 13.</li>
 <li><b>Xong khi:</b> có bộ test phân quyền: giáo viên B không xem / chấm được bài của lớp giáo viên A, học sinh không thuộc lớp không nộp được, học sinh không xem được bài nộp của bạn khác, học sinh không gọi được endpoint chấm bài.</li>
 </ul>
 
-<h3>Bước 6: việc chạy nền (bài 20)</h3>
+<h3>Bước 6: việc chạy nền (bài 23)</h3>
 <ul>
 <li>Giao bài → trong cùng transaction chèn job <code>assignment.created</code>.</li>
 <li><code>cmd/worker</code>: lấy việc bằng <code>SKIP LOCKED</code>, "gửi thông báo" (ghi log), bảng <code>notifications_sent</code> chống gửi trùng, thử lại có backoff, dừng an toàn.</li>
 <li>Việc định kỳ: 19 giờ mỗi ngày (giờ Việt Nam) nhắc học sinh có bài hạn ngày mai chưa nộp. Chạy 2 worker cùng lúc mà mỗi học sinh vẫn chỉ nhận một lời nhắc mỗi ngày.</li>
-<li><b>Bắt đầu từ:</b> lời giải bài 20: bảng <code>jobs</code>, <code>notifications_sent</code>, vòng lặp worker, <code>assign</code> tạo bài và việc trong một transaction. Việc định kỳ: thêm bảng <code>reminders_sent(student_id, day)</code> có khoá chính kép, chèn được mới gửi.</li>
+<li><b>Bắt đầu từ:</b> lời giải bài 23: bảng <code>jobs</code>, <code>notifications_sent</code>, vòng lặp worker, <code>assign</code> tạo bài và việc trong một transaction. Việc định kỳ: thêm bảng <code>reminders_sent(student_id, day)</code> có khoá chính kép, chèn được mới gửi.</li>
 </ul>
 
-<h3>Bước 7: quan sát và đóng gói (bài 21, 22)</h3>
+<h3>Bước 7: quan sát và đóng gói (bài 27, 29)</h3>
 <ul>
 <li>Metrics RED ở cổng nội bộ, pprof ở localhost.</li>
 <li>Dockerfile nhiều giai đoạn, Compose chạy cả api + worker + postgres, GitHub Actions: vet, test -race, govulncheck, build.</li>
-<li><b>Bắt đầu từ:</b> middleware metrics trong lời giải bài 21, <code>Dockerfile</code>, <code>compose.yaml</code>, <code>.github/workflows/ci.yml</code> trong lời giải bài 22. Thêm một service <code>worker</code> vào compose, build cùng image nhưng chạy lệnh khác.</li>
+<li><b>Bắt đầu từ:</b> middleware metrics trong lời giải bài 27, <code>Dockerfile</code>, <code>compose.yaml</code>, <code>.github/workflows/ci.yml</code> trong lời giải bài 29. Thêm một service <code>worker</code> vào compose, build cùng image nhưng chạy lệnh khác.</li>
 <li><b>Xong khi:</b> clone repo về máy sạch, <code>docker compose up</code> là chạy, CI xanh.</li>
 </ul>
 
@@ -273,14 +273,14 @@
 <h2 id="loi-nguoi-moi-hay-mac-o-du-an-nay"><a href="#loi-nguoi-moi-hay-mac-o-du-an-nay" class="anchor" aria-hidden="true">#</a>Lỗi người mới hay mắc ở dự án này</h2>
 <table>
 <tr><th>Lỗi</th><th>Đã học ở</th></tr>
-<tr><td>Trả nguyên struct User (có <code>password_hash</code>) ra JSON</td><td>Bài 19, API3</td></tr>
-<tr><td><code>GET /assignments/{id}</code> không kiểm người gọi có thuộc lớp</td><td>Bài 19, API1</td></tr>
-<tr><td>Đếm số lớp / sĩ số trong Go rồi mới INSERT</td><td>Bài 16</td></tr>
-<tr><td>Gửi thông báo ngay trong handler bằng <code>go func()</code></td><td>Bài 09, 20</td></tr>
-<tr><td>Danh sách rỗng trả <code>null</code></td><td>Bài 04</td></tr>
-<tr><td>Hạn nộp "hôm nay" tính theo UTC, lệch 7 giờ</td><td>Bài 14</td></tr>
-<tr><td>Quên <code>rows.Close()</code>, pool cạn sau vài giờ chạy</td><td>Bài 15</td></tr>
-<tr><td>Không có timeout ở server và client</td><td>Bài 11</td></tr>
+<tr><td>Trả nguyên struct User (có <code>password_hash</code>) ra JSON</td><td>Bài 22, API3</td></tr>
+<tr><td><code>GET /assignments/{id}</code> không kiểm người gọi có thuộc lớp</td><td>Bài 22, API1</td></tr>
+<tr><td>Đếm số lớp / sĩ số trong Go rồi mới INSERT</td><td>Bài 19</td></tr>
+<tr><td>Gửi thông báo ngay trong handler bằng <code>go func()</code></td><td>Bài 9, 23</td></tr>
+<tr><td>Danh sách rỗng trả <code>null</code></td><td>Bài 4</td></tr>
+<tr><td>Hạn nộp "hôm nay" tính theo UTC, lệch 7 giờ</td><td>Bài 16</td></tr>
+<tr><td>Quên <code>rows.Close()</code>, pool cạn sau vài giờ chạy</td><td>Bài 17</td></tr>
+<tr><td>Không có timeout ở server và client</td><td>Bài 12</td></tr>
 </table>
 
 <h2 id="dua-vao-cv"><a href="#dua-vao-cv" class="anchor" aria-hidden="true">#</a>Đưa vào CV</h2>

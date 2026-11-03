@@ -22,7 +22,7 @@ func main() {
 không mở được file: open data.csv: no such file or directory
 </pre>
 <p>Thư mục của bạn không có file <code>data.csv</code> nên ra nhánh lỗi. Tạo một file tên <code>data.csv</code> cạnh <code>main.go</code> rồi chạy lại sẽ thấy "đã mở file".</p>
-<p><code>error</code> không có gì bí ẩn, nó chỉ là một interface có sẵn (bài 06): kiểu nào có method <code>Error() string</code> là lỗi.</p>
+<p><code>error</code> không có gì bí ẩn, nó chỉ là một interface có sẵn (bài {{n:interface}}): kiểu nào có method <code>Error() string</code> là lỗi.</p>
 <pre lang="go">
 type error interface {
     Error() string
@@ -136,7 +136,7 @@ true
 false
 -> trả về 404
 </pre>
-<aside class="prod"><p>Repository nên <b>dịch</b> lỗi của thư viện database (<code>pgx.ErrNoRows</code>, lỗi trùng khoá...) thành lỗi của chính ứng dụng (<code>ErrNotFound</code>, <code>ErrConflict</code>). Nhờ vậy tầng service và HTTP không phụ thuộc vào việc bạn dùng Postgres hay thứ khác. Trong code thật nó trông như sau (trích đoạn, bài 15 có đầy đủ):</p>
+<aside class="prod"><p>Repository nên <b>dịch</b> lỗi của thư viện database (<code>pgx.ErrNoRows</code>, lỗi trùng khoá...) thành lỗi của chính ứng dụng (<code>ErrNotFound</code>, <code>ErrConflict</code>). Nhờ vậy tầng service và HTTP không phụ thuộc vào việc bạn dùng Postgres hay thứ khác. Trong code thật nó trông như sau (trích đoạn, bài {{n:go-postgres}} có đầy đủ):</p>
 <pre lang="go">
 if errors.Is(err, pgx.ErrNoRows) {
     return Class{}, ErrNotFound // đổi lỗi của thư viện thành lỗi của mình
@@ -195,7 +195,7 @@ báo người dùng: Tên lớp tối đa 10 ký tự
 <p>Nhớ nhanh: <code>errors.Is</code> hỏi "có phải lỗi <b>này</b> không" (so với một biến lỗi định sẵn). <code>errors.As</code> hỏi "có lỗi nào thuộc <b>kiểu</b> này không" (rồi lấy dữ liệu bên trong). Giống <code>e instanceof ValidationError</code> trong JS.</p>
 
 <h2>Biến lỗi thành response HTTP ở một chỗ</h2>
-<p>Ngoài thực tế, mỗi dự án có một hàm duy nhất quyết định lỗi nào thành status code nào và người dùng thấy câu gì. Không handler nào tự viết <code>500</code> lung tung. Đây là trích đoạn từ dự án thật, bạn sẽ dựng nó ở bài 12:</p>
+<p>Ngoài thực tế, mỗi dự án có một hàm duy nhất quyết định lỗi nào thành status code nào và người dùng thấy câu gì. Không handler nào tự viết <code>500</code> lung tung. Đây là trích đoạn từ dự án thật, bạn sẽ dựng nó ở bài {{n:rest}}:</p>
 <pre lang="go" file="internal/httpx/errors.go">
 func WriteError(w http.ResponseWriter, r *http.Request, err error) {
     var ve *ValidationError
@@ -206,7 +206,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error) {
         writeJSON(w, http.StatusNotFound, errBody("NOT_FOUND", "Không tìm thấy"))
     case errors.Is(err, ErrForbidden):
         writeJSON(w, http.StatusForbidden, errBody("FORBIDDEN", "Bạn không có quyền"))
-    case errors.Is(err, context.DeadlineExceeded): // quá thời gian (bài 10)
+    case errors.Is(err, context.DeadlineExceeded): // quá thời gian (bài {{n:context-test}})
         writeJSON(w, http.StatusGatewayTimeout, errBody("TIMEOUT", "Máy chủ xử lý quá lâu"))
     default:
         // Lỗi không lường trước: ghi log đầy đủ, KHÔNG trả chi tiết cho client
@@ -266,7 +266,7 @@ func main() {
 chương trình vẫn chạy tiếp
 </pre>
 <p><code>(result int, err error)</code> là <b>giá trị trả về có tên</b>: hàm defer gán được <code>err</code> trước khi hàm thật sự trả về. Đây là một trong số ít chỗ nên dùng cách viết này.</p>
-<p>Ứng dụng phổ biến nhất của recover: middleware chặn panic để một request lỗi không làm hỏng cả server (trích đoạn, bài 13 dùng lại):</p>
+<p>Ứng dụng phổ biến nhất của recover: middleware chặn panic để một request lỗi không làm hỏng cả server (trích đoạn, bài {{n:kien-truc}} dùng lại):</p>
 <pre lang="go">
 func Recover(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -312,7 +312,7 @@ rút 500000: số dư 100000, lỗi rút 500000, còn 100000: số dư không đ
 <p><b>Gợi ý từng bước</b></p>
 <ol class="steps">
 <li>Khai báo <code>var ErrInsufficientFunds = errors.New("số dư không đủ")</code> ở ngoài hàm.</li>
-<li>Trong <code>Withdraw</code>, kiểm tra theo kiểu guard clause (bài 03): sai thì <code>return</code> luôn. Khi lỗi, trả lại <code>balance</code> cũ.</li>
+<li>Trong <code>Withdraw</code>, kiểm tra theo kiểu guard clause (bài {{n:ham-dieu-khien}}): sai thì <code>return</code> luôn. Khi lỗi, trả lại <code>balance</code> cũ.</li>
 <li>Bọc lỗi: <code>fmt.Errorf("rút %d, còn %d: %w", amount, balance, ErrInsufficientFunds)</code>.</li>
 <li>Trong <code>statusOf</code>, dùng <code>switch</code> không biểu thức với <code>errors.As</code> và <code>errors.Is</code>, giống hàm <code>WriteError</code> ở trên.</li>
 </ol>
@@ -371,6 +371,6 @@ rút 0: số dư 100000, lỗi amount: Số tiền phải lớn hơn 0, mã 400
 rút 500000: số dư 100000, lỗi rút 500000, còn 100000: số dư không đủ, mã 409
 </pre>
 <p><b>Giải thích:</b> lỗi thứ ba đã bị bọc (có thêm "rút 500000, còn 100000"), nhưng <code>errors.Is</code> vẫn tìm thấy <code>ErrInsufficientFunds</code> bên trong nên ra 409. Thử đổi <code>%w</code> thành <code>%v</code> trong <code>Withdraw</code>: chữ in ra y hệt, nhưng mã thành 500.</p>
-<p>Ở bài 16 bạn sẽ thấy kiểm tra số dư ngay trong Go như thế này là <b>chưa đủ</b> khi có hai request rút tiền cùng lúc. Kiểm tra phải nằm trong câu SQL.</p>
+<p>Ở bài {{n:toi-uu-query}} bạn sẽ thấy kiểm tra số dư ngay trong Go như thế này là <b>chưa đủ</b> khi có hai request rút tiền cùng lúc. Kiểm tra phải nằm trong câu SQL.</p>
 </details>
 </details>

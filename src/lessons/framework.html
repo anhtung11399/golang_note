@@ -1,0 +1,776 @@
+<h2>Có cần framework không?</h2>
+<p>Từ Go 1.22, router của thư viện chuẩn (<code>http.ServeMux</code>) đã hiểu method và tham số đường dẫn: <code>mux.HandleFunc("GET /classes/{id}", h)</code>, lấy <code>r.PathValue("id")</code>. Với phần lớn API, <b>thư viện chuẩn là đủ</b>, và các bài trước đều viết bằng nó.</p>
+<p>Nhưng khi vào công ty, rất nhiều khả năng bạn gặp một trong ba cái tên: <b>Gin</b> (phổ biến nhất), <b>Echo</b>, <b>Chi</b>. Bài này giúp bạn đọc hiểu và viết được cả ba, biết chúng thêm gì so với <code>net/http</code>, và cách sinh tài liệu API cho đội frontend.</p>
+<table>
+<tr><th></th><th>net/http (1.22+)</th><th>Chi</th><th>Gin</th><th>Echo</th></tr>
+<tr><td>Kiểu handler</td><td><code>http.HandlerFunc</code></td><td><code>http.HandlerFunc</code> (giữ nguyên chuẩn)</td><td><code>func(*gin.Context)</code></td><td><code>func(echo.Context) error</code></td></tr>
+<tr><td>Middleware</td><td>tự viết</td><td>chuẩn <code>func(http.Handler) http.Handler</code> + bộ có sẵn</td><td>riêng của Gin, nhiều có sẵn</td><td>riêng của Echo, nhiều có sẵn</td></tr>
+<tr><td>Nhóm route</td><td>tự ghép</td><td><code>r.Route</code>, <code>r.Group</code></td><td><code>r.Group</code></td><td><code>e.Group</code></td></tr>
+<tr><td>Đọc JSON + validate</td><td>tự viết</td><td>tự viết / thư viện</td><td><code>c.ShouldBindJSON</code> + tag <code>binding</code></td><td><code>c.Bind</code> + validator tự gắn</td></tr>
+<tr><td>Trả lỗi</td><td>tự viết</td><td>tự viết</td><td><code>c.JSON</code>, <code>c.AbortWithStatusJSON</code></td><td>trả <code>error</code>, có HTTPErrorHandler chung</td></tr>
+<tr><td>Phụ thuộc</td><td>0</td><td>rất ít</td><td>nhiều</td><td>vừa</td></tr>
+</table>
+<aside class="fe"><p>So sánh với Node: <code>net/http</code> giống module <code>http</code> của Node nhưng đầy đủ hơn nhiều, Chi giống Express tối giản, Gin / Echo giống Express kèm sẵn body-parser, validator và error handler. Chi được nhiều người ưa vì handler vẫn là kiểu chuẩn: mọi middleware viết cho <code>net/http</code> đều dùng lại được.</p></aside>
+
+<h2>Cùng một API, ba cách viết</h2>
+<p>API mẫu: <code>GET /classes/{id}</code> trả lớp, <code>POST /classes</code> tạo lớp (tên bắt buộc, 1 đến 60 ký tự, sĩ số 1 đến 80). Có middleware ghi log và nhóm <code>/api/v1</code>.</p>
+
+<h3>Thư viện chuẩn</h3>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "encoding/json"
+    "log/slog"
+    "net/http"
+    "strconv"
+    "time"
+)
+
+type Class struct {
+    ID       int64  `json:"id"`
+    Name     string `json:"name"`
+    Capacity int    `json:"capacity"`
+}
+
+func logger(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+        next.ServeHTTP(w, r)
+        slog.Info("req", "method", r.Method, "path", r.URL.Path, "dur", time.Since(start))
+    })
+}
+
+func writeJSON(w http.ResponseWriter, code int, v any) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(code)
+    json.NewEncoder(w).Encode(v)
+}
+
+func main() {
+    api := http.NewServeMux()
+    api.HandleFunc("GET /classes/{id}", func(w http.ResponseWriter, r *http.Request) {
+        id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+        if err != nil {
+            writeJSON(w, 400, map[string]string{"error": "id không hợp lệ"})
+            return
+        }
+        writeJSON(w, 200, Class{ID: id, Name: "Lớp 5A", Capacity: 30})
+    })
+    api.HandleFunc("POST /classes", func(w http.ResponseWriter, r *http.Request) {
+        var in Class
+        if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+            writeJSON(w, 400, map[string]string{"error": "JSON không hợp lệ"})
+            return
+        }
+        if n := len([]rune(in.Name)); n < 1 || n > 60 || in.Capacity < 1 || in.Capacity > 80 {
+            writeJSON(w, 422, map[string]string{"error": "tên 1-60 ký tự, sĩ số 1-80"})
+            return
+        }
+        in.ID = 1
+        writeJSON(w, 201, in)
+    })
+
+    root := http.NewServeMux()
+    root.Handle("/api/v1/", http.StripPrefix("/api/v1", api)) // nhóm route bằng tiền tố
+    http.ListenAndServe(":8080", logger(root))
+}
+</pre>
+
+<h3>Chi</h3>
+<pre lang="sh">
+go get github.com/go-chi/chi/v5
+</pre>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "encoding/json"
+    "net/http"
+    "strconv"
+
+    "github.com/go-chi/chi/v5"
+    "github.com/go-chi/chi/v5/middleware"
+)
+
+// ... type Class và writeJSON như trên
+
+func main() {
+    r := chi.NewRouter()
+    r.Use(middleware.RequestID) // gắn X-Request-Id
+    r.Use(middleware.RealIP)    // lấy IP thật từ X-Forwarded-For (chỉ khi đứng sau proxy tin cậy)
+    r.Use(middleware.Logger)
+    r.Use(middleware.Recoverer) // panic → 500 thay vì sập
+
+    r.Route("/api/v1", func(r chi.Router) {
+        r.Route("/classes", func(r chi.Router) {
+            r.Post("/", createClass)
+            r.Get("/{id}", func(w http.ResponseWriter, r *http.Request) {
+                id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64) // hoặc r.PathValue("id")
+                if err != nil {
+                    writeJSON(w, 400, map[string]string{"error": "id không hợp lệ"})
+                    return
+                }
+                writeJSON(w, 200, Class{ID: id, Name: "Lớp 5A", Capacity: 30})
+            })
+        })
+    })
+    http.ListenAndServe(":8080", r)
+}
+
+func createClass(w http.ResponseWriter, r *http.Request) {
+    var in Class
+    if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+        writeJSON(w, 400, map[string]string{"error": "JSON không hợp lệ"})
+        return
+    }
+    // validate như bản thư viện chuẩn, hoặc dùng go-playground/validator (phần dưới)
+    in.ID = 1
+    writeJSON(w, 201, in)
+}
+</pre>
+<p>Chi gần như là thư viện chuẩn có thêm cách nhóm route đẹp hơn và bộ middleware có sẵn. Handler vẫn là <code>http.HandlerFunc</code>, nên code ở các bài trước chép sang dùng ngay.</p>
+
+<h3>Gin</h3>
+<pre lang="sh">
+go get github.com/gin-gonic/gin
+</pre>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "net/http"
+    "strconv"
+
+    "github.com/gin-gonic/gin"
+)
+
+type Class struct {
+    ID       int64  `json:"id"`
+    Name     string `json:"name" binding:"required,min=1,max=60"`
+    Capacity int    `json:"capacity" binding:"required,gte=1,lte=80"`
+}
+
+func main() {
+    r := gin.New()
+    r.Use(gin.Logger(), gin.Recovery())
+
+    v1 := r.Group("/api/v1")
+    {
+        v1.GET("/classes/:id", func(c *gin.Context) {
+            id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+            if err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "id không hợp lệ"})
+                return
+            }
+            c.JSON(http.StatusOK, Class{ID: id, Name: "Lớp 5A", Capacity: 30})
+        })
+        v1.POST("/classes", func(c *gin.Context) {
+            var in Class
+            if err := c.ShouldBindJSON(&in); err != nil { // đọc JSON + kiểm tra tag binding
+                c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+                return
+            }
+            in.ID = 1
+            c.JSON(http.StatusCreated, in)
+        })
+    }
+    r.Run(":8080")
+}
+</pre>
+<pre lang="out" sim="1">
+$ curl -s -X POST localhost:8080/api/v1/classes -d '{"name":"","capacity":120}'
+{"error":"Key: 'Class.Name' Error:Field validation for 'Name' failed on the 'required' tag\nKey: 'Class.Capacity' Error:Field validation for 'Capacity' failed on the 'lte' tag"}
+
+$ curl -s -X POST localhost:8080/api/v1/classes -d '{"name":"Lớp 5A","capacity":30}'
+{"id":1,"name":"Lớp 5A","capacity":30}
+</pre>
+<p><b>Giải thích:</b> thông báo lỗi mặc định của validator là tiếng Anh, khó đọc với người dùng. Phần "Validate bằng struct tag" bên dưới chỉ cách đổi thành câu tiếng Việt theo từng trường.</p>
+<p>Những điều riêng của Gin cần biết khi đọc code:</p>
+<ul>
+<li><code>gin.H</code> chỉ là <code>map[string]any</code>.</li>
+<li><code>c.JSON(...)</code> <b>không dừng</b> handler. Phải <code>return</code> ngay sau đó, giống <code>http.Error</code>.</li>
+<li>Trong middleware, <code>c.Next()</code> gọi phần tiếp theo, <code>c.Abort()</code> / <code>c.AbortWithStatusJSON(401, ...)</code> chặn không cho chạy tiếp.</li>
+<li><code>c.Set("userID", id)</code> / <code>c.GetInt64("userID")</code> thay cho <code>context.WithValue</code>. Nhưng khi gọi xuống service / store, vẫn truyền <code>c.Request.Context()</code>, <b>không</b> truyền <code>c</code>.</li>
+<li><code>ShouldBindJSON</code> trả lỗi để bạn tự xử lý. <code>BindJSON</code> (không có Should) tự ghi 400 và bạn không đổi được nội dung lỗi, nên hay dùng <code>ShouldBind...</code>.</li>
+<li><code>gin.Context</code> được dùng lại cho request khác sau khi handler xong. Nếu mở goroutine bên trong handler, dùng <code>c.Copy()</code>.</li>
+</ul>
+
+<h3>Echo</h3>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "net/http"
+    "strconv"
+
+    "github.com/labstack/echo/v4"
+    "github.com/labstack/echo/v4/middleware"
+)
+
+type Class struct {
+    ID       int64  `json:"id"`
+    Name     string `json:"name"`
+    Capacity int    `json:"capacity"`
+}
+
+func main() {
+    e := echo.New()
+    e.Use(middleware.Logger(), middleware.Recover())
+
+    v1 := e.Group("/api/v1")
+    v1.GET("/classes/:id", func(c echo.Context) error {
+        id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+        if err != nil {
+            return echo.NewHTTPError(http.StatusBadRequest, "id không hợp lệ") // trả lỗi, Echo tự ghi
+        }
+        return c.JSON(http.StatusOK, Class{ID: id, Name: "Lớp 5A", Capacity: 30})
+    })
+    e.Logger.Fatal(e.Start(":8080"))
+}
+</pre>
+<p>Điểm hay của Echo: handler <b>trả về error</b>, mọi lỗi đi qua một <code>e.HTTPErrorHandler</code> chung. Đó đúng là mẫu "một định dạng lỗi cho toàn bộ API" ở bài {{n:rest}}, có sẵn.</p>
+
+<h2>Gin dùng với kiến trúc nhiều lớp</h2>
+<p>Framework chỉ nên nằm ở <b>lớp handler</b>. Service và store (bài {{n:kien-truc}}) không được import <code>gin</code>. Nhờ vậy đổi framework hay viết test cho service không cần đụng tới HTTP.</p>
+<arch w="800" h="210" caption="Gin chỉ ở lớp ngoài cùng. Service nhận context.Context và struct thường, không biết gì về Gin">
+group 20 30 250 160 proc "HTTP (Gin)"
+group 300 30 230 160 proc "Nghiệp vụ"
+group 560 30 220 160 proc "Dữ liệu"
+node r 85 110 gin "Router" "middleware"
+node h 205 110 handler "Handler" "*gin.Context"
+node s 415 110 service "ClassService" "ctx, struct"
+node st 625 110 store "ClassStore" "SQL"
+node db 735 110 pg "Postgres" ""
+edge r h ""
+edge h s "ctx" c=go
+edge s st ""
+edge st db ""
+</arch>
+<pre lang="go">
+type ClassHandler struct{ svc *service.ClassService }
+
+func (h *ClassHandler) Create(c *gin.Context) {
+    var in createClassReq
+    if err := c.ShouldBindJSON(&in); err != nil {
+        writeValidation(c, err)
+        return
+    }
+    userID := c.GetInt64("userID") // middleware xác thực đã gắn
+    cls, err := h.svc.Create(c.Request.Context(), userID, in.Name, in.Capacity)
+    if err != nil {
+        writeErr(c, err) // ánh xạ lỗi nghiệp vụ → status code, như bài trước
+        return
+    }
+    c.JSON(http.StatusCreated, cls)
+}
+
+func Auth(sessions *auth.Store) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        uid, err := sessions.UserID(c.Request.Context(), c.GetHeader("Authorization"))
+        if err != nil {
+            c.AbortWithStatusJSON(401, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Bạn cần đăng nhập"}})
+            return
+        }
+        c.Set("userID", uid)
+        c.Next()
+    }
+}
+
+// main:
+r := gin.New()
+r.Use(gin.Recovery())
+api := r.Group("/api/v1", Auth(sessions))
+api.POST("/classes", classH.Create)
+</pre>
+
+<h2>Validate bằng struct tag</h2>
+<p>Gin dùng sẵn thư viện <code>github.com/go-playground/validator/v10</code>. Bạn cũng dùng được nó ở thư viện chuẩn hoặc Chi. Các tag hay dùng:</p>
+<table>
+<tr><th>Tag</th><th>Ý nghĩa</th></tr>
+<tr><td><code>required</code></td><td>không được là giá trị rỗng (chuỗi rỗng, 0, nil)</td></tr>
+<tr><td><code>min=1,max=60</code></td><td>chuỗi: số ký tự, số: giá trị, slice: số phần tử</td></tr>
+<tr><td><code>gte=1,lte=80</code></td><td>lớn hơn hoặc bằng, nhỏ hơn hoặc bằng</td></tr>
+<tr><td><code>email</code>, <code>url</code>, <code>uuid</code></td><td>đúng định dạng</td></tr>
+<tr><td><code>oneof=draft published</code></td><td>chỉ nhận một trong các giá trị</td></tr>
+<tr><td><code>datetime=2006-01-02</code></td><td>ngày theo định dạng Go</td></tr>
+<tr><td><code>dive,required</code></td><td>kiểm tra từng phần tử của slice</td></tr>
+<tr><td><code>omitempty,email</code></td><td>không bắt buộc, nhưng có thì phải đúng email</td></tr>
+</table>
+<aside class="warn"><p>Bẫy với <code>required</code> trên số: <code>capacity: 0</code> bị coi là "không có". Nếu 0 là giá trị hợp lệ (ví dụ điểm 0), dùng con trỏ <code>*int</code> với <code>required</code>, hoặc bỏ <code>required</code> và dùng <code>gte=0</code>.</p></aside>
+<p>Đổi lỗi tiếng Anh thành câu tiếng Việt theo từng trường, trả về định dạng mà frontend dễ gắn vào form:</p>
+<pre lang="go">
+import "github.com/go-playground/validator/v10"
+
+var msgs = map[string]string{
+    "required": "Không được để trống",
+    "min":      "Quá ngắn",
+    "max":      "Quá dài",
+    "gte":      "Quá nhỏ",
+    "lte":      "Quá lớn",
+    "email":    "Email không đúng định dạng",
+}
+
+func writeValidation(c *gin.Context, err error) {
+    var ve validator.ValidationErrors
+    if !errors.As(err, &ve) {
+        c.JSON(400, gin.H{"error": gin.H{"code": "BAD_JSON", "message": "Dữ liệu gửi lên không đúng"}})
+        return
+    }
+    fields := map[string]string{}
+    for _, fe := range ve {
+        m := msgs[fe.Tag()]
+        if m == "" {
+            m = "Không hợp lệ"
+        }
+        fields[jsonName(fe)] = m
+    }
+    c.JSON(422, gin.H{"error": gin.H{"code": "VALIDATION", "message": "Vui lòng kiểm tra lại", "fields": fields}})
+}
+</pre>
+<p><code>jsonName</code> lấy tên trong tag <code>json</code> thay vì tên trường Go. Cách gọn nhất là đăng ký một lần lúc khởi động: <code>v.RegisterTagNameFunc(func(f reflect.StructField) string { return strings.Split(f.Tag.Get("json"), ",")[0] })</code>, sau đó <code>fe.Field()</code> trả luôn <code>"capacity"</code> thay vì <code>"Capacity"</code>.</p>
+<pre lang="out" sim="1">
+$ curl -s -X POST localhost:8080/api/v1/classes -d '{"name":"","capacity":120}' | jq
+{
+  "error": {
+    "code": "VALIDATION",
+    "message": "Vui lòng kiểm tra lại",
+    "fields": {
+      "capacity": "Quá lớn",
+      "name": "Không được để trống"
+    }
+  }
+}
+</pre>
+<aside class="fe"><p>Frontend nhận <code>fields</code> thì gắn thẳng vào form: <code>setError("capacity", { message })</code> của react-hook-form, hoặc <code>form.controls.capacity.setErrors(...)</code> của Angular. Validate ở client để trải nghiệm tốt, validate ở server để an toàn. Không bao giờ bỏ phía server.</p></aside>
+
+<h2>CORS</h2>
+<p>Frontend chạy ở <code>http://localhost:5173</code>, API ở <code>:8080</code>: khác origin, trình duyệt chặn nếu API không trả header CORS. Trình duyệt gửi trước một request <code>OPTIONS</code> (preflight) để hỏi.</p>
+<fig type="seq" caption="Preflight: trình duyệt hỏi bằng OPTIONS trước, server đồng ý thì mới gửi request thật">
+actors: [fe] Trình duyệt, [go] API Go
+Trình duyệt -> API Go: OPTIONS /classes, Origin + Access-Control-Request-Method: POST
+API Go --> Trình duyệt: 204, Access-Control-Allow-Origin: http://localhost:5173
+Trình duyệt -> API Go: POST /classes (request thật)
+API Go --> Trình duyệt: 201 + Access-Control-Allow-Origin
+</fig>
+<pre lang="go">
+// Chi: github.com/go-chi/cors
+r.Use(cors.Handler(cors.Options{
+    AllowedOrigins:   []string{"https://app.sobaitap.vn", "http://localhost:5173"},
+    AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE"},
+    AllowedHeaders:   []string{"Content-Type", "Authorization", "Idempotency-Key"},
+    AllowCredentials: true, // gửi cookie: KHÔNG được dùng AllowedOrigins "*"
+    MaxAge:           600,  // trình duyệt nhớ kết quả preflight 10 phút
+}))
+
+// Gin: github.com/gin-contrib/cors có cấu hình tương tự
+</pre>
+<aside class="tip"><p>Cách tránh hẳn CORS: cho frontend và API cùng một origin. Khi phát triển, dùng proxy của Vite / Angular (<code>/api</code> → <code>:8080</code>). Khi chạy thật, đặt cả hai sau một tên miền (<code>app.com</code> phục vụ file tĩnh, <code>app.com/api</code> tới Go). Không có CORS thì cũng bớt một chỗ cấu hình sai.</p></aside>
+
+<h2>Tài liệu API với OpenAPI</h2>
+<p>OpenAPI (tên cũ Swagger) là một file YAML / JSON mô tả mọi endpoint: đường dẫn, tham số, body, các response. Từ file đó có thể: hiện trang tài liệu bấm thử được (Swagger UI, Redoc, Scalar), <b>sinh kiểu TypeScript cho frontend</b>, sinh code server, và kiểm tra request trong test.</p>
+<p>Có hai trường phái:</p>
+<table>
+<tr><th></th><th>Code trước (code-first)</th><th>Spec trước (spec-first)</th></tr>
+<tr><td>Cách làm</td><td>viết handler, thêm chú thích, công cụ đọc chú thích sinh ra spec</td><td>viết file <code>openapi.yaml</code> trước, sinh code Go từ nó</td></tr>
+<tr><td>Công cụ</td><td><code>swaggo/swag</code> (Gin, Echo, Chi), <code>huma</code></td><td><code>oapi-codegen</code>, <code>ogen</code></td></tr>
+<tr><td>Ưu</td><td>nhanh, quen</td><td>spec luôn đúng với code (code sinh ra từ spec), frontend làm song song được</td></tr>
+<tr><td>Nhược</td><td>chú thích dễ lệch với code thật mà không ai biết</td><td>phải học viết YAML</td></tr>
+</table>
+
+<h3>Spec trước với oapi-codegen</h3>
+<pre lang="yaml" file="openapi.yaml">
+openapi: 3.0.3
+info:
+  title: Sổ bài tập API
+  version: 1.0.0
+paths:
+  /classes/{id}:
+    get:
+      operationId: getClass
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Lớp học
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Class" }
+        "404":
+          description: Không tìm thấy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+components:
+  schemas:
+    Class:
+      type: object
+      required: [id, name, capacity]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string, minLength: 1, maxLength: 60 }
+        capacity: { type: integer, minimum: 1, maximum: 80 }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+</pre>
+<pre lang="yaml" file="oapi.yaml">
+package: api
+output: api/api.gen.go
+generate:
+  std-http-server: true   # sinh cho net/http 1.22+ (còn có gin-server, echo-server, chi-server)
+  strict-server: true     # handler nhận struct request, trả struct response có kiểu
+  models: true
+</pre>
+<pre lang="go" file="gen.go" check="no">
+package main
+
+//go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen -config oapi.yaml openapi.yaml
+</pre>
+<pre lang="sh">
+go get -tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen   # Go 1.24+: ghi vào go.mod như một công cụ
+go generate ./...
+</pre>
+<p>Code sinh ra có kiểu <code>api.Class</code> và một interface. Bạn chỉ việc viết hàm thoả interface đó. Thiếu endpoint nào, trình biên dịch báo lỗi ngay:</p>
+<pre lang="go">
+type Server struct{ svc *service.ClassService }
+
+// Kiểm tra lúc biên dịch: Server phải có đủ mọi method của interface sinh ra
+var _ api.StrictServerInterface = (*Server)(nil)
+
+func (s *Server) GetClass(ctx context.Context, req api.GetClassRequestObject) (api.GetClassResponseObject, error) {
+    c, err := s.svc.Get(ctx, req.Id)
+    if errors.Is(err, service.ErrNotFound) {
+        return api.GetClass404JSONResponse{Error: struct{ Code, Message string }{"NOT_FOUND", "Không tìm thấy lớp"}}, nil
+    }
+    if err != nil {
+        return nil, err
+    }
+    return api.GetClass200JSONResponse{Id: c.ID, Name: c.Name, Capacity: c.Capacity}, nil
+}
+
+// main:
+h := api.HandlerFromMux(api.NewStrictHandler(&Server{svc}, nil), http.NewServeMux())
+</pre>
+<p>Kiểu struct lồng nhau trong ví dụ trên do code sinh tạo ra. Trong dự án thật, đặt <code>Error</code> thành một schema riêng có tên thì code sinh gọn hơn nhiều.</p>
+
+<h3>Phía frontend: sinh kiểu TypeScript từ cùng spec</h3>
+<pre lang="sh">
+npx openapi-typescript openapi.yaml -o src/api/schema.d.ts
+</pre>
+<pre lang="ts" file="client.ts">
+import createClient from "openapi-fetch";
+import type { paths } from "./api/schema";
+
+const api = createClient<paths>({ baseUrl: "/api/v1" });
+
+const { data, error } = await api.GET("/classes/{id}", { params: { path: { id: 42 } } });
+// data có kiểu { id: number; name: string; capacity: number } | undefined
+// gõ sai đường dẫn hay thiếu tham số → TypeScript báo đỏ ngay
+</pre>
+<arch w="800" h="230" caption="Một file openapi.yaml là hợp đồng chung: Go sinh interface server, frontend sinh kiểu TypeScript">
+node spec 400 60 openapi "openapi.yaml" "nguồn sự thật"
+node go 180 150 goapi "Go server" "oapi-codegen"
+node ts 620 150 browser "Frontend" "openapi-typescript"
+node doc 400 150 file "Trang tài liệu" "Scalar / Redoc"
+path 374 60 180 60 180 124 "sinh interface"
+path 426 60 620 60 620 124 "sinh kiểu TS"
+edge spec doc ""
+</arch>
+<aside class="real"><p>Ở các đội có frontend và backend riêng, spec-first giúp hai bên làm song song: thống nhất file YAML, frontend dùng mock server sinh từ spec (Prism: <code>npx @stoplight/prism-cli mock openapi.yaml</code>) trong khi backend viết code thật. Khi backend đổi spec, CI chạy lại sinh code, TypeScript báo lỗi ở đúng chỗ frontend cần sửa.</p></aside>
+
+<h3>Phục vụ trang tài liệu</h3>
+<pre lang="go">
+//go:embed openapi.yaml
+var spec []byte
+
+mux.HandleFunc("GET /openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/yaml")
+    w.Write(spec)
+})
+mux.HandleFunc("GET /docs", func(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    io.WriteString(w, `<!doctype html><html><body>
+<script id="api-reference" data-url="/openapi.yaml"></script>
+<script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+</body></html>`)
+})
+</pre>
+<aside class="warn"><p>Trang <code>/docs</code> cho bản thật thường nên tắt, hoặc chặn sau đăng nhập nội bộ. Nó không làm API kém an toàn hơn (API phải tự an toàn), nhưng không cần cho cả thế giới xem bản đồ API của bạn.</p></aside>
+
+<h2>Chọn gì?</h2>
+<ul>
+<li><b>Dự án mới, đội nhỏ:</b> thư viện chuẩn hoặc Chi. Ít phụ thuộc, code của bạn dùng được mãi.</li>
+<li><b>Công ty đã dùng Gin / Echo:</b> theo công ty. Giữ framework ở lớp handler.</li>
+<li><b>Có đội frontend riêng, API nhiều:</b> spec-first với oapi-codegen, frontend sinh kiểu từ cùng file.</li>
+<li><b>Tránh:</b> framework "làm tất cả" kiểu Rails (Beego, Buffalo) cho API mới. Cộng đồng Go thích ghép các thư viện nhỏ.</li>
+</ul>
+
+<quiz q="Trong handler Gin, gọi c.JSON(400, ...) khi lỗi validate rồi quên return. Chuyện gì xảy ra?">
+- Gin tự dừng handler sau c.JSON
++ Code phía dưới vẫn chạy, có thể ghi tiếp dữ liệu sai vào database và cố ghi response thứ hai (Gin in cảnh báo "headers were already written")
+- Trình biên dịch báo lỗi
+? c.JSON chỉ ghi response. Muốn dừng phải return. Trong middleware thì dùng c.Abort... để các handler sau không chạy.
+</quiz>
+<quiz q="API trả Access-Control-Allow-Origin: * và frontend gửi kèm cookie (credentials: 'include'). Kết quả?">
+- Chạy bình thường
++ Trình duyệt chặn: khi gửi kèm credentials, server phải trả đúng một origin cụ thể, không được dùng *
+- Server chặn request
+? Đây là quy định của trình duyệt. Server phải đối chiếu Origin với danh sách cho phép và trả lại đúng origin đó, kèm Access-Control-Allow-Credentials: true.
+</quiz>
+<quiz q="Ưu điểm lớn nhất của spec-first (oapi-codegen strict server) so với chú thích swag?">
+- Chạy nhanh hơn
++ Code server sinh ra từ spec, nên thiếu hoặc sai endpoint là lỗi biên dịch. Tài liệu không thể lệch với code
+- Không cần viết test
+? Với swag, chú thích chỉ là ghi chú, đổi code mà quên sửa chú thích thì tài liệu sai mà không ai biết.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Viết lại API lớp học bằng Gin, có lỗi tiếng Việt theo trường</summary>
+<p>Viết API Gin có <code>POST /api/v1/classes</code> và <code>GET /api/v1/classes/:id</code>, lưu trong bộ nhớ (map có mutex). Yêu cầu:</p>
+<ul>
+<li>Tên bắt buộc 1 đến 60 ký tự, sĩ số 1 đến 80, năm học dạng <code>2026-2027</code>.</li>
+<li>Lỗi validate trả 422 với <code>fields</code> theo tên JSON, câu tiếng Việt.</li>
+<li>Không tìm thấy trả 404 theo định dạng <code>{error:{code,message}}</code>.</li>
+</ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Năm học: tag <code>binding:"required,len=9"</code> rồi tự kiểm tra thêm năm sau = năm trước + 1. Hoặc đăng ký validator riêng.</li>
+<li>Đăng ký tên trường theo tag json: lấy validator của Gin bằng <code>binding.Validator.Engine().(*validator.Validate)</code>.</li>
+<li>Map lưu lớp: <code>map[int64]Class</code> + <code>sync.Mutex</code> + bộ đếm id. Gin chạy mỗi request ở một goroutine nên bắt buộc có mutex.</li>
+<li>Đăng ký validator riêng: <code>v.RegisterValidation("schoolyear", func(fl validator.FieldLevel) bool {...})</code>, rồi dùng tag <code>binding:"required,schoolyear"</code>.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="sh">
+mkdir gin-class && cd gin-class
+go mod init ginclass
+go get github.com/gin-gonic/gin
+</pre>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "errors"
+    "net/http"
+    "reflect"
+    "strconv"
+    "strings"
+    "sync"
+
+    "github.com/gin-gonic/gin"
+    "github.com/gin-gonic/gin/binding"
+    "github.com/go-playground/validator/v10"
+)
+
+type Class struct {
+    ID         int64  `json:"id"`
+    Name       string `json:"name" binding:"required,min=1,max=60"`
+    Capacity   int    `json:"capacity" binding:"required,gte=1,lte=80"`
+    SchoolYear string `json:"schoolYear" binding:"required,schoolyear"`
+}
+
+var msgs = map[string]string{
+    "required":   "Không được để trống",
+    "min":        "Quá ngắn",
+    "max":        "Quá dài (tối đa {p} ký tự)",
+    "gte":        "Tối thiểu {p}",
+    "lte":        "Tối đa {p}",
+    "schoolyear": "Năm học dạng 2026-2027",
+}
+
+func schoolYear(fl validator.FieldLevel) bool {
+    a, b, ok := strings.Cut(fl.Field().String(), "-")
+    y1, e1 := strconv.Atoi(a)
+    y2, e2 := strconv.Atoi(b)
+    return ok && e1 == nil && e2 == nil && len(a) == 4 && y2 == y1+1
+}
+
+type store struct {
+    mu     sync.Mutex
+    nextID int64
+    m      map[int64]Class
+}
+
+func apiErr(c *gin.Context, status int, code, msg string) {
+    c.JSON(status, gin.H{"error": gin.H{"code": code, "message": msg}})
+}
+
+func main() {
+    if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+        v.RegisterTagNameFunc(func(f reflect.StructField) string {
+            return strings.Split(f.Tag.Get("json"), ",")[0]
+        })
+        v.RegisterValidation("schoolyear", schoolYear)
+    }
+
+    s := &store{m: map[int64]Class{}}
+    r := gin.New()
+    r.Use(gin.Recovery())
+    v1 := r.Group("/api/v1")
+
+    v1.POST("/classes", func(c *gin.Context) {
+        var in Class
+        if err := c.ShouldBindJSON(&in); err != nil {
+            var ve validator.ValidationErrors
+            if !errors.As(err, &ve) {
+                apiErr(c, 400, "BAD_JSON", "Dữ liệu gửi lên không đúng")
+                return
+            }
+            fields := gin.H{}
+            for _, fe := range ve {
+                m := msgs[fe.Tag()]
+                if m == "" {
+                    m = "Không hợp lệ"
+                }
+                fields[fe.Field()] = strings.ReplaceAll(m, "{p}", fe.Param())
+            }
+            c.JSON(422, gin.H{"error": gin.H{"code": "VALIDATION", "message": "Vui lòng kiểm tra lại", "fields": fields}})
+            return
+        }
+        s.mu.Lock()
+        s.nextID++
+        in.ID = s.nextID
+        s.m[in.ID] = in
+        s.mu.Unlock()
+        c.JSON(http.StatusCreated, in)
+    })
+
+    v1.GET("/classes/:id", func(c *gin.Context) {
+        id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+        if err != nil {
+            apiErr(c, 400, "BAD_ID", "Mã lớp không hợp lệ")
+            return
+        }
+        s.mu.Lock()
+        cls, ok := s.m[id]
+        s.mu.Unlock()
+        if !ok {
+            apiErr(c, 404, "NOT_FOUND", "Không tìm thấy lớp")
+            return
+        }
+        c.JSON(200, cls)
+    })
+
+    r.Run(":8080")
+}
+</pre>
+<pre lang="out" sim="1">
+$ curl -s -X POST localhost:8080/api/v1/classes -d '{"name":"","capacity":90,"schoolYear":"2026-2028"}'
+{"error":{"code":"VALIDATION","fields":{"capacity":"Tối đa 80","name":"Không được để trống","schoolYear":"Năm học dạng 2026-2027"},"message":"Vui lòng kiểm tra lại"}}
+
+$ curl -s -X POST localhost:8080/api/v1/classes -d '{"name":"Lớp 5A","capacity":30,"schoolYear":"2026-2027"}'
+{"id":1,"name":"Lớp 5A","capacity":30,"schoolYear":"2026-2027"}
+
+$ curl -s localhost:8080/api/v1/classes/7
+{"error":{"code":"NOT_FOUND","message":"Không tìm thấy lớp"}}
+</pre>
+<p><b>Giải thích:</b> lần đầu sai cả ba trường nên <code>fields</code> có ba câu, mỗi câu gắn đúng tên JSON. <code>gin.H</code> là map nên các khoá được in theo thứ tự chữ cái. <code>{p}</code> được thay bằng tham số của tag (80). Lần hai đúng nên được tạo với id 1. Lần ba hỏi lớp 7 chưa có nên trả 404.</p>
+</details>
+</details>
+
+<details class="ex"><summary>Viết openapi.yaml cho API nộp bài và sinh kiểu TypeScript</summary>
+<p>Viết spec cho <code>GET /assignments?classId=&amp;page=</code> (trả danh sách có phân trang) và <code>POST /assignments/{id}/submit</code> (body: danh sách khoá ảnh, trả 201 hoặc 409 nếu đã chấm). Sinh kiểu TypeScript và viết một lời gọi.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Tham số query: <code>in: query</code>. <code>classId</code> bắt buộc, <code>page</code> không bắt buộc, mặc định 1.</li>
+<li>Response phân trang: object có <code>items</code> (mảng <code>Assignment</code>), <code>page</code>, <code>totalPages</code>.</li>
+<li>Body: <code>requestBody</code> với schema có <code>fileKeys</code>: mảng string, <code>minItems: 1</code>, <code>maxItems: 5</code>.</li>
+<li>Dùng lại schema <code>Error</code> cho 409 bằng <code>$ref</code>.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="yaml" file="openapi.yaml">
+openapi: 3.0.3
+info: { title: Sổ bài tập API, version: 1.0.0 }
+paths:
+  /assignments:
+    get:
+      operationId: listAssignments
+      parameters:
+        - { name: classId, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+      responses:
+        "200":
+          description: Một trang bài tập
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, totalPages]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Assignment" } }
+                  page: { type: integer }
+                  totalPages: { type: integer }
+  /assignments/{id}/submit:
+    post:
+      operationId: submitAssignment
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileKeys]
+              properties:
+                fileKeys: { type: array, minItems: 1, maxItems: 5, items: { type: string, maxLength: 120 } }
+      responses:
+        "201": { description: Đã nộp }
+        "409":
+          description: Bài đã được chấm, không nộp lại được
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+components:
+  schemas:
+    Assignment:
+      type: object
+      required: [id, title, dueDate]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string, maxLength: 200 }
+        dueDate: { type: string, format: date }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties: { code: { type: string }, message: { type: string } }
+</pre>
+<pre lang="sh">
+npx openapi-typescript openapi.yaml -o schema.d.ts
+</pre>
+<pre lang="out" sim="1">
+$ npx openapi-typescript openapi.yaml -o schema.d.ts
+✨ openapi-typescript 7.x
+🚀 openapi.yaml → schema.d.ts [41ms]
+</pre>
+<pre lang="ts" file="submit.ts">
+import createClient from "openapi-fetch";
+import type { paths } from "./schema";
+
+const api = createClient<paths>({ baseUrl: "/api/v1" });
+
+const { error, response } = await api.POST("/assignments/{id}/submit", {
+  params: { path: { id: 9 } },
+  body: { fileKeys: ["sub/9/a.jpg"] },
+});
+if (response.status === 409) {
+  alert(error?.error.message); // "Bài đã được chấm..." — kiểu đã biết có error.message
+}
+</pre>
+<p><b>Giải thích:</b> <code>openapi-fetch</code> đọc kiểu <code>paths</code> sinh từ spec, nên <code>body</code> thiếu <code>fileKeys</code> hay gõ sai đường dẫn đều bị TypeScript báo lỗi trước khi chạy. Backend đổi spec (ví dụ đổi tên trường) thì chạy lại lệnh sinh kiểu, mọi chỗ dùng sai hiện đỏ.</p>
+</details>
+</details>

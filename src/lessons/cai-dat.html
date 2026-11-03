@@ -6,7 +6,7 @@ go version        # in ra phiên bản, ví dụ: go version go1.2x darwin/arm64
 </pre>
 <p>Lộ trình này dùng các tính năng có từ <b>Go 1.22</b> trở lên (định tuyến mới của <code>net/http</code>, vòng lặp <code>for i := range 10</code>). Cài bản mới nhất là đủ.</p>
 <p><b>Trình soạn thảo:</b> VS Code + tiện ích <i>Go</i> (của nhóm Go tại Google). Nó cài <code>gopls</code> (giống TypeScript language server), tự định dạng và tự thêm import khi lưu file. GoLand của JetBrains cũng rất tốt nếu bạn quen WebStorm.</p>
-<aside class="tip"><p>Chưa muốn cài? Mở <a href="https://go.dev/play/" target="_blank" rel="noopener">go.dev/play</a> và dán code của các bài 02 đến 07 vào chạy thử. Từ bài 08 trở đi bạn sẽ cần máy thật.</p></aside>
+<aside class="tip"><p>Chưa muốn cài? Mở <a href="https://go.dev/play/" target="_blank" rel="noopener">go.dev/play</a> và dán code của các bài {{n:bien-kieu}} đến 07 vào chạy thử. Từ bài {{n:package-module}} trở đi bạn sẽ cần máy thật.</p></aside>
 
 <h2>Chương trình đầu tiên</h2>
 <p>Mở terminal và làm đúng ba bước sau.</p>
@@ -239,7 +239,7 @@ exit status 1
 <p><b>Giải thích</b></p>
 <ul>
 <li><code>n, err := strconv.Atoi(...)</code>: một hàm Go trả về nhiều giá trị cùng lúc, gán vào nhiều biến bằng dấu phẩy. Giống destructuring <code>const [n, err] = atoi(...)</code> trong JS.</li>
-<li><code>if err != nil</code>: <code>nil</code> giống <code>null</code>. Lỗi khác <code>nil</code> nghĩa là có lỗi. Bạn sẽ gặp hai dòng này ở khắp mọi nơi trong code Go (bài 07 nói kỹ).</li>
+<li><code>if err != nil</code>: <code>nil</code> giống <code>null</code>. Lỗi khác <code>nil</code> nghĩa là có lỗi. Bạn sẽ gặp hai dòng này ở khắp mọi nơi trong code Go (bài {{n:xu-ly-loi}} nói kỹ).</li>
 <li><code>os.Exit(1)</code>: kết thúc chương trình ngay. Số 0 là thành công, khác 0 là lỗi. Các công cụ như CI dựa vào số này để biết lệnh chạy được hay không.</li>
 </ul>
 <p><b>Muốn thử trên Go Playground</b> (không có tham số): thay hai dòng đọc <code>os.Args</code> bằng giá trị gõ sẵn:</p>

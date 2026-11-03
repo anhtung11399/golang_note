@@ -1,0 +1,690 @@
+<h2>Ba cách nói chuyện với database</h2>
+<p>Bài {{n:go-postgres}} viết SQL tay với <code>pgx</code> và giới thiệu sơ qua sqlc. Bài này đi sâu vào hai công cụ bạn gần như chắc chắn gặp ở công ty: <b>sqlc</b> (SQL thuần, sinh code) và <b>GORM</b> (ORM phổ biến nhất của Go), cùng cách chạy migration an toàn.</p>
+<arch w="900" h="250" caption="Từ trái qua phải: càng tự động thì càng ít code, nhưng càng khó thấy câu SQL thật sự được chạy">
+group 20 30 270 200 proc "SQL tay (pgx)"
+group 315 30 270 200 proc "Sinh code (sqlc)"
+group 610 30 270 200 proc "ORM (GORM)"
+node a1 80 100 file "query.sql" "bạn viết"
+node a2 230 100 goapi "Scan tay" "rows.Scan(&a, &b)"
+node b1 375 100 file "query.sql" "bạn viết"
+node b2 525 100 sqlc "Code Go" "sinh ra, có kiểu"
+node c1 670 100 gorm "Model struct" "bạn viết"
+node c2 820 100 pg "SQL ẩn" "ORM tự sinh"
+edge a1 a2 ""
+edge b1 b2 "generate" c=go
+edge c1 c2 "lúc chạy" c=bad
+text 155 200 "nhiều code lặp" small
+text 450 200 "SQL rõ, kiểm tra lúc sinh" small
+text 745 200 "ít code, SQL khó đoán" small
+</arch>
+
+<h2>sqlc từ đầu đến cuối</h2>
+<h3>1. Cài và cấu hình</h3>
+<pre lang="sh">
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+# hoặc: brew install sqlc
+mkdir sqlcdemo && cd sqlcdemo && go mod init sqlcdemo
+go get github.com/jackc/pgx/v5
+</pre>
+<pre lang="text" file="cấu trúc thư mục">
+sqlcdemo/
+├── sqlc.yaml
+├── migrations/
+│   └── 00001_init.sql      ← lược đồ (sqlc đọc file này để biết bảng, cột)
+├── queries/
+│   ├── classes.sql         ← câu SQL bạn viết, có chú thích tên hàm
+│   └── assignments.sql
+└── internal/db/            ← sqlc sinh ra ở đây, KHÔNG sửa tay
+    ├── db.go
+    ├── models.go
+    ├── classes.sql.go
+    └── assignments.sql.go
+</pre>
+<pre lang="yaml" file="sqlc.yaml">
+version: "2"
+sql:
+  - engine: postgresql
+    schema: migrations        # đọc mọi file migration (hiểu cả cú pháp goose: chỉ lấy phần Up)
+    queries: queries
+    gen:
+      go:
+        package: db
+        out: internal/db
+        sql_package: pgx/v5         # dùng pgx thay vì database/sql
+        emit_json_tags: true        # struct có tag json
+        emit_empty_slices: true     # :many không có dòng nào → [] thay vì nil (JSON ra [] thay vì null)
+        emit_pointers_for_null_types: true  # cột NULL được → *string, *int32 thay vì pgtype.Text
+        overrides:
+          - db_type: timestamptz
+            go_type: time.Time
+</pre>
+
+<h3>2. Lược đồ và câu truy vấn</h3>
+<pre lang="sql" file="migrations/00001_init.sql">
+-- +goose Up
+CREATE TABLE classes (
+    id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    teacher_id bigint NOT NULL,
+    name       text NOT NULL,
+    capacity   int NOT NULL CHECK (capacity BETWEEN 1 AND 80),
+    note       text,                                  -- được NULL
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE assignments (
+    id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    class_id  bigint NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    title     text NOT NULL,
+    due_date  date NOT NULL
+);
+CREATE INDEX ON assignments (class_id, due_date);
+
+-- +goose Down
+DROP TABLE assignments;
+DROP TABLE classes;
+</pre>
+<pre lang="sql" file="queries/classes.sql">
+-- name: GetClass :one
+SELECT * FROM classes
+WHERE id = $1 AND teacher_id = $2;
+
+-- name: ListClasses :many
+SELECT id, name, capacity FROM classes
+WHERE teacher_id = $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CreateClass :one
+INSERT INTO classes (teacher_id, name, capacity, note)
+VALUES (@teacher_id, @name, @capacity, sqlc.narg(note))
+RETURNING *;
+
+-- name: RenameClass :execrows
+UPDATE classes SET name = @name
+WHERE id = @id AND teacher_id = @teacher_id;
+
+-- name: ClassStats :many
+SELECT c.id, c.name, count(a.id) AS assignment_count
+FROM classes c
+LEFT JOIN assignments a ON a.class_id = c.id
+WHERE c.teacher_id = $1
+GROUP BY c.id
+ORDER BY c.name;
+
+-- name: ClassesByIDs :many
+SELECT id, name FROM classes WHERE id = ANY(@ids::bigint[]);
+</pre>
+<p>Chú thích <code>-- name: TênHàm :kiểu</code> báo cho sqlc tên hàm Go và kiểu kết quả:</p>
+<table>
+<tr><th>Kiểu</th><th>Hàm Go trả về</th></tr>
+<tr><td><code>:one</code></td><td>một struct, không có dòng thì lỗi <code>pgx.ErrNoRows</code></td></tr>
+<tr><td><code>:many</code></td><td>slice struct</td></tr>
+<tr><td><code>:exec</code></td><td>chỉ <code>error</code></td></tr>
+<tr><td><code>:execrows</code></td><td><code>(int64, error)</code>: số dòng bị ảnh hưởng (để biết UPDATE có trúng không)</td></tr>
+<tr><td><code>:copyfrom</code></td><td>chèn hàng loạt bằng lệnh COPY (rất nhanh)</td></tr>
+<tr><td><code>:batchexec</code>, <code>:batchmany</code></td><td>gửi nhiều câu trong một lượt mạng (pgx batch)</td></tr>
+</table>
+<p>Tham số: <code>$1</code> thì sqlc tự đặt tên theo cột. <code>@name</code> đặt tên rõ ràng. <code>sqlc.narg(note)</code> là tham số được phép NULL (thành <code>*string</code>). <code>@ids::bigint[]</code> với <code>ANY</code> là cách truyền danh sách, thay cho <code>IN (...)</code>.</p>
+
+<h3>3. Sinh code</h3>
+<pre lang="out" sim="1">
+$ sqlc generate
+$ ls internal/db
+assignments.sql.go  classes.sql.go  db.go  models.go
+</pre>
+<p>Lệnh không in gì nghĩa là thành công. Một phần code sinh ra trông như sau (để bạn biết nó làm gì, không cần nhớ):</p>
+<pre lang="go" file="internal/db/classes.sql.go (trích, do sqlc sinh)">
+const getClass = `-- name: GetClass :one
+SELECT id, teacher_id, name, capacity, note, created_at FROM classes
+WHERE id = $1 AND teacher_id = $2
+`
+
+type GetClassParams struct {
+    ID        int64 `json:"id"`
+    TeacherID int64 `json:"teacher_id"`
+}
+
+func (q *Queries) GetClass(ctx context.Context, arg GetClassParams) (Class, error) {
+    row := q.db.QueryRow(ctx, getClass, arg.ID, arg.TeacherID)
+    var i Class
+    err := row.Scan(&i.ID, &i.TeacherID, &i.Name, &i.Capacity, &i.Note, &i.CreatedAt)
+    return i, err
+}
+
+type ClassStatsRow struct {
+    ID              int64  `json:"id"`
+    Name            string `json:"name"`
+    AssignmentCount int64  `json:"assignment_count"`
+}
+</pre>
+<p>Để ý: <code>SELECT *</code> được sqlc đổi thành danh sách cột cụ thể. Thêm cột vào bảng sau này thì chạy lại <code>sqlc generate</code>, không bao giờ lệch thứ tự Scan.</p>
+<p>Khi gõ sai tên cột, sqlc báo ngay lúc sinh code, trước khi chương trình chạy:</p>
+<pre lang="out" sim="1">
+$ sqlc generate
+queries/classes.sql:9:8: column "capacty" does not exist
+</pre>
+
+<h3>4. Dùng trong store</h3>
+<pre lang="go" file="store.go" check="no">
+package store
+
+import (
+    "context"
+    "errors"
+
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+
+    "sqlcdemo/internal/db"
+)
+
+var ErrNotFound = errors.New("không tìm thấy")
+
+type ClassStore struct {
+    pool *pgxpool.Pool
+    q    *db.Queries
+}
+
+func New(pool *pgxpool.Pool) *ClassStore {
+    return &ClassStore{pool: pool, q: db.New(pool)}
+}
+
+func (s *ClassStore) Get(ctx context.Context, teacherID, id int64) (db.Class, error) {
+    c, err := s.q.GetClass(ctx, db.GetClassParams{ID: id, TeacherID: teacherID})
+    if errors.Is(err, pgx.ErrNoRows) {
+        return db.Class{}, ErrNotFound // không để lỗi của pgx lọt ra ngoài store
+    }
+    return c, err
+}
+
+func (s *ClassStore) Rename(ctx context.Context, teacherID, id int64, name string) error {
+    n, err := s.q.RenameClass(ctx, db.RenameClassParams{Name: name, ID: id, TeacherID: teacherID})
+    if err != nil {
+        return err
+    }
+    if n == 0 {
+        return ErrNotFound // không phải lớp của giáo viên này, hoặc không tồn tại
+    }
+    return nil
+}
+
+// Transaction: q.WithTx(tx) cho một Queries chạy trong transaction
+func (s *ClassStore) CreateWithFirstAssignment(ctx context.Context, teacherID int64, name, title string) error {
+    tx, err := s.pool.Begin(ctx)
+    if err != nil {
+        return err
+    }
+    defer tx.Rollback(ctx) // đã Commit thì Rollback không làm gì
+
+    q := s.q.WithTx(tx)
+    c, err := q.CreateClass(ctx, db.CreateClassParams{TeacherID: teacherID, Name: name, Capacity: 30})
+    if err != nil {
+        return err
+    }
+    if _, err := q.CreateAssignment(ctx, db.CreateAssignmentParams{ClassID: c.ID, Title: title}); err != nil {
+        return err
+    }
+    return tx.Commit(ctx)
+}
+</pre>
+<aside class="tip"><p>Không trả thẳng struct <code>db.Class</code> ra JSON của API nếu nó có cột nội bộ (<code>teacher_id</code>, <code>password_hash</code>). Ở lớp handler, chép sang một struct DTO chỉ có các trường muốn lộ ra. Nhiều đội đặt luật: <code>internal/db</code> chỉ được import trong <code>store</code>.</p></aside>
+
+<h3>5. Truy vấn động: lọc tuỳ chọn</h3>
+<p>Điểm yếu của sqlc: câu SQL cố định, không ghép thêm điều kiện lúc chạy được. Với bộ lọc tuỳ chọn (tìm theo tên nếu có, lọc theo môn nếu có), có ba cách:</p>
+<pre lang="sql" file="queries/assignments.sql">
+-- Cách 1: tham số NULL được = bỏ qua điều kiện
+-- name: SearchAssignments :many
+SELECT * FROM assignments
+WHERE class_id = @class_id
+  AND (sqlc.narg(title)::text IS NULL OR title ILIKE '%' || sqlc.narg(title) || '%')
+  AND (sqlc.narg(due_from)::date IS NULL OR due_date >= sqlc.narg(due_from))
+ORDER BY due_date DESC
+LIMIT 20;
+</pre>
+<ul>
+<li><b>Cách 1</b> (ở trên): gọn, đủ cho bảng vừa. Nhưng như bài {{n:toi-uu-query}} đã cảnh báo, <code>(x IS NULL OR cột = x)</code> có thể làm Postgres không dùng được index tốt. Luôn có ít nhất một điều kiện cố định có index (<code>class_id</code>) để thu hẹp trước.</li>
+<li><b>Cách 2</b>: viết vài câu riêng cho vài tổ hợp hay dùng.</li>
+<li><b>Cách 3</b>: với màn tìm kiếm thật sự động (quản trị, báo cáo), dùng bộ ghép SQL như <code>squirrel</code> hoặc <code>goqu</code> cho riêng chỗ đó, cùng project vẫn dùng sqlc cho phần còn lại.</li>
+</ul>
+<pre lang="go">
+import sq "github.com/Masterminds/squirrel"
+
+psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar) // Postgres dùng $1, $2
+
+q := psql.Select("id", "title", "due_date").From("assignments").Where(sq.Eq{"class_id": classID})
+if f.Title != "" {
+    q = q.Where(sq.ILike{"title": "%" + f.Title + "%"})
+}
+if !f.DueFrom.IsZero() {
+    q = q.Where(sq.GtOrEq{"due_date": f.DueFrom})
+}
+sqlStr, args, err := q.OrderBy("due_date DESC").Limit(20).ToSql()
+// SELECT id, title, due_date FROM assignments WHERE class_id = $1 AND title ILIKE $2 ORDER BY due_date DESC LIMIT 20
+rows, err := pool.Query(ctx, sqlStr, args...)
+</pre>
+<aside class="warn"><p>Tên cột trong <code>OrderBy</code> do người dùng chọn (sắp xếp theo cột nào) <b>không</b> được truyền thẳng: đó vẫn là ghép chuỗi SQL. Đối chiếu với danh sách cho phép: <code>map[string]string{"due": "due_date", "title": "title"}</code>.</p></aside>
+
+<h2>GORM</h2>
+<p>GORM là ORM: bạn khai báo struct, GORM tự sinh câu SQL. Rất nhiều dự án Go ở Việt Nam dùng GORM, nhất là hệ thống quản trị, CRUD nhiều bảng.</p>
+<pre lang="sh">
+go get gorm.io/gorm gorm.io/driver/postgres
+</pre>
+<h3>Model</h3>
+<pre lang="go">
+type Class struct {
+    ID          int64      `gorm:"primaryKey"`
+    TeacherID   int64      `gorm:"not null;index"`
+    Name        string     `gorm:"size:60;not null"`
+    Capacity    int        `gorm:"not null;check:capacity BETWEEN 1 AND 80"`
+    Note        *string    // con trỏ: được NULL
+    Assignments []Assignment // quan hệ 1 - n (GORM đoán khoá ngoại ClassID)
+    CreatedAt   time.Time  // GORM tự điền khi tạo
+    UpdatedAt   time.Time  // GORM tự điền khi sửa
+    DeletedAt   gorm.DeletedAt `gorm:"index"` // có trường này = "xoá mềm" (xem bẫy bên dưới)
+}
+
+type Assignment struct {
+    ID      int64     `gorm:"primaryKey"`
+    ClassID int64     `gorm:"not null;index"`
+    Title   string    `gorm:"size:200;not null"`
+    DueDate time.Time `gorm:"type:date;not null"`
+}
+</pre>
+<p>Quy ước tên: struct <code>Class</code> → bảng <code>classes</code>, trường <code>TeacherID</code> → cột <code>teacher_id</code>. Đổi tên bảng: thêm method <code>func (Class) TableName() string { return "lop_hoc" }</code>.</p>
+
+<h3>Kết nối và các thao tác cơ bản</h3>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "fmt"
+    "log"
+    "os"
+    "time"
+
+    "gorm.io/driver/postgres"
+    "gorm.io/gorm"
+    "gorm.io/gorm/logger"
+)
+
+// ... type Class, Assignment như trên
+
+func main() {
+    db, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{
+        Logger: logger.Default.LogMode(logger.Info), // IN mọi câu SQL GORM chạy: bật khi học / gỡ lỗi
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    sqlDB, _ := db.DB() // pool bên dưới, cấu hình như bài trước
+    sqlDB.SetMaxOpenConns(20)
+
+    // Tạo
+    c := Class{TeacherID: 7, Name: "Lớp 5A", Capacity: 30}
+    db.Create(&c) // c.ID được điền sau khi chèn
+    fmt.Println("id mới:", c.ID)
+
+    // Đọc một
+    var got Class
+    if err := db.First(&got, c.ID).Error; err != nil { // không có → gorm.ErrRecordNotFound
+        log.Fatal(err)
+    }
+
+    // Đọc nhiều có điều kiện
+    var list []Class
+    db.Where("teacher_id = ? AND capacity >= ?", 7, 20).Order("name").Limit(20).Find(&list)
+
+    // Sửa vài cột
+    db.Model(&got).Updates(map[string]any{"name": "Lớp 5A1", "capacity": 32})
+
+    // Xoá
+    db.Delete(&got)
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run .
+[2.1ms] [rows:1] INSERT INTO "classes" ("teacher_id","name","capacity","note","created_at","updated_at","deleted_at") VALUES (7,'Lớp 5A',30,NULL,'2026-11-03 10:12:00.12','2026-11-03 10:12:00.12',NULL) RETURNING "id"
+id mới: 1
+[0.6ms] [rows:1] SELECT * FROM "classes" WHERE "classes"."id" = 1 AND "classes"."deleted_at" IS NULL ORDER BY "classes"."id" LIMIT 1
+[0.5ms] [rows:1] SELECT * FROM "classes" WHERE (teacher_id = 7 AND capacity >= 20) AND "classes"."deleted_at" IS NULL ORDER BY name LIMIT 20
+[1.3ms] [rows:1] UPDATE "classes" SET "capacity"=32,"name"='Lớp 5A1',"updated_at"='2026-11-03 10:12:00.13' WHERE "classes"."deleted_at" IS NULL AND "id" = 1
+[1.1ms] [rows:1] UPDATE "classes" SET "deleted_at"='2026-11-03 10:12:00.14' WHERE "classes"."id" = 1 AND "classes"."deleted_at" IS NULL
+</pre>
+<p><b>Giải thích:</b> bật <code>logger.Info</code> để thấy GORM thật sự chạy gì. Mỗi câu đọc đều có thêm <code>deleted_at IS NULL</code> vì model có trường <code>DeletedAt</code>. Dòng cuối: <code>db.Delete</code> <b>không xoá</b> mà chỉ ghi ngày xoá (xoá mềm). Tham số hiện thẳng trong log chỉ để dễ đọc, câu thật gửi đi vẫn dùng tham số <code>$1, $2</code>.</p>
+
+<h3>Năm cái bẫy của GORM</h3>
+<p><b>Bẫy 1: Updates bằng struct bỏ qua giá trị 0.</b></p>
+<pre lang="go" mark="bad">
+db.Model(&c).Updates(Class{Name: "5A", Capacity: 0}) // capacity KHÔNG được cập nhật
+// UPDATE "classes" SET "name"='5A',"updated_at"=... WHERE id = 1
+</pre>
+<p>GORM coi <code>0</code>, <code>""</code>, <code>false</code> là "không đặt". Muốn ghi giá trị 0, dùng <code>map[string]any</code> hoặc <code>Select("capacity", "name").Updates(...)</code>.</p>
+
+<p><b>Bẫy 2: N+1 khi đọc quan hệ.</b></p>
+<pre lang="go" mark="bad">
+var classes []Class
+db.Find(&classes)
+for i := range classes {
+    db.Where("class_id = ?", classes[i].ID).Find(&classes[i].Assignments) // 1 câu mỗi lớp!
+}
+</pre>
+<pre lang="go" mark="good">
+db.Preload("Assignments").Find(&classes)
+// SELECT * FROM classes WHERE deleted_at IS NULL
+// SELECT * FROM assignments WHERE class_id IN (1,2,3,...)   ← chỉ 2 câu
+</pre>
+<p><code>Preload</code> chạy 2 câu. <code>Joins("Teacher")</code> chạy 1 câu JOIN (chỉ dùng cho quan hệ 1 - 1 hoặc n - 1).</p>
+
+<p><b>Bẫy 3: Xoá mềm làm UNIQUE vướng.</b> Có <code>DeletedAt</code> thì dòng "đã xoá" vẫn nằm trong bảng. Ràng buộc <code>UNIQUE(email)</code> sẽ chặn đăng ký lại cùng email. Sửa bằng index có điều kiện: <code>CREATE UNIQUE INDEX ON users (email) WHERE deleted_at IS NULL</code>. Muốn xoá thật: <code>db.Unscoped().Delete(&c)</code>.</p>
+
+<p><b>Bẫy 4: Quên kiểm tra lỗi.</b> Mọi lệnh GORM trả về <code>*gorm.DB</code>, lỗi nằm ở <code>.Error</code>. Rất dễ viết <code>db.Create(&c)</code> rồi quên. Luôn viết <code>if err := db.Create(&c).Error; err != nil</code>.</p>
+
+<p><b>Bẫy 5: Where bằng chuỗi ghép.</b></p>
+<pre lang="go" mark="bad">
+db.Where("name = '" + name + "'").Find(&list)   // SQL injection
+db.Order(r.URL.Query().Get("sort")).Find(&list) // cũng là injection
+</pre>
+<pre lang="go" mark="good">
+db.Where("name = ?", name).Find(&list)          // tham số
+db.Where(&Class{Name: name}).Find(&list)        // struct (bỏ qua giá trị rỗng)
+</pre>
+
+<h3>Transaction và khoá dòng trong GORM</h3>
+<pre lang="go">
+err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+    var c Class
+    // SELECT ... FOR UPDATE: khoá dòng như bài trước
+    if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&c, classID).Error; err != nil {
+        return err
+    }
+    var n int64
+    tx.Model(&Enrollment{}).Where("class_id = ?", c.ID).Count(&n)
+    if int(n) >= c.Capacity {
+        return ErrClassFull // trả lỗi → GORM tự Rollback
+    }
+    return tx.Create(&Enrollment{ClassID: c.ID, StudentID: studentID}).Error // nil → Commit
+})
+</pre>
+<p>Nhớ <code>WithContext(ctx)</code>: không có thì truy vấn không bị huỷ khi client ngắt kết nối hoặc hết timeout.</p>
+<aside class="warn"><p>Đừng dùng <code>db.AutoMigrate(&Class{})</code> trên production. Nó chỉ thêm, không xoá, không đổi tên, và bạn không kiểm soát được thứ tự hay câu lệnh khoá bảng. Dùng file migration (phần dưới), <code>AutoMigrate</code> chỉ để thử nhanh trên máy.</p></aside>
+
+<h2>So sánh và chọn</h2>
+<table>
+<tr><th></th><th>pgx tay</th><th>sqlc</th><th>GORM</th></tr>
+<tr><td>Viết SQL</td><td>có</td><td>có</td><td>ít (ORM sinh)</td></tr>
+<tr><td>Lỗi tên cột phát hiện</td><td>lúc chạy</td><td>lúc sinh code</td><td>lúc chạy</td></tr>
+<tr><td>Truy vấn động</td><td>tự ghép (cẩn thận)</td><td>yếu, dùng kèm squirrel</td><td>mạnh</td></tr>
+<tr><td>Thấy rõ SQL</td><td>rõ nhất</td><td>rõ</td><td>phải bật log</td></tr>
+<tr><td>Hiệu năng</td><td>tốt nhất</td><td>như pgx tay</td><td>chậm hơn chút (reflection), hay bị N+1</td></tr>
+<tr><td>Hợp với</td><td>vài truy vấn đặc biệt</td><td>API dịch vụ, đội rành SQL</td><td>CRUD nhiều bảng, trang quản trị</td></tr>
+</table>
+<aside class="real"><p>Bức tranh thường gặp: dịch vụ mới dùng sqlc + pgx, dự án cũ dùng GORM. Kỹ năng quan trọng không phải công cụ mà là <b>đọc được câu SQL thật</b>: với GORM, bật log và chạy <code>EXPLAIN</code> những câu chậm, y như bài {{n:toi-uu-query}}.</p></aside>
+
+<h2>Migration trong thực tế</h2>
+<p>Hai công cụ phổ biến: <b>goose</b> và <b>golang-migrate</b>. Cả hai đều lưu bảng ghi lại migration nào đã chạy.</p>
+<table>
+<tr><th></th><th>goose</th><th>golang-migrate</th></tr>
+<tr><td>File</td><td>một file, hai phần <code>-- +goose Up</code> / <code>Down</code></td><td>hai file <code>000002_x.up.sql</code>, <code>000002_x.down.sql</code></td></tr>
+<tr><td>Migration bằng Go</td><td>có (khi cần chuyển dữ liệu phức tạp)</td><td>không</td></tr>
+<tr><td>Bảng theo dõi</td><td><code>goose_db_version</code></td><td><code>schema_migrations</code> (có cờ <code>dirty</code>)</td></tr>
+</table>
+
+<h3>Nhúng migration vào binary, chạy khi khởi động</h3>
+<pre lang="go" file="migrate.go" check="no">
+package main
+
+import (
+    "database/sql"
+    "embed"
+
+    _ "github.com/jackc/pgx/v5/stdlib" // driver database/sql cho goose
+    "github.com/pressly/goose/v3"
+)
+
+//go:embed migrations/*.sql
+var migrations embed.FS
+
+func migrate(dsn string) error {
+    db, err := sql.Open("pgx", dsn)
+    if err != nil {
+        return err
+    }
+    defer db.Close()
+    goose.SetBaseFS(migrations)
+    if err := goose.SetDialect("postgres"); err != nil {
+        return err
+    }
+    return goose.Up(db, "migrations") // goose tự giữ khoá trong Postgres: 3 bản server cùng khởi động cũng chỉ một bản chạy
+}
+</pre>
+<p>Hai cách chạy migration khi deploy, chọn một:</p>
+<ul>
+<li><b>Bước riêng trước deploy</b> (nên dùng): CI chạy <code>goose up</code> rồi mới deploy code mới. Migration lỗi thì không deploy. Trên Kubernetes thường là một Job hoặc init container (bài {{n:kubernetes}}).</li>
+<li><b>Khi server khởi động</b>: tiện cho dự án nhỏ, nhưng migration chậm làm server khởi động lâu, health check có thể giết nó giữa chừng.</li>
+</ul>
+
+<h3>Đổi lược đồ không làm gián đoạn (expand / contract)</h3>
+<p>Ví dụ: đổi cột <code>name</code> thành <code>title</code> trên bảng 10 triệu dòng đang có người dùng.</p>
+<arch w="800" h="190" caption="Mỗi bước là một lần deploy. Ở mọi thời điểm, code đang chạy (cũ hoặc mới) đều làm việc được với lược đồ hiện tại">
+node s1 80 80 sqlc "1. Thêm cột" "title NULL"
+node s2 240 80 goapi "2. Code ghi cả hai" "name + title"
+node s3 400 80 worker "3. Chép dữ liệu" "từng lô 5.000"
+node s4 560 80 goapi "4. Code chỉ đọc title" ""
+node s5 720 80 sqlc "5. Xoá cột name" "lần deploy sau"
+edge s1 s2 ""
+edge s2 s3 ""
+edge s3 s4 ""
+edge s4 s5 ""
+text 400 160 "expand (mở rộng) ... contract (thu gọn)" small
+</arch>
+<pre lang="sql" file="migrations/00007_backfill_title.sql">
+-- +goose NO TRANSACTION
+-- +goose Up
+-- Chép từng lô nhỏ để không khoá bảng lâu (chạy lặp tới khi UPDATE 0 dòng, hoặc làm bằng worker Go)
+UPDATE assignments SET title = name
+WHERE id IN (SELECT id FROM assignments WHERE title IS NULL LIMIT 5000);
+
+-- +goose Down
+SELECT 1;
+</pre>
+<table>
+<tr><th>Thao tác</th><th>Trên bảng lớn có an toàn?</th><th>Cách làm an toàn</th></tr>
+<tr><td>Thêm cột NULL được</td><td>an toàn, gần như tức thì</td><td></td></tr>
+<tr><td>Thêm cột NOT NULL có DEFAULT hằng số</td><td>an toàn từ Postgres 11</td><td></td></tr>
+<tr><td>Tạo index</td><td>khoá ghi cả bảng</td><td><code>CREATE INDEX CONCURRENTLY</code> (cần <code>-- +goose NO TRANSACTION</code>)</td></tr>
+<tr><td>Thêm khoá ngoại / CHECK</td><td>quét cả bảng khi đang khoá</td><td>thêm với <code>NOT VALID</code>, rồi <code>VALIDATE CONSTRAINT</code> ở bước sau</td></tr>
+<tr><td>Đổi kiểu cột</td><td>viết lại cả bảng</td><td>expand / contract với cột mới</td></tr>
+<tr><td>Đổi tên / xoá cột</td><td>code cũ đang chạy sẽ lỗi</td><td>expand / contract</td></tr>
+</table>
+<aside class="prod"><p>Đặt <code>SET lock_timeout = '5s'</code> ở đầu migration. Nếu migration phải chờ khoá (vì một truy vấn dài đang chạy), nó tự bỏ sau 5 giây thay vì xếp hàng chờ và làm mọi request khác xếp hàng sau nó, khiến cả trang treo.</p></aside>
+
+<quiz q="Dùng GORM: db.Model(&student).Updates(Student{Score: 0}). Điểm trong database là 7. Sau lệnh, điểm là bao nhiêu?">
+- 0
++ Vẫn 7, vì GORM bỏ qua giá trị 0 khi Updates bằng struct
+- Lỗi vì thiếu trường
+? Muốn ghi 0 thì dùng Updates(map[string]any{"score": 0}) hoặc Select("score").Updates(...). Đây là lỗi rất hay gặp khi chấm điểm 0.
+</quiz>
+<quiz q="sqlc báo lỗi column does not exist. Lỗi này xuất hiện lúc nào?">
++ Lúc chạy sqlc generate, trước khi build chương trình
+- Lúc chương trình chạy câu truy vấn đó lần đầu
+- Lúc Postgres khởi động
+? sqlc phân tích câu SQL dựa trên file migration. Đây là điểm mạnh lớn nhất so với viết SQL tay hay ORM.
+</quiz>
+<quiz q="Cần thêm index cho bảng submissions 12 triệu dòng đang chạy. Câu nào đúng?">
+- CREATE INDEX ... trong một migration bình thường
++ CREATE INDEX CONCURRENTLY ..., chạy ngoài transaction
+- Tắt server, tạo index, bật lại
+? CREATE INDEX thường khoá ghi suốt thời gian tạo (có thể vài phút). CONCURRENTLY chậm hơn nhưng không chặn ghi. Nó không chạy được trong transaction, nên goose cần dòng -- +goose NO TRANSACTION.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Viết store bài tập bằng sqlc</summary>
+<p>Dùng lược đồ ở trên. Viết các truy vấn sqlc và hàm store:</p>
+<ul>
+<li><code>CreateAssignment(classID, title, dueDate)</code></li>
+<li><code>ListDue(classID, from, to)</code>: bài có hạn trong khoảng, sắp theo hạn.</li>
+<li><code>DeleteAssignment(teacherID, id)</code>: chỉ xoá được bài thuộc lớp của giáo viên đó, không trúng thì trả <code>ErrNotFound</code>.</li>
+<li><code>CountByClass(classIDs []int64)</code>: số bài của nhiều lớp trong một câu.</li>
+</ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Xoá có kiểm tra quyền: <code>DELETE FROM assignments a USING classes c WHERE a.id = @id AND a.class_id = c.id AND c.teacher_id = @teacher_id</code>, kiểu <code>:execrows</code>.</li>
+<li>Cột <code>date</code> với pgx sinh ra <code>pgtype.Date</code>. Thêm override <code>db_type: date</code> → <code>go_type: time.Time</code> trong sqlc.yaml để dùng <code>time.Time</code>.</li>
+<li>Nhiều lớp: <code>WHERE class_id = ANY(@class_ids::bigint[]) GROUP BY class_id</code>.</li>
+<li>Store đổi <code>n == 0</code> thành <code>ErrNotFound</code>.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="yaml" file="sqlc.yaml (thêm vào overrides)">
+          - db_type: date
+            go_type: time.Time
+</pre>
+<pre lang="sql" file="queries/assignments.sql">
+-- name: CreateAssignment :one
+INSERT INTO assignments (class_id, title, due_date)
+VALUES (@class_id, @title, @due_date)
+RETURNING *;
+
+-- name: ListDue :many
+SELECT * FROM assignments
+WHERE class_id = @class_id AND due_date BETWEEN @date_from AND @date_to
+ORDER BY due_date, id;
+
+-- name: DeleteAssignment :execrows
+DELETE FROM assignments a
+USING classes c
+WHERE a.id = @id AND a.class_id = c.id AND c.teacher_id = @teacher_id;
+
+-- name: CountByClass :many
+SELECT class_id, count(*) AS n
+FROM assignments
+WHERE class_id = ANY(@class_ids::bigint[])
+GROUP BY class_id;
+</pre>
+<pre lang="go" file="store/assignments.go" check="no">
+package store
+
+import (
+    "context"
+    "time"
+
+    "sqlcdemo/internal/db"
+)
+
+type AssignmentStore struct{ q *db.Queries }
+
+func (s *AssignmentStore) Create(ctx context.Context, classID int64, title string, due time.Time) (db.Assignment, error) {
+    return s.q.CreateAssignment(ctx, db.CreateAssignmentParams{ClassID: classID, Title: title, DueDate: due})
+}
+
+func (s *AssignmentStore) ListDue(ctx context.Context, classID int64, from, to time.Time) ([]db.Assignment, error) {
+    return s.q.ListDue(ctx, db.ListDueParams{ClassID: classID, DateFrom: from, DateTo: to})
+}
+
+func (s *AssignmentStore) Delete(ctx context.Context, teacherID, id int64) error {
+    n, err := s.q.DeleteAssignment(ctx, db.DeleteAssignmentParams{ID: id, TeacherID: teacherID})
+    if err != nil {
+        return err
+    }
+    if n == 0 {
+        return ErrNotFound
+    }
+    return nil
+}
+
+// Trả map để lớp không có bài nào vẫn tra được (giá trị 0)
+func (s *AssignmentStore) CountByClass(ctx context.Context, classIDs []int64) (map[int64]int64, error) {
+    rows, err := s.q.CountByClass(ctx, classIDs)
+    if err != nil {
+        return nil, err
+    }
+    m := make(map[int64]int64, len(classIDs))
+    for _, r := range rows {
+        m[r.ClassID] = r.N
+    }
+    return m, nil
+}
+</pre>
+<pre lang="out" sim="1">
+$ sqlc generate && go build ./... && go test ./store/...
+ok      sqlcdemo/store  0.412s
+</pre>
+<p><b>Giải thích:</b> <code>DELETE ... USING classes</code> là cách Postgres viết "xoá có JOIN": chỉ xoá khi bài thuộc lớp của đúng giáo viên. Giáo viên khác gọi xoá bài không phải của mình thì 0 dòng bị ảnh hưởng, store trả <code>ErrNotFound</code>, handler trả 404 (không nói "bài có tồn tại nhưng không phải của bạn"). <code>CountByClass</code> chỉ chạy một câu dù có 50 lớp, tránh N+1.</p>
+</details>
+</details>
+
+<details class="ex"><summary>Tìm và sửa lỗi trong đoạn code GORM</summary>
+<p>Đoạn code dưới đây có 4 lỗi (hiệu năng, đúng sai, bảo mật). Tìm và sửa.</p>
+<pre lang="go" mark="bad">
+func (h *H) GradeAll(c *gin.Context) {
+    var subs []Submission
+    h.db.Where("assignment_id = " + c.Param("id")).Find(&subs)
+    for _, s := range subs {
+        var st Student
+        h.db.First(&st, s.StudentID)
+        score := autoGrade(s, st)
+        h.db.Model(&s).Updates(Submission{Score: score, Graded: true})
+    }
+    c.JSON(200, subs)
+}
+</pre>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Dòng <code>Where</code>: tham số từ URL ghép vào chuỗi.</li>
+<li>Vòng lặp có một câu SELECT mỗi bài nộp.</li>
+<li><code>autoGrade</code> có thể trả 0.</li>
+<li>Mọi lệnh đều không kiểm tra <code>.Error</code>, không có <code>WithContext</code>, và không kiểm tra bài tập có thuộc lớp của giáo viên đang đăng nhập không.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go" mark="good">
+func (h *H) GradeAll(c *gin.Context) {
+    aid, err := strconv.ParseInt(c.Param("id"), 10, 64)
+    if err != nil {
+        apiErr(c, 400, "BAD_ID", "Mã bài không hợp lệ")
+        return
+    }
+    teacherID := c.GetInt64("userID")
+    db := h.db.WithContext(c.Request.Context()) // 4. truy vấn bị huỷ theo request
+
+    // 4. quyền: bài phải thuộc lớp của giáo viên này
+    var n int64
+    if err := db.Model(&Assignment{}).
+        Joins("JOIN classes ON classes.id = assignments.class_id").
+        Where("assignments.id = ? AND classes.teacher_id = ?", aid, teacherID).
+        Count(&n).Error; err != nil {
+        apiErr(c, 500, "INTERNAL", "Lỗi máy chủ")
+        return
+    }
+    if n == 0 {
+        apiErr(c, 404, "NOT_FOUND", "Không tìm thấy bài")
+        return
+    }
+
+    var subs []Submission
+    err = db.Where("assignment_id = ?", aid). // 1. tham số, không ghép chuỗi
+        Preload("Student").                    // 2. một câu cho mọi học sinh, không N+1
+        Find(&subs).Error
+    if err != nil {
+        apiErr(c, 500, "INTERNAL", "Lỗi máy chủ")
+        return
+    }
+
+    err = db.Transaction(func(tx *gorm.DB) error {
+        for i := range subs {
+            score := autoGrade(subs[i], subs[i].Student)
+            // 3. map: điểm 0 vẫn được ghi
+            if err := tx.Model(&subs[i]).Updates(map[string]any{"score": score, "graded": true}).Error; err != nil {
+                return err
+            }
+            subs[i].Score, subs[i].Graded = score, true
+        }
+        return nil
+    })
+    if err != nil {
+        apiErr(c, 500, "INTERNAL", "Lỗi máy chủ")
+        return
+    }
+    c.JSON(200, subs)
+}
+</pre>
+<p>Bốn lỗi: (1) SQL injection qua <code>c.Param("id")</code>. (2) N+1: 40 học sinh là 41 câu SELECT, <code>Preload("Student")</code> (cần trường <code>Student Student</code> trong model <code>Submission</code>) đưa về 2 câu. (3) <code>Updates(struct)</code> bỏ qua điểm 0. (4) Không kiểm lỗi, không gắn context, và giáo viên bất kỳ chấm được bài của lớp khác. Bọc vòng cập nhật trong transaction để không chấm được một nửa rồi lỗi. Với hàng trăm dòng, còn có thể gộp các UPDATE thành một câu <code>UPDATE ... FROM (VALUES ...)</code>.</p>
+</details>
+</details>

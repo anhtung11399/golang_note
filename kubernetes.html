@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 30: Kubernetes cho lập trình viên Go · Go cho dân Frontend</title>
+<meta name="description" content="Pod, Deployment, Service, Ingress, ConfigMap, Secret, probe, resource limit, HPA, rolling update, graceful shutdown trong K8s, đọc YAML và gỡ lỗi.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/33</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li><li><a href="mau-dong-thoi.html" data-slug="mau-dong-thoi"><i class="dot"></i><span class="no">11</span><span class="tx">Các mẫu xử lý đồng thời hay dùng</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">12</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">13</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">14</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li><li><a href="framework.html" data-slug="framework"><i class="dot"></i><span class="no">15</span><span class="tx">Framework: Chi, Gin, Echo và tài liệu OpenAPI</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">16</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">17</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="orm-sqlc.html" data-slug="orm-sqlc"><i class="dot"></i><span class="no">18</span><span class="tx">sqlc, GORM và migration trong thực tế</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">19</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">20</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">21</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">22</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">23</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="message-queue.html" data-slug="message-queue"><i class="dot"></i><span class="no">24</span><span class="tx">Message queue: Kafka, NATS, RabbitMQ</span></a></li><li><a href="grpc.html" data-slug="grpc"><i class="dot"></i><span class="no">25</span><span class="tx">gRPC và Protocol Buffers</span></a></li><li><a href="realtime-file.html" data-slug="realtime-file"><i class="dot"></i><span class="no">26</span><span class="tx">WebSocket, upload file và gửi email</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">27</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="test-nang-cao.html" data-slug="test-nang-cao"><i class="dot"></i><span class="no">28</span><span class="tx">Test nâng cao: mock, database thật, fuzz, load test</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">29</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="kubernetes.html" data-slug="kubernetes" aria-current="page"><i class="dot"></i><span class="no">30</span><span class="tx">Kubernetes cho lập trình viên Go</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">31</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">32</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="kubernetes">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#d97706">Chặng 5 · Vận hành hệ thống thật</span><span>Bài 30</span><span>60 phút đọc + làm bài</span></div>
+    <h1>Kubernetes cho lập trình viên Go</h1>
+    <p class="lead">Pod, Deployment, Service, Ingress, ConfigMap, Secret, probe, resource limit, HPA, rolling update, graceful shutdown trong K8s, đọc YAML và gỡ lỗi.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Deploy API Go lên Kubernetes</li><li>Cấu hình probe, limit, autoscale đúng</li><li>Gỡ lỗi pod không chạy</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="kubernetes-giai-quyet-viec-gi"><a href="#kubernetes-giai-quyet-viec-gi" class="anchor" aria-hidden="true">#</a>Kubernetes giải quyết việc gì</h2>
+<p>Bài 29 đóng gói API thành image Docker. Chạy một container thì dễ. Nhưng ở công ty có hàng chục dịch vụ, mỗi dịch vụ 3 đến 30 bản, chạy trên hàng chục máy. Ai lo:</p>
+<ul>
+<li>bản nào chết thì bật lại, máy nào hỏng thì dời container sang máy khác?</li>
+<li>deploy bản mới từ từ, lỗi thì quay về bản cũ?</li>
+<li>đông người thì tự thêm bản, vắng thì bớt?</li>
+<li>dịch vụ này tìm dịch vụ kia ở đâu khi IP liên tục đổi?</li>
+</ul>
+<p>Đó là việc của <b>Kubernetes</b> (viết tắt K8s, viết bằng Go). Bạn khai báo <b>trạng thái mong muốn</b> ("luôn có 3 bản API phiên bản 1.4.2"), Kubernetes liên tục so sánh với thực tế và sửa cho khớp.</p>
+<aside class="fe"><p>Giống React: bạn mô tả UI mong muốn (khai báo), React tự tính phải đổi DOM thế nào (reconcile). Kubernetes làm điều đó với container: bạn viết YAML mô tả, các "controller" chạy vòng lặp đưa cụm về đúng trạng thái đó.</p></aside>
+<p>Là lập trình viên backend, bạn thường <b>không</b> dựng cụm Kubernetes (đội hạ tầng hoặc dịch vụ quản lý như EKS, GKE, AKS lo). Bạn cần: viết / đọc YAML cho dịch vụ của mình, làm cho chương trình Go chạy đúng trong Kubernetes, và gỡ lỗi khi pod không chạy.</p>
+
+<h2 id="buc-tranh-tong-the"><a href="#buc-tranh-tong-the" class="anchor" aria-hidden="true">#</a>Bức tranh tổng thể</h2>
+<figure class="dg arch"><svg viewBox="0 0 840 400" style="min-width:640px;max-width:840px" role="img" aria-label="Request đi từ Ingress tới Service, Service chia cho các Pod. Deployment giữ đúng số Pod, HPA đổi số đó theo tải"><g class="ag ag-k8s"><rect x="20" y="20" width="800" height="360" rx="8"/><text x="30" y="38" class="ag-t">Cụm Kubernetes</text></g><g class="ag ag-plain"><rect x="190" y="60" width="610" height="300" rx="8"/><text x="200" y="78" class="ag-t">Namespace sobaitap</text></g><path d="M116.0 200.0 L244.0 200.0" class="ae" marker-end="url(#ar)"/><path d="M296.0 200.0 L394.0 200.0" class="ae" marker-end="url(#ar)"/><path d="M446.0 200.0 L500.0 200.0 L500.0 110.0 L564.0 110.0" class="ae" marker-end="url(#ar)"/><path d="M446.0 200.0 L564.0 200.0" class="ae" marker-end="url(#ar)"/><path d="M500.0 200.0 L500.0 290.0 L564.0 290.0" class="ae" marker-end="url(#ar)"/><path d="M704.0 110.0 L616.0 110.0" class="ae ds" marker-end="url(#ar)"/><path d="M704.0 290.0 L616.0 290.0" class="ae ds" marker-end="url(#ar)"/><path d="M730.0 266.0 L730.0 160.0" class="ae ds" marker-end="url(#ar)"/><g class="an an-gen"><rect x="68" y="178" width="44" height="44" rx="9"/><text x="90" y="204.5" text-anchor="middle" class="an-i" style="font-size:11px">USERS</text><text x="90" y="238" text-anchor="middle" class="an-l">Người dùng</text></g><g class="an an-nw"><rect x="248" y="178" width="44" height="44" rx="9"/><text x="270" y="204.5" text-anchor="middle" class="an-i" style="font-size:13px">ING</text><text x="270" y="238" text-anchor="middle" class="an-l">Ingress</text><text x="270" y="252" text-anchor="middle" class="an-s">api.sobaitap.vn</text></g><g class="an an-nw"><rect x="398" y="178" width="44" height="44" rx="9"/><text x="420" y="204.5" text-anchor="middle" class="an-i" style="font-size:13px">SVC</text><text x="420" y="238" text-anchor="middle" class="an-l">Service</text><text x="420" y="252" text-anchor="middle" class="an-s">api:80</text></g><g class="an an-cp"><rect x="568" y="88" width="44" height="44" rx="9"/><text x="590" y="114.5" text-anchor="middle" class="an-i" style="font-size:13px">POD</text><text x="590" y="148" text-anchor="middle" class="an-l">Pod api</text><text x="590" y="162" text-anchor="middle" class="an-s">v1.4.2</text></g><g class="an an-cp"><rect x="568" y="178" width="44" height="44" rx="9"/><text x="590" y="204.5" text-anchor="middle" class="an-i" style="font-size:13px">POD</text><text x="590" y="238" text-anchor="middle" class="an-l">Pod api</text><text x="590" y="252" text-anchor="middle" class="an-s">v1.4.2</text></g><g class="an an-cp"><rect x="568" y="268" width="44" height="44" rx="9"/><text x="590" y="294.5" text-anchor="middle" class="an-i" style="font-size:13px">POD</text><text x="590" y="328" text-anchor="middle" class="an-l">Pod api</text><text x="590" y="342" text-anchor="middle" class="an-s">v1.4.2</text></g><g class="an an-cp"><rect x="708" y="88" width="44" height="44" rx="9"/><text x="730" y="114.5" text-anchor="middle" class="an-i" style="font-size:13px">DEP</text><text x="730" y="148" text-anchor="middle" class="an-l">Deployment</text><text x="730" y="162" text-anchor="middle" class="an-s">replicas: 3</text></g><g class="an an-mg"><rect x="708" y="268" width="44" height="44" rx="9"/><text x="730" y="294.5" text-anchor="middle" class="an-i" style="font-size:13px">HPA</text><text x="730" y="328" text-anchor="middle" class="an-l">HPA</text><text x="730" y="342" text-anchor="middle" class="an-s">CPU 70%</text></g><g class="an an-mg"><rect x="398" y="68" width="44" height="44" rx="9"/><text x="420" y="94.5" text-anchor="middle" class="an-i" style="font-size:13px">CM</text><text x="420" y="128" text-anchor="middle" class="an-l">ConfigMap</text></g><g class="an an-sec"><rect x="398" y="288" width="44" height="44" rx="9"/><text x="420" y="314.5" text-anchor="middle" class="an-i" style="font-size:13px">SEC</text><text x="420" y="348" text-anchor="middle" class="an-l">Secret</text></g><g class="ae-lb"><rect x="159.0" y="191.0" width="42.0" height="17" rx="4"/><text x="180.0" y="203.5" text-anchor="middle">HTTPS</text></g><g class="ae-lb"><rect x="686.6" y="204.0" width="86.8" height="17" rx="4"/><text x="730.0" y="216.5" text-anchor="middle">đổi replicas</text></g></svg><figcaption>Request đi từ Ingress tới Service, Service chia cho các Pod. Deployment giữ đúng số Pod, HPA đổi số đó theo tải</figcaption></figure>
+<table>
+<tr><th>Đối tượng</th><th>Là gì</th><th>Ví von</th></tr>
+<tr><td><b>Pod</b></td><td>đơn vị chạy nhỏ nhất: một (hoặc vài) container chung mạng, có IP riêng, <b>có thể chết bất cứ lúc nào</b></td><td>một bản chạy của chương trình</td></tr>
+<tr><td><b>Deployment</b></td><td>giữ N pod giống nhau, lo cập nhật phiên bản từ từ</td><td>"luôn có 3 bản API"</td></tr>
+<tr><td><b>Service</b></td><td>một địa chỉ cố định (DNS <code>api</code>) chia tải cho các pod đang sẵn sàng</td><td>load balancer nội bộ</td></tr>
+<tr><td><b>Ingress</b> / Gateway</td><td>đưa request từ Internet vào Service theo tên miền / đường dẫn, gắn TLS</td><td>Nginx đứng ngoài cửa</td></tr>
+<tr><td><b>ConfigMap</b> / <b>Secret</b></td><td>cấu hình / bí mật, đưa vào pod thành biến môi trường hoặc file</td><td>file <code>.env</code></td></tr>
+<tr><td><b>HPA</b></td><td>tự đổi số pod theo CPU / bộ nhớ / số liệu riêng</td><td>tự thuê thêm người khi đông khách</td></tr>
+<tr><td><b>Job</b> / <b>CronJob</b></td><td>chạy một việc tới khi xong (migration) / chạy định kỳ</td><td>cron</td></tr>
+<tr><td><b>Namespace</b></td><td>chia cụm thành các vùng riêng (theo đội, theo môi trường)</td><td>thư mục</td></tr>
+</table>
+
+<h2 id="chay-thu-tren-may"><a href="#chay-thu-tren-may" class="anchor" aria-hidden="true">#</a>Chạy thử trên máy</h2>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">brew</span> install <span class="k">kubectl</span> kind
+kind create cluster --name hoc       <span class="c"># một cụm Kubernetes chạy trong Docker</span>
+<span class="k">kubectl</span> get nodes</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">kubectl get nodes</span>
+NAME                STATUS   ROLES           AGE   VERSION
+hoc-control-plane   Ready    control-plane   42s   v1.34.0</pre></div>
+<p>Đưa image tự build vào cụm kind (không cần đẩy lên registry):</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">docker</span> build -t sobaitap-api:<span class="n">1.4</span>.<span class="n">2</span> .
+kind load <span class="k">docker</span>-image sobaitap-api:<span class="n">1.4</span>.<span class="n">2</span> --name hoc</code></pre></div>
+
+<h2 id="deployment-cho-api-go"><a href="#deployment-cho-api-go" class="anchor" aria-hidden="true">#</a>Deployment cho API Go</h2>
+<div class="code"><div class="code-h"><span>k8s/deployment.yaml</span><button class="copy" type="button">Sao chép</button></div><pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: sobaitap
+  labels: { app: api }
+spec:
+  replicas: <span class="n">3</span>
+  selector:
+    matchLabels: { app: api }        <span class="c"># Deployment quản lý các pod có nhãn app=api</span>
+  strategy:
+    rollingUpdate:
+      maxUnavailable: <span class="n">0</span>              <span class="c"># khi deploy, không bao giờ để thiếu pod</span>
+      maxSurge: <span class="n">1</span>                    <span class="c"># thêm tối đa 1 pod mới mỗi lần</span>
+  template:                          <span class="c"># khuôn để tạo pod</span>
+    metadata:
+      labels: { app: api }
+    spec:
+      terminationGracePeriodSeconds: <span class="n">30</span>
+      containers:
+        - name: api
+          image: sobaitap-api:<span class="n">1.4</span>.<span class="n">2</span>  <span class="c"># luôn ghi phiên bản cụ thể, không dùng :latest</span>
+          ports:
+            - containerPort: <span class="n">8080</span>
+          env:
+            - name: PORT
+              value: <span class="s">&quot;8080&quot;</span>
+            - name: GOMEMLIMIT          <span class="c"># báo cho Go biết giới hạn bộ nhớ của container</span>
+              valueFrom:
+                resourceFieldRef: { resource: limits.memory }
+            - name: GOMAXPROCS          <span class="c"># Go 1.25+ tự đọc giới hạn CPU, dòng này cho bản Go cũ</span>
+              valueFrom:
+                resourceFieldRef: { resource: limits.cpu }
+          envFrom:
+            - configMapRef: { name: api-config }
+            - secretRef: { name: api-secrets }
+          resources:
+            requests: { cpu: <span class="n">250m</span>, memory: 128Mi }   <span class="c"># để xếp chỗ: cần ít nhất chừng này</span>
+            limits: { cpu: <span class="s">&quot;1&quot;</span>, memory: 256Mi }      <span class="c"># vượt memory → bị giết (OOMKilled)</span>
+          readinessProbe:               <span class="c"># sẵn sàng nhận request chưa?</span>
+            httpGet: { path: /readyz, port: <span class="n">8080</span> }
+            periodSeconds: <span class="n">5</span>
+            failureThreshold: <span class="n">2</span>
+          livenessProbe:                <span class="c"># còn sống không? lỗi liên tục → khởi động lại</span>
+            httpGet: { path: /healthz, port: <span class="n">8080</span> }
+            periodSeconds: <span class="n">10</span>
+            failureThreshold: <span class="n">3</span>
+          startupProbe:                 <span class="c"># cho thời gian khởi động, trước đó chưa xét liveness</span>
+            httpGet: { path: /healthz, port: <span class="n">8080</span> }
+            failureThreshold: <span class="n">30</span>
+            periodSeconds: <span class="n">1</span>
+          securityContext:
+            runAsNonRoot: <span class="b">true</span>
+            readOnlyRootFilesystem: <span class="b">true</span>
+            allowPrivilegeEscalation: <span class="b">false</span></code></pre></div>
+<p><code>250m</code> nghĩa là 250 mili-CPU, tức một phần tư lõi. <code>128Mi</code> là 128 mebibyte.</p>
+
+<h3>Ba loại probe: hay bị cấu hình sai nhất</h3>
+<table>
+<tr><th>Probe</th><th>Hỏi</th><th>Thất bại thì</th><th>Nên kiểm tra</th></tr>
+<tr><td><b>readiness</b></td><td>có nên gửi request cho pod này không?</td><td>bị rút khỏi Service (không bị giết)</td><td>đã khởi động xong, kết nối được database</td></tr>
+<tr><td><b>liveness</b></td><td>chương trình có bị treo cứng không?</td><td><b>bị giết và khởi động lại</b></td><td>chỉ tiến trình còn trả lời. <b>Không</b> kiểm tra database</td></tr>
+<tr><td><b>startup</b></td><td>đã khởi động xong chưa?</td><td>chờ thêm, hết lượt thì giết</td><td>giống liveness, cho app khởi động chậm</td></tr>
+</table>
+<aside class="warn"><p>Lỗi kinh điển: liveness kiểm tra database. Database chậm 30 giây → liveness của <b>mọi</b> pod lỗi → Kubernetes giết toàn bộ pod cùng lúc → khởi động lại → dồn kết nối vào database đang yếu → sập hẳn. Database lỗi chỉ nên làm readiness lỗi (ngừng nhận request), không làm pod bị giết.</p></aside>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> ready atomic.Bool
+
+mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /healthz&quot;</span>, <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+    w.<span class="f">WriteHeader</span>(<span class="n">200</span>) <span class="c">// còn trả lời được = còn sống</span>
+})
+mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /readyz&quot;</span>, <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+    ctx, cancel := context.<span class="f">WithTimeout</span>(r.<span class="f">Context</span>(), time.Second)
+    <span class="k">defer</span> <span class="f">cancel</span>()
+    <span class="k">if</span> !ready.<span class="f">Load</span>() || pool.<span class="f">Ping</span>(ctx) != <span class="b">nil</span> {
+        w.<span class="f">WriteHeader</span>(<span class="n">503</span>)
+        <span class="k">return</span>
+    }
+    w.<span class="f">WriteHeader</span>(<span class="n">200</span>)
+})
+
+<span class="c">// main: sau khi kết nối xong mọi thứ</span>
+ready.<span class="f">Store</span>(<span class="b">true</span>)</code></pre></div>
+
+<h3>Tắt êm trong Kubernetes</h3>
+<p>Khi deploy bản mới hoặc dời pod, Kubernetes gửi <code>SIGTERM</code>, chờ <code>terminationGracePeriodSeconds</code> (30 giây), rồi <code>SIGKILL</code>. Đồng thời, nó rút pod khỏi Service, nhưng việc rút này lan tới mọi nơi <b>mất vài giây</b>. Nếu server tắt ngay khi nhận SIGTERM, request đang trên đường tới sẽ lỗi.</p>
+<figure class="dg arch"><svg viewBox="0 0 820 200" style="min-width:640px;max-width:820px" role="img" aria-label="Nhận SIGTERM: báo không sẵn sàng, chờ vài giây cho Service cập nhật, rồi mới Shutdown và chờ request đang chạy"><path d="M106.0 90.0 L224.0 90.0" class="ae" marker-end="url(#ar)"/><path d="M276.0 90.0 L394.0 90.0" class="ae" marker-end="url(#ar)"/><path d="M446.0 90.0 L564.0 90.0" class="ae" marker-end="url(#ar)"/><path d="M616.0 90.0 L724.0 90.0" class="ae" marker-end="url(#ar)"/><g class="an an-dv"><rect x="58" y="68" width="44" height="44" rx="9"/><text x="80" y="94.5" text-anchor="middle" class="an-i" style="font-size:13px">CTL</text><text x="80" y="128" text-anchor="middle" class="an-l">SIGTERM</text><text x="80" y="142" text-anchor="middle" class="an-s">t = 0</text></g><g class="an an-go"><rect x="228" y="68" width="44" height="44" rx="9"/><text x="250" y="94.5" text-anchor="middle" class="an-i" style="font-size:13px">API</text><text x="250" y="128" text-anchor="middle" class="an-l">readyz → 503</text><text x="250" y="142" text-anchor="middle" class="an-s">ngừng nhận mới</text></g><g class="an an-mg"><rect x="398" y="68" width="44" height="44" rx="9"/><text x="420" y="94.5" text-anchor="middle" class="an-i" style="font-size:11px">CRON</text><text x="420" y="128" text-anchor="middle" class="an-l">Chờ 5 giây</text><text x="420" y="142" text-anchor="middle" class="an-s">Service rút pod</text></g><g class="an an-go"><rect x="568" y="68" width="44" height="44" rx="9"/><text x="590" y="94.5" text-anchor="middle" class="an-i" style="font-size:13px">API</text><text x="590" y="128" text-anchor="middle" class="an-l">srv.Shutdown</text><text x="590" y="142" text-anchor="middle" class="an-s">chờ request đang chạy</text></g><g class="an an-cp"><rect x="728" y="68" width="44" height="44" rx="9"/><text x="750" y="94.5" text-anchor="middle" class="an-i" style="font-size:13px">POD</text><text x="750" y="128" text-anchor="middle" class="an-l">Thoát</text><text x="750" y="142" text-anchor="middle" class="an-s">trước 30 giây</text></g></svg><figcaption>Nhận SIGTERM: báo không sẵn sàng, chờ vài giây cho Service cập nhật, rồi mới Shutdown và chờ request đang chạy</figcaption></figure>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code>ctx, stop := signal.<span class="f">NotifyContext</span>(context.<span class="f">Background</span>(), syscall.SIGINT, syscall.SIGTERM)
+<span class="k">defer</span> <span class="f">stop</span>()
+
+<span class="k">go</span> <span class="k">func</span>() {
+    <span class="k">if</span> err := srv.<span class="f">ListenAndServe</span>(); err != <span class="b">nil</span> &amp;&amp; !errors.<span class="f">Is</span>(err, http.ErrServerClosed) {
+        log.<span class="f">Fatal</span>(err)
+    }
+}()
+
+&lt;-ctx.<span class="f">Done</span>()
+slog.<span class="f">Info</span>(<span class="s">&quot;nhận tín hiệu tắt&quot;</span>)
+ready.<span class="f">Store</span>(<span class="b">false</span>)          <span class="c">// 1. readiness trả 503</span>
+time.<span class="f">Sleep</span>(<span class="n">5</span> * time.Second) <span class="c">// 2. chờ Service / Ingress ngừng gửi request mới</span>
+
+shutdownCtx, cancel := context.<span class="f">WithTimeout</span>(context.<span class="f">Background</span>(), <span class="n">20</span>*time.Second)
+<span class="k">defer</span> <span class="f">cancel</span>()
+srv.<span class="f">Shutdown</span>(shutdownCtx)   <span class="c">// 3. không nhận kết nối mới, chờ request đang chạy xong</span>
+pool.<span class="f">Close</span>()                <span class="c">// 4. đóng database sau cùng</span></code></pre></div>
+<p>Tổng thời gian (5 + 20 giây) phải nhỏ hơn <code>terminationGracePeriodSeconds</code>. Worker đọc hàng đợi cũng vậy: ngừng lấy việc mới, làm nốt việc đang làm.</p>
+
+<h3>GOMEMLIMIT: tránh bị OOMKilled</h3>
+<p>Bộ dọn rác của Go mặc định chạy khi heap tăng gấp đôi so với lần dọn trước. Với limit 256Mi, heap 140MB có thể vọt lên 280MB trước khi GC kịp chạy, container bị giết với trạng thái <code>OOMKilled</code>. Đặt <code>GOMEMLIMIT</code> (Go 1.19+) bằng khoảng 80 đến 90% limit, Go sẽ dọn rác tích cực hơn khi gần chạm ngưỡng. Ở YAML trên, <code>resourceFieldRef</code> đặt bằng đúng limit, an toàn hơn thì đặt tay <code>GOMEMLIMIT: "220MiB"</code>.</p>
+
+<h2 id="service-ingress-cau-hinh"><a href="#service-ingress-cau-hinh" class="anchor" aria-hidden="true">#</a>Service, Ingress, cấu hình</h2>
+<div class="code"><div class="code-h"><span>k8s/service.yaml</span><button class="copy" type="button">Sao chép</button></div><pre><code>apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: sobaitap
+spec:
+  selector: { app: api }       <span class="c"># chia tải cho mọi pod nhãn app=api ĐANG READY</span>
+  ports:
+    - port: <span class="n">80</span>                 <span class="c"># các dịch vụ khác gọi http://api (hoặc api.sobaitap.svc.cluster.local)</span>
+      targetPort: <span class="n">8080</span>
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  namespace: sobaitap
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt   <span class="c"># tự xin chứng chỉ TLS</span>
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api.sobaitap.vn]
+      secretName: api-tls
+  rules:
+    - host: api.sobaitap.vn
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: api, port: { number: <span class="n">80</span> } }</code></pre></div>
+<div class="code"><div class="code-h"><span>k8s/config.yaml</span><button class="copy" type="button">Sao chép</button></div><pre><code>apiVersion: v1
+kind: ConfigMap
+metadata: { name: api-config, namespace: sobaitap }
+data:
+  APP_ORIGIN: https://app.sobaitap.vn
+  LOG_LEVEL: info
+---
+apiVersion: v1
+kind: Secret
+metadata: { name: api-secrets, namespace: sobaitap }
+type: Opaque
+stringData:                     <span class="c"># chỉ để ví dụ: KHÔNG commit secret thật vào git</span>
+  DATABASE_URL: postgres://app:doi-mat-khau@postgres:<span class="n">5432</span>/sobaitap
+  AUTH_SECRET: thay-bang-chuoi-ngau-nhien</code></pre></div>
+<aside class="warn"><p>Secret của Kubernetes chỉ được mã hoá base64, <b>không phải mã hoá</b>. Ai đọc được YAML là đọc được mật khẩu. Ở công ty, secret thật được lấy từ kho bí mật (AWS Secrets Manager, Vault) qua External Secrets Operator, hoặc mã hoá trước khi commit bằng Sealed Secrets / SOPS.</p></aside>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">kubectl</span> create namespace sobaitap
+<span class="k">kubectl</span> apply -f k8s/
+<span class="k">kubectl</span> -n sobaitap get pods -w        <span class="c"># -w: theo dõi liên tục</span></code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">kubectl -n sobaitap get pods</span>
+NAME                   READY   STATUS    RESTARTS   AGE
+api-7d9c6b8f5c-4xk2p   1/1     Running   0          38s
+api-7d9c6b8f5c-9mtzq   1/1     Running   0          38s
+api-7d9c6b8f5c-hb7wd   1/1     Running   0          38s</pre></div>
+<p>Tên pod gồm tên Deployment, mã của bản template (<code>7d9c6b8f5c</code>, đổi image là đổi mã này) và một đuôi ngẫu nhiên. <code>READY 1/1</code> là readiness đã qua.</p>
+
+<h2 id="deploy-ban-moi-va-quay-lai"><a href="#deploy-ban-moi-va-quay-lai" class="anchor" aria-hidden="true">#</a>Deploy bản mới và quay lại</h2>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">kubectl</span> -n sobaitap set image deployment/api api=sobaitap-api:<span class="n">1.4</span>.<span class="n">3</span>
+<span class="k">kubectl</span> -n sobaitap rollout status deployment/api</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">kubectl -n sobaitap rollout status deployment/api</span>
+Waiting for deployment &quot;api&quot; rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment &quot;api&quot; rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment &quot;api&quot; rollout to finish: 1 old replicas are pending termination...
+deployment &quot;api&quot; successfully rolled out</pre></div>
+<p>Với <code>maxSurge: 1, maxUnavailable: 0</code>: tạo 1 pod mới, chờ nó ready, tắt 1 pod cũ, lặp lại. Nếu pod mới không bao giờ ready (bản lỗi), quá trình dừng ở đó, 3 pod cũ vẫn phục vụ. Quay lại:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">kubectl</span> -n sobaitap rollout undo deployment/api
+<span class="k">kubectl</span> -n sobaitap rollout history deployment/api</code></pre></div>
+<p>Ở công ty, hiếm ai chạy <code>kubectl set image</code> tay. Mẫu phổ biến là <b>GitOps</b>: YAML nằm trong repo git, CI sửa tag image và commit, công cụ (Argo CD, Flux) thấy git đổi thì áp vào cụm. Lịch sử deploy chính là lịch sử git.</p>
+
+<h2 id="migration-voi-job"><a href="#migration-voi-job" class="anchor" aria-hidden="true">#</a>Migration với Job</h2>
+<div class="code"><div class="code-h"><span>k8s/migrate-job.yaml</span><button class="copy" type="button">Sao chép</button></div><pre><code>apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-<span class="n">1</span>-<span class="n">4</span>-<span class="n">3</span>
+  namespace: sobaitap
+spec:
+  backoffLimit: <span class="n">0</span>               <span class="c"># lỗi thì dừng, không chạy lại migration tự động</span>
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: sobaitap-api:<span class="n">1.4</span>.<span class="n">3</span>
+          command: [<span class="s">&quot;/app/api&quot;</span>, <span class="s">&quot;migrate&quot;</span>]   <span class="c"># cùng binary, lệnh con migrate (dùng goose nhúng, bài sqlc)</span>
+          envFrom:
+            - secretRef: { name: api-secrets }</code></pre></div>
+<p>Thứ tự trong pipeline: chạy Job migration, chờ thành công (<code>kubectl wait --for=condition=complete job/migrate-1-4-3</code>), rồi mới cập nhật Deployment. Migration phải tương thích với code cũ (expand / contract, bài 18), vì trong lúc rolling update, pod cũ và mới cùng chạy.</p>
+
+<h2 id="tu-co-gian-voi-hpa"><a href="#tu-co-gian-voi-hpa" class="anchor" aria-hidden="true">#</a>Tự co giãn với HPA</h2>
+<div class="code"><div class="code-h"><span>k8s/hpa.yaml</span><button class="copy" type="button">Sao chép</button></div><pre><code>apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: api, namespace: sobaitap }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: api }
+  minReplicas: <span class="n">3</span>
+  maxReplicas: <span class="n">20</span>
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: <span class="n">70</span> }   <span class="c"># 70% của requests.cpu</span>
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: <span class="n">300</span>   <span class="c"># chờ 5 phút ổn định mới giảm, tránh tăng giảm liên tục</span></code></pre></div>
+<p>HPA tính % CPU theo <code>requests</code>, không phải <code>limits</code>. Không đặt requests thì HPA không chạy. Với worker đọc hàng đợi, CPU không phản ánh đúng lượng việc: dùng KEDA để co giãn theo độ dài hàng đợi (số tin Kafka chưa đọc, số dòng <code>jobs</code> đang chờ).</p>
+<aside class="prod"><p>Tăng pod không giải quyết được nghẽn ở database. 20 pod × pool 20 kết nối = 400 kết nối, vượt <code>max_connections</code> mặc định (100) của Postgres. Tính trước: <code>maxReplicas × pool size</code> phải nhỏ hơn giới hạn database, hoặc đặt PgBouncer ở giữa.</p></aside>
+
+<h2 id="go-loi-pod-khong-chay"><a href="#go-loi-pod-khong-chay" class="anchor" aria-hidden="true">#</a>Gỡ lỗi: pod không chạy</h2>
+<p>Năm lệnh dùng 90% thời gian:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">kubectl</span> -n sobaitap get pods                         <span class="c"># trạng thái</span>
+<span class="k">kubectl</span> -n sobaitap describe pod api-7d9c6b8f5c-4xk2p  <span class="c"># sự kiện: vì sao không chạy (đọc phần Events cuối cùng)</span>
+<span class="k">kubectl</span> -n sobaitap logs api-7d9c6b8f5c-4xk2p          <span class="c"># log hiện tại</span>
+<span class="k">kubectl</span> -n sobaitap logs api-7d9c6b8f5c-4xk2p --previous   <span class="c"># log của lần chạy TRƯỚC (đã crash)</span>
+<span class="k">kubectl</span> -n sobaitap port-forward svc/api <span class="n">8080</span>:<span class="n">80</span>       <span class="c"># gọi thử dịch vụ từ máy mình: curl localhost:8080</span></code></pre></div>
+<table>
+<tr><th>Trạng thái</th><th>Nghĩa là</th><th>Thường do</th></tr>
+<tr><td><code>Pending</code></td><td>chưa được xếp vào máy nào</td><td><code>requests</code> quá lớn so với chỗ trống, không đủ máy</td></tr>
+<tr><td><code>ImagePullBackOff</code></td><td>không tải được image</td><td>sai tên / tag, registry riêng mà thiếu quyền</td></tr>
+<tr><td><code>CrashLoopBackOff</code></td><td>chạy rồi thoát, khởi động lại liên tục</td><td>thiếu biến môi trường, không kết nối được database, panic lúc khởi động. Xem <code>logs --previous</code></td></tr>
+<tr><td><code>OOMKilled</code></td><td>vượt limit bộ nhớ</td><td>limit quá thấp, rò rỉ bộ nhớ, thiếu <code>GOMEMLIMIT</code></td></tr>
+<tr><td><code>Running</code> nhưng <code>0/1</code> READY</td><td>readiness lỗi</td><td>sai đường dẫn / cổng probe, database chưa sẵn sàng</td></tr>
+<tr><td>Restarts tăng dần</td><td>liveness giết pod</td><td>liveness quá khắt khe, hoặc server thật sự bị treo (xem pprof)</td></tr>
+</table>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">kubectl -n sobaitap get pods</span>
+NAME                   READY   STATUS             RESTARTS      AGE
+api-5f8d7c9b6d-qw7rt   0/1     CrashLoopBackOff   4 (32s ago)   2m10s
+
+<span class="t-p">$</span> <span class="t-c">kubectl -n sobaitap logs api-5f8d7c9b6d-qw7rt --previous</span>
+time=2026-11-03T03:52:11Z level=ERROR msg=&quot;thiếu cấu hình&quot; key=AUTH_SECRET</pre></div>
+<p>Ở ví dụ này: bản mới cần biến <code>AUTH_SECRET</code> nhưng Secret chưa có. Chương trình Go kiểm tra cấu hình lúc khởi động và thoát với log rõ ràng (bài 14), nên chỉ cần một lệnh là thấy nguyên nhân. Vì <code>maxUnavailable: 0</code>, các pod cũ vẫn chạy, người dùng không bị ảnh hưởng.</p>
+
+<h2 id="helm-va-kustomize"><a href="#helm-va-kustomize" class="anchor" aria-hidden="true">#</a>Helm và Kustomize</h2>
+<p>Có môi trường staging và production, khác nhau số replicas, tên miền, tài nguyên. Không chép YAML hai lần:</p>
+<ul>
+<li><b>Kustomize</b> (có sẵn trong <code>kubectl apply -k</code>): một thư mục <code>base/</code> và các thư mục <code>overlays/staging</code>, <code>overlays/prod</code> chỉ ghi phần khác.</li>
+<li><b>Helm</b>: YAML có chỗ trống dạng template Go (<code>{{ .Values.replicas }}</code>), mỗi môi trường một file <code>values.yaml</code>. Cũng là cách cài phần mềm có sẵn (Postgres, Redis, Prometheus) bằng một lệnh.</li>
+</ul>
+
+<aside class="real"><p>Không phải lúc nào cũng cần Kubernetes. Một sản phẩm mới, vài dịch vụ, vài nghìn người dùng chạy rất tốt trên Cloud Run, Fly.io, Render, ECS Fargate hay một máy chủ với Docker Compose. Kubernetes đáng giá khi có nhiều dịch vụ, nhiều đội, và có người lo vận hành cụm. Nhưng vì phần lớn công ty vừa và lớn đã dùng, đọc được YAML và biết gỡ lỗi pod là kỹ năng gần như bắt buộc của backend.</p></aside>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> livenessProbe gọi /healthz, và /healthz kiểm tra Postgres. Postgres chậm 1 phút. Chuyện gì xảy ra?</p><div class="qo"><button type="button" class="opt">Pod ngừng nhận request cho tới khi Postgres ổn</button><button type="button" class="opt" data-ok>Mọi pod bị coi là chết và bị khởi động lại cùng lúc, dồn thêm tải lên Postgres, có thể sập toàn bộ dịch vụ</button><button type="button" class="opt">Không có gì</button></div><p class="why" hidden>Kiểm tra phụ thuộc bên ngoài chỉ đặt ở readiness: pod ngừng nhận request nhưng không bị giết. Liveness chỉ kiểm tra tiến trình còn trả lời.</p></div>
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Pod ở trạng thái CrashLoopBackOff. Lệnh nào cho thấy nguyên nhân nhanh nhất?</p><div class="qo"><button type="button" class="opt">kubectl get pods</button><button type="button" class="opt" data-ok>kubectl logs &lt;pod&gt; --previous (và kubectl describe pod để xem sự kiện)</button><button type="button" class="opt">kubectl delete pod</button></div><p class="why" hidden>Pod đang khởi động lại, log hiện tại có thể trống. --previous cho log của lần chạy vừa crash. Xoá pod chỉ tạo pod mới bị lỗi giống hệt.</p></div>
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Container có limits.memory 512Mi, chương trình Go hay bị OOMKilled dù heap bình thường chỉ khoảng 300MB. Nên thử gì đầu tiên?</p><div class="qo"><button type="button" class="opt" data-ok>Đặt GOMEMLIMIT khoảng 450MiB để GC dọn sớm hơn khi gần chạm giới hạn</button><button type="button" class="opt">Tăng CPU</button><button type="button" class="opt">Đặt GOGC=off</button></div><p class="why" hidden>GC mặc định cho heap tăng gấp đôi trước khi dọn. GOMEMLIMIT báo cho Go biết trần bộ nhớ thật. GOGC=off thì ngược lại, càng dễ OOM.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Deploy API lên kind, thử rolling update và rollback</summary>
+<p>Dùng API của bài 29 (có Dockerfile, <code>/healthz</code>, <code>/readyz</code>, graceful shutdown). Deploy 3 bản lên cụm kind, gọi thử qua <code>port-forward</code>. Build bản 2 cố tình lỗi (thoát ngay khi khởi động), deploy và quan sát: dịch vụ vẫn chạy bằng bản cũ. Rollback.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Image đặt <code>imagePullPolicy: IfNotPresent</code> để kind dùng image đã <code>kind load</code>, không cố tải từ Internet.</li>
+<li>Bản lỗi: thêm <code>if os.Getenv("BROKEN") == "" { log.Fatal("thiếu BROKEN") }</code> ở đầu <code>main</code>, build tag <code>:2</code>.</li>
+<li>Theo dõi bằng <code>kubectl get pods -w</code> ở một terminal trong khi deploy ở terminal khác.</li>
+<li>Trong lúc deploy bản lỗi, chạy vòng <code>while true; do curl -s -o /dev/null -w "%{http_code} " localhost:8080/healthz; sleep 0.5; done</code>: luôn thấy 200.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code>kind create cluster --name hoc
+<span class="k">docker</span> build -t sobaitap-api:<span class="n">1</span> . &amp;&amp; kind load <span class="k">docker</span>-image sobaitap-api:<span class="n">1</span> --name hoc
+<span class="k">kubectl</span> create namespace sobaitap
+<span class="c"># deployment.yaml như trong bài, image: sobaitap-api:1, imagePullPolicy: IfNotPresent</span>
+<span class="k">kubectl</span> apply -f k8s/
+<span class="k">kubectl</span> -n sobaitap rollout status deployment/api
+<span class="k">kubectl</span> -n sobaitap port-forward svc/api <span class="n">8080</span>:<span class="n">80</span> &amp;
+<span class="k">curl</span> -s localhost:<span class="n">8080</span>/healthz -w <span class="s">&quot;%{http_code}\n&quot;</span>
+
+<span class="c"># bản lỗi</span>
+<span class="k">docker</span> build -t sobaitap-api:<span class="n">2</span> . &amp;&amp; kind load <span class="k">docker</span>-image sobaitap-api:<span class="n">2</span> --name hoc
+<span class="k">kubectl</span> -n sobaitap set image deployment/api api=sobaitap-api:<span class="n">2</span>
+<span class="k">kubectl</span> -n sobaitap get pods</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">kubectl -n sobaitap get pods</span>
+NAME                   READY   STATUS             RESTARTS      AGE
+api-6c9f8d7b54-2lqvn   1/1     Running            0             4m
+api-6c9f8d7b54-8hj4x   1/1     Running            0             4m
+api-6c9f8d7b54-tw9cp   1/1     Running            0             4m
+api-84b7d6f9c8-zx5mk   0/1     CrashLoopBackOff   3 (21s ago)   70s
+
+<span class="t-p">$</span> <span class="t-c">kubectl -n sobaitap logs api-84b7d6f9c8-zx5mk --previous</span>
+2026/11/03 04:05:31 thiếu BROKEN
+
+<span class="t-p">$</span> <span class="t-c">kubectl -n sobaitap rollout undo deployment/api</span>
+deployment.apps/api rolled back
+
+<span class="t-p">$</span> <span class="t-c">kubectl -n sobaitap get pods</span>
+NAME                   READY   STATUS    RESTARTS   AGE
+api-6c9f8d7b54-2lqvn   1/1     Running   0          5m
+api-6c9f8d7b54-8hj4x   1/1     Running   0          5m
+api-6c9f8d7b54-tw9cp   1/1     Running   0          5m</pre></div>
+<p><b>Giải thích:</b> với <code>maxUnavailable: 0</code> và <code>maxSurge: 1</code>, Kubernetes chỉ tạo 1 pod bản 2 và chờ nó ready. Pod đó crash liên tục nên không bao giờ ready, ba pod bản 1 không bị đụng tới. Vòng curl luôn trả 200. <code>rollout undo</code> quay Deployment về template trước, pod lỗi bị xoá. Bản thật nên đặt <code>progressDeadlineSeconds</code> để rollout bị đánh dấu thất bại sau một thời gian, CI thấy và báo động.</p>
+</details>
+</details>
+
+<details class="ex"><summary>Đọc YAML và tìm 6 lỗi cấu hình</summary>
+<p>Deployment dưới đây chạy được nhưng có 6 vấn đề sẽ gây sự cố ở production. Tìm và sửa.</p>
+<div class="code bad"><div class="code-h"><span>YAML</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata: { name: api }
+spec:
+  replicas: <span class="n">1</span>
+  selector: { matchLabels: { app: api } }
+  template:
+    metadata: { labels: { app: api } }
+    spec:
+      containers:
+        - name: api
+          image: registry.local/api:latest
+          env:
+            - name: DATABASE_URL
+              value: postgres://app:Matkhau123@db:<span class="n">5432</span>/app
+          livenessProbe:
+            httpGet: { path: /readyz, port: <span class="n">8080</span> }
+            initialDelaySeconds: <span class="n">0</span>
+            periodSeconds: <span class="n">2</span>
+            failureThreshold: <span class="n">1</span></code></pre></div>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Bao nhiêu pod còn lại khi máy chứa pod đó bảo trì?</li>
+<li><code>:latest</code> thì rollback về đâu?</li>
+<li>Mật khẩu nằm ở đâu?</li>
+<li>Probe nào, kiểm tra cái gì, chịu lỗi được mấy lần?</li>
+<li>Thiếu những phần nào so với Deployment mẫu trong bài?</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<ol>
+<li><b>replicas: 1</b>: một pod chết hoặc bị dời là dịch vụ ngừng. Ít nhất 2, thường 3, kèm PodDisruptionBudget.</li>
+<li><b>:latest</b>: không biết đang chạy bản nào, rollback không có ý nghĩa, mỗi pod có thể chạy một bản khác. Dùng tag cố định (phiên bản hoặc mã commit).</li>
+<li><b>Mật khẩu viết thẳng trong YAML</b> (commit vào git). Đưa vào Secret, lấy từ kho bí mật.</li>
+<li><b>Liveness gọi /readyz</b> (kiểm tra database), <b>failureThreshold: 1, periodSeconds: 2, không có startupProbe</b>: một lần chậm 2 giây là pod bị giết, database chập chờn là mọi pod bị giết. Liveness gọi <code>/healthz</code>, thêm readinessProbe gọi <code>/readyz</code>, thêm startupProbe, failureThreshold 3.</li>
+<li><b>Không có resources</b>: không có requests thì scheduler xếp bừa, HPA không chạy. Không có limits thì một pod rò bộ nhớ ảnh hưởng cả máy.</li>
+<li><b>Không có securityContext, strategy, terminationGracePeriodSeconds, GOMEMLIMIT</b>: chạy bằng root, deploy có thể làm thiếu pod, không kiểm soát thời gian tắt.</li>
+</ol>
+<div class="code good"><div class="code-h"><span>YAML</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code>spec:
+  replicas: <span class="n">3</span>
+  strategy: { rollingUpdate: { maxUnavailable: <span class="n">0</span>, maxSurge: <span class="n">1</span> } }
+  template:
+    spec:
+      terminationGracePeriodSeconds: <span class="n">30</span>
+      containers:
+        - name: api
+          image: registry.local/api:<span class="n">1.4</span>.<span class="n">3</span>
+          envFrom: [{ secretRef: { name: api-secrets } }]
+          env: [{ name: GOMEMLIMIT, value: <span class="s">&quot;220MiB&quot;</span> }]
+          resources:
+            requests: { cpu: <span class="n">250m</span>, memory: 128Mi }
+            limits: { memory: 256Mi }
+          startupProbe: { httpGet: { path: /healthz, port: <span class="n">8080</span> }, failureThreshold: <span class="n">30</span>, periodSeconds: <span class="n">1</span> }
+          livenessProbe: { httpGet: { path: /healthz, port: <span class="n">8080</span> }, periodSeconds: <span class="n">10</span>, failureThreshold: <span class="n">3</span> }
+          readinessProbe: { httpGet: { path: /readyz, port: <span class="n">8080</span> }, periodSeconds: <span class="n">5</span>, failureThreshold: <span class="n">2</span> }
+          securityContext: { runAsNonRoot: <span class="b">true</span>, readOnlyRootFilesystem: <span class="b">true</span>, allowPrivilegeEscalation: <span class="b">false</span> }</code></pre></div>
+<p>Ghi chú: nhiều đội cố ý không đặt <code>limits.cpu</code> (chỉ đặt requests), vì giới hạn CPU làm Go bị "bóp" (throttling) gây đuôi độ trễ cao, trong khi bộ nhớ thì luôn phải có limit.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="kubernetes">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="trien-khai.html"><small>Bài trước</small>Docker, CI/CD và triển khai</a><a class="next" href="he-thong-that.html"><small>Bài tiếp theo</small>Các hệ thống thật hoạt động ra sao</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#kubernetes-giai-quyet-viec-gi">Kubernetes giải quyết việc gì</a><a href="#buc-tranh-tong-the">Bức tranh tổng thể</a><a href="#chay-thu-tren-may">Chạy thử trên máy</a><a href="#deployment-cho-api-go">Deployment cho API Go</a><a href="#service-ingress-cau-hinh">Service, Ingress, cấu hình</a><a href="#deploy-ban-moi-va-quay-lai">Deploy bản mới và quay lại</a><a href="#migration-voi-job">Migration với Job</a><a href="#tu-co-gian-voi-hpa">Tự co giãn với HPA</a><a href="#go-loi-pod-khong-chay">Gỡ lỗi: pod không chạy</a><a href="#helm-va-kustomize">Helm và Kustomize</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

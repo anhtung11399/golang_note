@@ -6,7 +6,7 @@
 <li>Tính toán đắt (báo cáo tổng hợp, gọi API bên ngoài có tính phí hoặc chậm).</li>
 <li>Chấp nhận được việc dữ liệu cũ đi vài giây / vài phút.</li>
 </ul>
-<aside class="tip"><p>Trước khi thêm cache, hãy thử thêm index hoặc sửa N+1 (bài 16). Một truy vấn 0,1ms có index thì không cần cache. Cache che đi một truy vấn chậm, nhưng không sửa được nó.</p></aside>
+<aside class="tip"><p>Trước khi thêm cache, hãy thử thêm index hoặc sửa N+1 (bài {{n:toi-uu-query}}). Một truy vấn 0,1ms có index thì không cần cache. Cache che đi một truy vấn chậm, nhưng không sửa được nó.</p></aside>
 
 <h2>Các tầng cache trong một hệ thống</h2>
 <fig type="flow" caption="Càng gần người dùng càng nhanh, nhưng càng khó xoá khi dữ liệu đổi">
@@ -422,7 +422,7 @@ w.Header().Set("Cache-Control", "private, no-store")
 </ul>
 <p><b>Gợi ý từng bước</b></p>
 <ol class="steps">
-<li>Hàm generic (bài 06) vì mỗi chỗ dùng cache một kiểu dữ liệu khác: <code>Feed</code>, <code>Summary</code>... <code>load</code> có kiểu <code>func(context.Context) (T, error)</code>.</li>
+<li>Hàm generic (bài {{n:interface}}) vì mỗi chỗ dùng cache một kiểu dữ liệu khác: <code>Feed</code>, <code>Summary</code>... <code>load</code> có kiểu <code>func(context.Context) (T, error)</code>.</li>
 <li>Bước đọc giống <code>classSummary</code> ở trên: <code>rdb.Get(ctx, key).Bytes()</code> rồi <code>json.Unmarshal</code> vào một biến kiểu <code>T</code>.</li>
 <li><code>g.Do(key, func() (any, error) {...})</code> trả về <code>any</code>, đổi lại thành <code>T</code> bằng <code>v.(T)</code>.</li>
 <li>Số ngẫu nhiên: <code>rand.Int64N(n)</code> của package <code>math/rand/v2</code> cho số từ 0 đến n-1. <code>time.Duration</code> bản chất là số nano giây (<code>int64</code>), nên đổi qua lại được.</li>

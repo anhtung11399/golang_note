@@ -21,7 +21,7 @@
 </ul>
 
 <h3>Context hoạt động thế nào</h3>
-<p>Một <code>ctx</code> có method <code>Done()</code> trả về một channel. Channel đó bị đóng khi ctx bị huỷ (do ai đó gọi <code>cancel()</code>, hoặc hết giờ). Hàm làm việc lâu chỉ cần <code>select</code> (bài 09) giữa "việc xong" và "<code>ctx.Done()</code>". Chạy thử:</p>
+<p>Một <code>ctx</code> có method <code>Done()</code> trả về một channel. Channel đó bị đóng khi ctx bị huỷ (do ai đó gọi <code>cancel()</code>, hoặc hết giờ). Hàm làm việc lâu chỉ cần <code>select</code> (bài {{n:dong-thoi}}) giữa "việc xong" và "<code>ctx.Done()</code>". Chạy thử:</p>
 <pre lang="go">
 package main
 
@@ -106,7 +106,7 @@ func exportCSV(ctx context.Context, w io.Writer, rows []Row) error {
 </pre>
 
 <h3>Giá trị đi theo request</h3>
-<p>Context còn mang theo được vài giá trị, ví dụ mã của request để mọi dòng log của cùng một request có chung một mã (bài 21):</p>
+<p>Context còn mang theo được vài giá trị, ví dụ mã của request để mọi dòng log của cùng một request có chung một mã (bài {{n:quan-sat}}):</p>
 <pre lang="go">
 package main
 
@@ -167,7 +167,7 @@ edge cl req "huỷ" c=bad
 <li>Hàm test tên bắt đầu bằng <code>Test</code>, nhận một tham số <code>t *testing.T</code>.</li>
 <li>Go không có <code>expect(...).toBe(...)</code>. Bạn tự so sánh bằng <code>if</code>, sai thì gọi <code>t.Errorf</code>.</li>
 </ul>
-<p>Dùng lại dự án <code>sobaitap</code> ở bài 08 (có <code>grade/grade.go</code> với hàm <code>Classify</code>). Tạo thêm file <code>grade/grade_test.go</code>:</p>
+<p>Dùng lại dự án <code>sobaitap</code> ở bài {{n:package-module}} (có <code>grade/grade.go</code> với hàm <code>Classify</code>). Tạo thêm file <code>grade/grade_test.go</code>:</p>
 <pre lang="go" file="grade/grade_test.go">
 package grade
 
@@ -257,7 +257,7 @@ ok  	github.com/lan/sobaitap/grade	0.004s
 <aside class="tip"><p>Mẹo chọn trường hợp test: trường hợp bình thường, <b>đúng ở biên</b> (8 và 7.99, 5 và 4.99), giá trị rỗng / 0 / âm, và dữ liệu sai. Lỗi thường nằm ở biên.</p></aside>
 
 <h3>Test HTTP handler không cần chạy server</h3>
-<p>Package <code>net/http/httptest</code> tạo request và bộ ghi response giả, nên test được handler mà không cần mở cổng mạng (trích đoạn, bài 11 mới học viết handler):</p>
+<p>Package <code>net/http/httptest</code> tạo request và bộ ghi response giả, nên test được handler mà không cần mở cổng mạng (trích đoạn, bài {{n:http}} mới học viết handler):</p>
 <pre lang="go">
 func TestHealth(t *testing.T) {
     req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
@@ -275,7 +275,7 @@ func TestHealth(t *testing.T) {
 </pre>
 
 <h3>Test có database thật</h3>
-<p>Fake (bài 06) phù hợp để test nghiệp vụ. Nhưng câu SQL thì phải test với database thật: fake không biết câu SQL của bạn sai cú pháp hay thiếu index. Hai cách phổ biến:</p>
+<p>Fake (bài {{n:interface}}) phù hợp để test nghiệp vụ. Nhưng câu SQL thì phải test với database thật: fake không biết câu SQL của bạn sai cú pháp hay thiếu index. Hai cách phổ biến:</p>
 <ul>
 <li>Chạy Postgres bằng Docker trong CI, mỗi test tạo schema riêng hoặc bọc trong một transaction rồi rollback.</li>
 <li>Thư viện <code>testcontainers-go</code>: test tự bật container Postgres, xong tự tắt.</li>
@@ -326,11 +326,11 @@ PASS
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Test bảng cho hàm phân trang</summary>
-<p>Viết test dạng bảng cho hàm <code>pageOf</code> ở bài tập bài 04 (phân trang trên slice). Các trường hợp: trang đầu, trang giữa, trang cuối thiếu phần tử, trang vượt quá, page = 0, size âm, danh sách rỗng. Chạy với <code>-cover</code> để xem bao nhiêu phần trăm code được test chạy qua.</p>
+<p>Viết test dạng bảng cho hàm <code>pageOf</code> ở bài tập bài {{n:slice-map}} (phân trang trên slice). Các trường hợp: trang đầu, trang giữa, trang cuối thiếu phần tử, trang vượt quá, page = 0, size âm, danh sách rỗng. Chạy với <code>-cover</code> để xem bao nhiêu phần trăm code được test chạy qua.</p>
 <p><b>Gợi ý từng bước</b></p>
 <ol class="steps">
 <li>Tạo dự án mới: <code>mkdir paging &amp;&amp; cd paging &amp;&amp; go mod init paging</code>.</li>
-<li>Tạo <code>paging.go</code> (package <code>main</code> cũng được, test được hàm trong package main) chứa hàm <code>pageOf</code> từ bài 04 và một hàm <code>main</code> rỗng.</li>
+<li>Tạo <code>paging.go</code> (package <code>main</code> cũng được, test được hàm trong package main) chứa hàm <code>pageOf</code> từ bài {{n:slice-map}} và một hàm <code>main</code> rỗng.</li>
 <li>Tạo <code>paging_test.go</code> cùng thư mục, cùng <code>package main</code>. Viết bảng như <code>TestClassify</code> ở trên, mỗi dòng có <code>page</code>, <code>size</code>, và <code>want []string</code>.</li>
 <li>So sánh hai slice bằng <code>slices.Equal(got, want)</code> (không dùng <code>==</code> được với slice).</li>
 <li>Chạy <code>go test -v -cover .</code></li>

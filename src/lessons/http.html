@@ -42,7 +42,7 @@ func main() {
 </pre>
 <h3>Chạy thử: cần hai cửa sổ terminal</h3>
 <p>Khác các chương trình trước (chạy xong là thoát), server <b>chạy mãi</b> để chờ request. Vì vậy:</p>
-<p><b>Terminal 1</b>: tạo dự án như bài 01 (<code>mkdir hello-http &amp;&amp; cd hello-http &amp;&amp; go mod init hello-http</code>), dán code vào <code>main.go</code>, rồi chạy. Terminal này sẽ "đứng yên", đó là đúng:</p>
+<p><b>Terminal 1</b>: tạo dự án như bài {{n:cai-dat}} (<code>mkdir hello-http &amp;&amp; cd hello-http &amp;&amp; go mod init hello-http</code>), dán code vào <code>main.go</code>, rồi chạy. Terminal này sẽ "đứng yên", đó là đúng:</p>
 <pre lang="out">
 $ go run .
 2026/11/03 09:00:00 chạy ở http://localhost:8080
@@ -193,7 +193,7 @@ srv := &http.Server{
 }
 log.Fatal(srv.ListenAndServe())
 </pre>
-<p><code>go vet</code> không cảnh báo chỗ này, nhưng công cụ quét bảo mật <code>gosec</code> có (luật G112). Bài 13 bổ sung phần tắt server an toàn.</p>
+<p><code>go vet</code> không cảnh báo chỗ này, nhưng công cụ quét bảo mật <code>gosec</code> có (luật G112). Bài {{n:kien-truc}} bổ sung phần tắt server an toàn.</p>
 
 <h2>Gọi API khác: http.Client cũng cần timeout</h2>
 <pre lang="go" mark="bad">
@@ -334,13 +334,13 @@ Content-Length: 33
 
 {"error":"id không hợp lệ"}
 </pre>
-<p>Tắt server rồi chạy lại: danh sách ghi chú trống trơn, vì dữ liệu chỉ nằm trong bộ nhớ (map). Bài 14, 15 sẽ lưu vào database.</p>
+<p>Tắt server rồi chạy lại: danh sách ghi chú trống trơn, vì dữ liệu chỉ nằm trong bộ nhớ (map). Bài {{n:sql}}, {{n:go-postgres}} sẽ lưu vào database.</p>
 <p><b>Đọc chương trình theo thứ tự chạy:</b></p>
 <ol class="steps">
 <li><code>main</code> tạo <code>store</code> rỗng, đăng ký 3 đường dẫn, mở server.</li>
 <li>Request <code>POST /notes</code> tới: Go gọi <code>s.create</code>. Hàm đọc JSON vào struct <code>req</code>, kiểm tra nội dung, khoá mutex, thêm ghi chú vào map, mở khoá, trả JSON với status <code>201</code>.</li>
 <li>Request <code>GET /notes/1</code> tới: Go gọi <code>s.get</code>. <code>r.PathValue("id")</code> lấy phần <code>{id}</code> trên đường dẫn (chuỗi <code>"1"</code>), đổi sang số, tìm trong map.</li>
-<li>Mutex cần thiết vì mỗi request chạy trên một goroutine riêng (bài 09): hai người cùng tạo ghi chú một lúc sẽ cùng ghi vào map.</li>
+<li>Mutex cần thiết vì mỗi request chạy trên một goroutine riêng (bài {{n:dong-thoi}}): hai người cùng tạo ghi chú một lúc sẽ cùng ghi vào map.</li>
 </ol>
 <p>Để ý: method <code>s.list</code> được truyền thẳng làm handler (method value, không có ngoặc). Đây là cách gọn để các handler dùng chung dữ liệu với nhau mà không cần biến toàn cục.</p>
 
@@ -557,7 +557,7 @@ $ curl -s localhost:8080/notes
 </details>
 </details>
 <details class="ex"><summary>Viết test cho handler</summary>
-<p>Dùng <code>httptest</code> (bài 10) viết test cho API ở bài tập trên, không cần bật server:</p>
+<p>Dùng <code>httptest</code> (bài {{n:context-test}}) viết test cho API ở bài tập trên, không cần bật server:</p>
 <ul>
 <li>tạo ghi chú rỗng bị <code>400</code>.</li>
 <li>tạo đúng được <code>201</code>, rồi lấy lại được bằng id.</li>

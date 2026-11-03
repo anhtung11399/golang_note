@@ -1,0 +1,628 @@
+<h2>Vì sao các dịch vụ Go hay nói chuyện bằng gRPC</h2>
+<p>REST + JSON là lựa chọn mặc định cho API mà <b>trình duyệt / app</b> gọi. Nhưng khi một hệ thống tách thành nhiều dịch vụ (dịch vụ lớp học, dịch vụ chấm điểm, dịch vụ thông báo), các dịch vụ gọi nhau hàng nghìn lần mỗi giây. Ở đó, nhiều công ty dùng <b>gRPC</b>:</p>
+<ul>
+<li><b>Hợp đồng chặt</b>: viết file <code>.proto</code>, sinh code cho cả server và client (Go, Java, Python, TypeScript...). Gọi hàm từ xa giống gọi hàm thường, sai kiểu là lỗi biên dịch.</li>
+<li><b>Nhanh và nhỏ</b>: dữ liệu mã hoá nhị phân bằng Protocol Buffers, nhỏ hơn JSON 3 đến 10 lần, mã hoá / giải mã nhanh hơn nhiều.</li>
+<li><b>HTTP/2</b>: nhiều lời gọi chạy song song trên một kết nối, có <b>streaming</b> hai chiều.</li>
+<li><b>Có sẵn</b> deadline (timeout lan truyền qua các dịch vụ), mã lỗi chuẩn, metadata (giống header), interceptor (giống middleware).</li>
+</ul>
+<arch w="820" h="260" caption="Bên ngoài nói REST/JSON (trình duyệt hiểu). Bên trong các dịch vụ gọi nhau bằng gRPC">
+group 220 20 580 220 vpc "Mạng nội bộ"
+node b 80 130 browser "Trình duyệt / app" ""
+node gw 300 130 goapi "API gateway" "REST → gRPC"
+node cls 500 60 grpcsvc "Class service" ""
+node gr 500 200 grpcsvc "Grading service" ""
+node nt 700 200 grpcsvc "Notify service" ""
+node db 700 60 pg "Postgres" ""
+edge b gw "HTTPS JSON"
+path 326 130 400 130 400 60 474 60 "gRPC"
+path 400 130 400 200 474 200 "gRPC"
+edge gr nt "gRPC stream" c=go
+edge cls db ""
+</arch>
+<aside class="fe"><p>Giống tRPC hoặc GraphQL codegen ở chỗ: có một "nguồn sự thật" về kiểu dữ liệu, client và server sinh code từ đó. Khác ở chỗ gRPC không chạy thẳng trong trình duyệt (trình duyệt không cho điều khiển HTTP/2 đủ sâu). Muốn gọi từ web phải qua gRPC-Web, Connect, hoặc một gateway đổi sang REST.</p></aside>
+
+<h2>Protocol Buffers</h2>
+<pre lang="proto" file="proto/class/v1/class.proto">
+syntax = "proto3";
+
+package class.v1;
+
+option go_package = "sobaitap/gen/class/v1;classv1";
+
+import "google/protobuf/timestamp.proto";
+
+// Dịch vụ: danh sách các hàm gọi từ xa
+service ClassService {
+  rpc GetClass(GetClassRequest) returns (GetClassResponse);
+  rpc ListStudents(ListStudentsRequest) returns (stream Student); // server gửi nhiều tin
+}
+
+message GetClassRequest {
+  int64 id = 1;
+}
+
+message GetClassResponse {
+  Class class = 1;
+}
+
+message Class {
+  int64 id = 1;
+  string name = 2;
+  int32 capacity = 3;
+  google.protobuf.Timestamp created_at = 4;
+  optional string note = 5;       // optional: phân biệt "không có" với chuỗi rỗng
+  repeated string subjects = 6;   // repeated: danh sách
+  ClassStatus status = 7;
+}
+
+enum ClassStatus {
+  CLASS_STATUS_UNSPECIFIED = 0;   // giá trị 0 luôn là "chưa đặt"
+  CLASS_STATUS_ACTIVE = 1;
+  CLASS_STATUS_LOCKED = 2;
+}
+
+message ListStudentsRequest {
+  int64 class_id = 1;
+}
+
+message Student {
+  int64 id = 1;
+  string name = 2;
+}
+</pre>
+<p>Những con số <code>= 1</code>, <code>= 2</code> là <b>số hiệu trường</b>, không phải giá trị. Trên đường truyền, Protobuf gửi số hiệu thay vì tên trường, nên tin nhắn rất nhỏ. Hệ quả quan trọng:</p>
+<table>
+<tr><th>Việc</th><th>An toàn?</th></tr>
+<tr><td>Thêm trường mới với số hiệu mới</td><td>an toàn: bên cũ bỏ qua trường lạ, bên mới thấy giá trị mặc định khi bên cũ không gửi</td></tr>
+<tr><td>Đổi tên trường</td><td>an toàn trên đường truyền (chỉ số hiệu đi qua mạng), nhưng làm hỏng code đang dùng tên cũ</td></tr>
+<tr><td>Đổi số hiệu, đổi kiểu</td><td><b>không</b>: bên cũ đọc sai dữ liệu</td></tr>
+<tr><td>Xoá trường</td><td>được, nhưng phải ghi <code>reserved 5; reserved "note";</code> để không ai dùng lại số đó</td></tr>
+</table>
+<p>Kiểu Protobuf sang Go: <code>int64</code> → <code>int64</code>, <code>string</code> → <code>string</code>, <code>repeated string</code> → <code>[]string</code>, <code>optional string</code> → <code>*string</code>, message → con trỏ struct (<code>*Class</code>), <code>Timestamp</code> → <code>*timestamppb.Timestamp</code> (đổi bằng <code>.AsTime()</code> và <code>timestamppb.New(t)</code>).</p>
+
+<h2>Sinh code với buf</h2>
+<p>Công cụ gốc là <code>protoc</code>, nhưng hầu hết các đội giờ dùng <b>buf</b>: cài một lần, có kiểm tra phong cách (lint) và kiểm tra thay đổi phá vỡ tương thích (breaking).</p>
+<pre lang="sh">
+brew install bufbuild/buf/buf
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+go get google.golang.org/grpc google.golang.org/protobuf
+</pre>
+<pre lang="yaml" file="buf.yaml">
+version: v2
+modules:
+  - path: proto
+lint:
+  use: [STANDARD]
+breaking:
+  use: [FILE]
+</pre>
+<pre lang="yaml" file="buf.gen.yaml">
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: gen
+    opt: paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: gen
+    opt: paths=source_relative
+</pre>
+<pre lang="out" sim="1">
+$ buf lint && buf generate
+$ find gen -name '*.go'
+gen/class/v1/class.pb.go
+gen/class/v1/class_grpc.pb.go
+</pre>
+<p><code>class.pb.go</code> chứa các struct (<code>Class</code>, <code>GetClassRequest</code>...). <code>class_grpc.pb.go</code> chứa interface server <code>ClassServiceServer</code> và client <code>ClassServiceClient</code>. Không sửa tay hai file này.</p>
+<pre lang="out" sim="1">
+$ buf breaking --against '.git#branch=main'
+proto/class/v1/class.proto:23:3:Field "3" with name "capacity" on message "Class" changed type from "int32" to "string".
+</pre>
+<p>Đặt <code>buf breaking</code> trong CI: ai đổi kiểu hay số hiệu trường thì pull request bị chặn trước khi phá dịch vụ khác.</p>
+
+<h2>Server</h2>
+<pre lang="go" file="server/main.go" check="no">
+package main
+
+import (
+    "context"
+    "log"
+    "net"
+    "time"
+
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/codes"
+    "google.golang.org/grpc/status"
+    "google.golang.org/protobuf/types/known/timestamppb"
+
+    classv1 "sobaitap/gen/class/v1"
+)
+
+type classServer struct {
+    classv1.UnimplementedClassServiceServer // bắt buộc nhúng: thêm rpc mới vào .proto không làm vỡ build
+}
+
+func (s *classServer) GetClass(ctx context.Context, req *classv1.GetClassRequest) (*classv1.GetClassResponse, error) {
+    if req.GetId() <= 0 {
+        return nil, status.Error(codes.InvalidArgument, "id phải lớn hơn 0")
+    }
+    if req.GetId() != 42 {
+        return nil, status.Errorf(codes.NotFound, "không có lớp %d", req.GetId())
+    }
+    return &classv1.GetClassResponse{Class: &classv1.Class{
+        Id:        42,
+        Name:      "Lớp 5A",
+        Capacity:  30,
+        CreatedAt: timestamppb.New(time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC)),
+        Subjects:  []string{"Toán", "Tiếng Việt"},
+        Status:    classv1.ClassStatus_CLASS_STATUS_ACTIVE,
+    }}, nil
+}
+
+func (s *classServer) ListStudents(req *classv1.ListStudentsRequest, stream grpc.ServerStreamingServer[classv1.Student]) error {
+    names := []string{"An", "Bình", "Chi"}
+    for i, n := range names {
+        if err := stream.Context().Err(); err != nil {
+            return err // client đã huỷ
+        }
+        if err := stream.Send(&classv1.Student{Id: int64(i + 1), Name: n}); err != nil {
+            return err
+        }
+    }
+    return nil // return = kết thúc stream
+}
+
+func main() {
+    lis, err := net.Listen("tcp", ":50051")
+    if err != nil {
+        log.Fatal(err)
+    }
+    srv := grpc.NewServer()
+    classv1.RegisterClassServiceServer(srv, &classServer{})
+    log.Println("gRPC ở :50051")
+    log.Fatal(srv.Serve(lis))
+}
+</pre>
+<p>Luôn dùng các hàm <code>req.GetId()</code> thay vì <code>req.Id</code>: hàm Get trả giá trị mặc định khi <code>req</code> là nil, không bao giờ panic.</p>
+
+<h2>Client</h2>
+<pre lang="go" file="client/main.go" check="no">
+package main
+
+import (
+    "context"
+    "fmt"
+    "io"
+    "log"
+    "time"
+
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/credentials/insecure"
+    "google.golang.org/grpc/status"
+
+    classv1 "sobaitap/gen/class/v1"
+)
+
+func main() {
+    // Tạo MỘT lần và dùng lại cho cả chương trình (an toàn khi gọi từ nhiều goroutine)
+    conn, err := grpc.NewClient("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer conn.Close()
+    c := classv1.NewClassServiceClient(conn)
+
+    // Luôn đặt deadline cho mỗi lời gọi
+    ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+    defer cancel()
+
+    res, err := c.GetClass(ctx, &classv1.GetClassRequest{Id: 42})
+    if err != nil {
+        log.Fatal(err)
+    }
+    cl := res.GetClass()
+    fmt.Println("lớp:", cl.GetName(), cl.GetCapacity(), cl.GetSubjects(), cl.GetCreatedAt().AsTime().Format("02/01/2006"))
+
+    _, err = c.GetClass(ctx, &classv1.GetClassRequest{Id: 7})
+    st := status.Convert(err)
+    fmt.Println("lỗi:", st.Code(), "-", st.Message())
+
+    stream, err := c.ListStudents(ctx, &classv1.ListStudentsRequest{ClassId: 42})
+    if err != nil {
+        log.Fatal(err)
+    }
+    for {
+        s, err := stream.Recv()
+        if err == io.EOF {
+            break // server đã gửi xong
+        }
+        if err != nil {
+            log.Fatal(err)
+        }
+        fmt.Println("học sinh:", s.GetId(), s.GetName())
+    }
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run ./client
+lớp: Lớp 5A 30 [Toán Tiếng Việt] 05/09/2026
+lỗi: NotFound - không có lớp 7
+học sinh: 1 An
+học sinh: 2 Bình
+học sinh: 3 Chi
+</pre>
+<p>Gọi thử không cần viết client: <code>grpcurl</code> (giống curl cho gRPC). Thêm <code>reflection.Register(srv)</code> ở server để grpcurl tự biết các hàm có sẵn.</p>
+<pre lang="out" sim="1">
+$ grpcurl -plaintext -d '{"id": 42}' localhost:50051 class.v1.ClassService/GetClass
+{
+  "class": {
+    "id": "42",
+    "name": "Lớp 5A",
+    "capacity": 30,
+    "createdAt": "2026-09-05T00:00:00Z",
+    "subjects": ["Toán", "Tiếng Việt"],
+    "status": "CLASS_STATUS_ACTIVE"
+  }
+}
+</pre>
+<p>Chú ý <code>"id": "42"</code> là chuỗi: khi đổi Protobuf sang JSON, <code>int64</code> được viết thành chuỗi vì JavaScript không giữ chính xác số nguyên lớn hơn 2<sup>53</sup>.</p>
+
+<h2>Bốn kiểu lời gọi</h2>
+<arch w="820" h="250" caption="Unary là phổ biến nhất. Streaming dùng khi dữ liệu nhiều hoặc liên tục">
+node u1 80 50 goapi "Client" ""
+node u2 300 50 grpcsvc "Server" "Unary"
+edge u1 u2 "1 yêu cầu → 1 trả lời" both
+node s1 520 50 goapi "Client" ""
+node s2 740 50 grpcsvc "Server" "Server stream"
+edge s2 s1 "1 yêu cầu → nhiều trả lời" c=go
+node c1 80 180 goapi "Client" ""
+node c2 300 180 grpcsvc "Server" "Client stream"
+edge c1 c2 "nhiều → 1 trả lời" c=go
+node b1 520 180 goapi "Client" ""
+node b2 740 180 grpcsvc "Server" "Bidi stream"
+edge b1 b2 "nhiều ⇄ nhiều" both c=go
+</arch>
+<table>
+<tr><th>Kiểu</th><th>Khai báo</th><th>Ví dụ dùng</th></tr>
+<tr><td>Unary</td><td><code>rpc Get(Req) returns (Res)</code></td><td>gần như mọi thứ</td></tr>
+<tr><td>Server streaming</td><td><code>returns (stream Res)</code></td><td>xuất danh sách dài, theo dõi tiến độ việc</td></tr>
+<tr><td>Client streaming</td><td><code>rpc Upload(stream Chunk) returns (Res)</code></td><td>gửi file theo từng mảnh, gửi lô số liệu</td></tr>
+<tr><td>Bidirectional</td><td><code>rpc Chat(stream Msg) returns (stream Msg)</code></td><td>chat, đồng bộ trạng thái liên tục</td></tr>
+</table>
+
+<h2>Lỗi: dùng mã chuẩn</h2>
+<p>gRPC có 16 mã lỗi. Bảng đổi qua lại với HTTP mà gateway hay dùng:</p>
+<table>
+<tr><th>Mã gRPC</th><th>Khi nào</th><th>HTTP</th></tr>
+<tr><td><code>InvalidArgument</code></td><td>dữ liệu vào sai</td><td>400</td></tr>
+<tr><td><code>Unauthenticated</code></td><td>chưa đăng nhập / token sai</td><td>401</td></tr>
+<tr><td><code>PermissionDenied</code></td><td>đăng nhập rồi nhưng không có quyền</td><td>403</td></tr>
+<tr><td><code>NotFound</code></td><td>không có</td><td>404</td></tr>
+<tr><td><code>AlreadyExists</code></td><td>trùng</td><td>409</td></tr>
+<tr><td><code>FailedPrecondition</code></td><td>trạng thái không cho phép (lớp đã khoá)</td><td>400 / 409</td></tr>
+<tr><td><code>ResourceExhausted</code></td><td>vượt hạn mức, rate limit</td><td>429</td></tr>
+<tr><td><code>DeadlineExceeded</code></td><td>hết thời gian</td><td>504</td></tr>
+<tr><td><code>Unavailable</code></td><td>tạm thời không phục vụ được (<b>thử lại được</b>)</td><td>503</td></tr>
+<tr><td><code>Internal</code></td><td>lỗi bên trong</td><td>500</td></tr>
+</table>
+<pre lang="go">
+// Đổi lỗi nghiệp vụ → mã gRPC, ở một chỗ duy nhất (giống writeErr của REST)
+func toStatus(err error) error {
+    switch {
+    case errors.Is(err, service.ErrNotFound):
+        return status.Error(codes.NotFound, "không tìm thấy")
+    case errors.Is(err, service.ErrClassLocked):
+        return status.Error(codes.FailedPrecondition, "lớp đang bị khoá")
+    case errors.Is(err, context.DeadlineExceeded):
+        return status.Error(codes.DeadlineExceeded, "quá thời gian")
+    default:
+        slog.Error("lỗi nội bộ", "err", err)
+        return status.Error(codes.Internal, "lỗi máy chủ") // không lộ chi tiết
+    }
+}
+</pre>
+
+<h2>Deadline lan truyền</h2>
+<p>Gateway nhận request với timeout 2 giây, gọi Class service, Class service gọi Grading service. Deadline được gửi kèm mỗi lời gọi (header <code>grpc-timeout</code>) và <b>trừ dần</b> thời gian đã dùng. Nếu gateway đã hết giờ, các dịch vụ phía sau cũng dừng, không làm việc vô ích.</p>
+<arch w="800" h="170" caption="Mỗi dịch vụ chỉ cần truyền ctx xuống. Còn 0 giây thì mọi lời gọi phía sau lập tức trả DeadlineExceeded">
+node g 90 80 goapi "Gateway" "ctx 2s"
+node c 330 80 grpcsvc "Class" "còn 1,8s"
+node gr 570 80 grpcsvc "Grading" "còn 1,1s"
+node db 730 80 pg "Postgres" "query có ctx"
+edge g c "grpc-timeout: 1.8s"
+edge c gr "grpc-timeout: 1.1s"
+edge gr db ""
+</arch>
+<aside class="warn"><p>Lời gọi gRPC <b>không có</b> timeout mặc định. Quên đặt deadline là một lời gọi có thể treo mãi, giữ goroutine và kết nối. Quy tắc: client luôn tạo ctx có timeout, server luôn truyền ctx của request xuống mọi lời gọi tiếp theo.</p></aside>
+
+<h2>Metadata và interceptor</h2>
+<p><b>Metadata</b> là cặp khoá - giá trị đi kèm lời gọi, giống header HTTP: token, request id, ngôn ngữ.</p>
+<p><b>Interceptor</b> là middleware của gRPC: bọc mọi lời gọi để ghi log, đo thời gian, xác thực, bắt panic.</p>
+<pre lang="go">
+// Server: interceptor xác thực + ghi log cho mọi lời gọi unary
+func authInterceptor(verify func(string) (int64, error)) grpc.UnaryServerInterceptor {
+    return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+        md, _ := metadata.FromIncomingContext(ctx)
+        tokens := md.Get("authorization") // khoá metadata luôn là chữ thường
+        if len(tokens) == 0 {
+            return nil, status.Error(codes.Unauthenticated, "thiếu token")
+        }
+        uid, err := verify(strings.TrimPrefix(tokens[0], "Bearer "))
+        if err != nil {
+            return nil, status.Error(codes.Unauthenticated, "token không hợp lệ")
+        }
+        ctx = context.WithValue(ctx, userIDKey{}, uid)
+
+        start := time.Now()
+        res, err := handler(ctx, req) // gọi hàm thật
+        slog.Info("grpc", "method", info.FullMethod, "code", status.Code(err), "dur", time.Since(start))
+        return res, err
+    }
+}
+
+srv := grpc.NewServer(
+    grpc.ChainUnaryInterceptor(recoverInterceptor, authInterceptor(verifyToken)),
+)
+
+// Client: gắn token vào mọi lời gọi
+ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
+res, err := c.GetClass(ctx, req)
+</pre>
+<p>Không cần tự viết hết: <code>github.com/grpc-ecosystem/go-grpc-middleware/v2</code> có sẵn interceptor log (slog), recovery, retry, rate limit. OpenTelemetry có <code>otelgrpc</code> tự gắn trace (bài {{n:quan-sat}}).</p>
+
+<h2>Những thứ cần cho production</h2>
+<ul>
+<li><b>Health check chuẩn</b>: <code>google.golang.org/grpc/health</code>. Kubernetes có probe gRPC gọi thẳng dịch vụ này.</li>
+<li><b>Tắt êm</b>: <code>srv.GracefulStop()</code> khi nhận SIGTERM: ngừng nhận lời gọi mới, chờ lời gọi đang chạy xong.</li>
+<li><b>TLS</b>: giữa các dịch vụ dùng mTLS (cả hai bên có chứng chỉ). Thường do service mesh (Istio, Linkerd) lo, code dùng <code>insecure</code> nói chuyện với sidecar.</li>
+<li><b>Cân bằng tải</b>: gRPC giữ <b>một kết nối lâu dài</b>. Load balancer tầng 4 (TCP) chỉ chia kết nối, nên mọi lời gọi của một client dồn về một server. Dùng load balancer hiểu HTTP/2 (Envoy, ALB có hỗ trợ gRPC) hoặc cân bằng phía client (<code>dns:///</code> + <code>round_robin</code>, headless Service trên Kubernetes).</li>
+<li><b>Kích thước tin</b>: mặc định tối đa 4MB. File lớn thì dùng client streaming, hoặc tốt hơn: upload thẳng lên kho file (bài {{n:realtime-file}}) và chỉ gửi khoá file.</li>
+</ul>
+<pre lang="go">
+// Cân bằng tải phía client qua DNS (trên K8s dùng headless Service để DNS trả về IP mọi pod)
+conn, err := grpc.NewClient("dns:///class-svc.default.svc.cluster.local:50051",
+    grpc.WithTransportCredentials(insecure.NewCredentials()),
+    grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin":{}}]}`),
+)
+</pre>
+
+<h2>Cho trình duyệt gọi: gateway và Connect</h2>
+<p>Hai cách phổ biến để cùng một dịch vụ phục vụ cả gRPC (nội bộ) và JSON (trình duyệt):</p>
+<ul>
+<li><b>grpc-gateway</b>: thêm chú thích HTTP vào <code>.proto</code>, sinh ra một reverse proxy đổi <code>GET /v1/classes/42</code> thành lời gọi gRPC. Sinh luôn được file OpenAPI.</li>
+<li><b>Connect</b> (<code>connectrpc.com/connect</code>): thư viện thay thế grpc-go, một handler <code>net/http</code> nói được cả gRPC, gRPC-Web và Connect (JSON qua HTTP POST). Frontend dùng <code>@connectrpc/connect-web</code> sinh client TypeScript có kiểu.</li>
+</ul>
+<pre lang="proto" file="class.proto (thêm chú thích cho grpc-gateway)">
+import "google/api/annotations.proto";
+
+service ClassService {
+  rpc GetClass(GetClassRequest) returns (GetClassResponse) {
+    option (google.api.http) = { get: "/v1/classes/{id}" };
+  }
+}
+</pre>
+
+<h2>Khi nào chọn gRPC, khi nào REST</h2>
+<table>
+<tr><th>Chọn REST + JSON</th><th>Chọn gRPC</th></tr>
+<tr><td>API công khai, đối tác bên ngoài gọi</td><td>dịch vụ nội bộ gọi nhau</td></tr>
+<tr><td>Trình duyệt gọi trực tiếp</td><td>nhiều ngôn ngữ, cần hợp đồng chặt</td></tr>
+<tr><td>Cần cache HTTP, CDN</td><td>lưu lượng lớn, cần độ trễ thấp</td></tr>
+<tr><td>Đội nhỏ, một dịch vụ</td><td>cần streaming hai chiều</td></tr>
+</table>
+<aside class="real"><p>Ở các công ty dùng microservice (Grab, Uber, Tiki, VNG), mẫu hay gặp: gateway REST/GraphQL cho app và web, bên trong toàn gRPC. File <code>.proto</code> để trong một repo chung, CI chạy <code>buf breaking</code> và sinh thư viện client cho mọi ngôn ngữ.</p></aside>
+
+<quiz q="Đã có field string note = 5 đang chạy. Muốn đổi thành int32 note = 5. Có ổn không?">
+- Ổn, Protobuf tự đổi kiểu
++ Không: dịch vụ cũ đọc sai dữ liệu. Thêm field mới với số hiệu mới, xoá field cũ và reserved số 5
+- Ổn nếu deploy mọi dịch vụ cùng lúc
+? Số hiệu và kiểu là hợp đồng trên đường truyền. Không thể deploy mọi dịch vụ đúng cùng một lúc, nên luôn có lúc bản cũ và bản mới nói chuyện với nhau.
+</quiz>
+<quiz q="Client gRPC không đặt deadline, server bị treo do database chậm. Chuyện gì xảy ra?">
++ Lời gọi chờ mãi, giữ goroutine và tài nguyên phía client, dồn lại có thể làm client cũng treo
+- Sau 30 giây gRPC tự huỷ
+- Server tự trả DeadlineExceeded
+? gRPC không có timeout mặc định. Luôn dùng context.WithTimeout khi gọi.
+</quiz>
+<quiz q="5 pod của Class service đứng sau một load balancer TCP. Client gRPC tạo một kết nối. Lời gọi được chia thế nào?">
+- Đều cho 5 pod
++ Gần như tất cả vào một pod, vì cả kết nối HTTP/2 được giữ với một pod
+- Ngẫu nhiên từng lời gọi
+? Load balancer TCP chia theo kết nối, mà gRPC dùng một kết nối cho nhiều lời gọi. Cần load balancer hiểu HTTP/2 hoặc cân bằng phía client.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Dịch vụ chấm điểm gRPC có interceptor đo thời gian</summary>
+<p>Viết file <code>grading.proto</code> có <code>rpc Grade(GradeRequest) returns (GradeResponse)</code> (nhận <code>submission_id</code>, <code>score</code> 0 đến 10, <code>comment</code> tối đa 500 ký tự) và <code>rpc WatchGrades(WatchRequest) returns (stream GradeEvent)</code> (đẩy sự kiện mỗi khi có bài được chấm trong một lớp). Viết server, một interceptor ghi log tên hàm, mã lỗi và thời gian, và một client.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Điểm có thể lẻ (8.5): dùng <code>double</code> hoặc lưu theo đơn vị 0,1 điểm bằng <code>int32</code> (85). Kiểu nguyên tránh sai số làm tròn.</li>
+<li>Validate trong <code>Grade</code>, sai thì <code>codes.InvalidArgument</code>.</li>
+<li>Phát sự kiện tới các stream đang nghe: một map <code>classID → []chan *GradeEvent</code> có mutex. <code>WatchGrades</code> đăng ký một channel, vòng <code>select</code> giữa channel và <code>stream.Context().Done()</code>, thoát thì gỡ đăng ký.</li>
+<li>Interceptor stream có kiểu khác: <code>grpc.StreamServerInterceptor</code>. Bài này chỉ cần interceptor unary.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="proto" file="proto/grading/v1/grading.proto">
+syntax = "proto3";
+package grading.v1;
+option go_package = "sobaitap/gen/grading/v1;gradingv1";
+
+service GradingService {
+  rpc Grade(GradeRequest) returns (GradeResponse);
+  rpc WatchGrades(WatchRequest) returns (stream GradeEvent);
+}
+
+message GradeRequest {
+  int64 class_id = 1;
+  int64 submission_id = 2;
+  int32 score_tenths = 3; // 85 = 8,5 điểm
+  string comment = 4;
+}
+message GradeResponse {}
+message WatchRequest { int64 class_id = 1; }
+message GradeEvent {
+  int64 submission_id = 1;
+  int32 score_tenths = 2;
+}
+</pre>
+<pre lang="go" file="server/main.go" check="no">
+package main
+
+import (
+    "context"
+    "log"
+    "log/slog"
+    "net"
+    "sync"
+    "time"
+    "unicode/utf8"
+
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/codes"
+    "google.golang.org/grpc/status"
+
+    gradingv1 "sobaitap/gen/grading/v1"
+)
+
+type hub struct {
+    mu   sync.Mutex
+    subs map[int64]map[chan *gradingv1.GradeEvent]struct{}
+}
+
+func (h *hub) add(classID int64) chan *gradingv1.GradeEvent {
+    ch := make(chan *gradingv1.GradeEvent, 16)
+    h.mu.Lock()
+    defer h.mu.Unlock()
+    if h.subs[classID] == nil {
+        h.subs[classID] = map[chan *gradingv1.GradeEvent]struct{}{}
+    }
+    h.subs[classID][ch] = struct{}{}
+    return ch
+}
+
+func (h *hub) remove(classID int64, ch chan *gradingv1.GradeEvent) {
+    h.mu.Lock()
+    defer h.mu.Unlock()
+    delete(h.subs[classID], ch)
+}
+
+func (h *hub) publish(classID int64, ev *gradingv1.GradeEvent) {
+    h.mu.Lock()
+    defer h.mu.Unlock()
+    for ch := range h.subs[classID] {
+        select {
+        case ch <- ev:
+        default: // người nghe chậm, đầy bộ đệm → bỏ tin, không làm chậm người chấm
+        }
+    }
+}
+
+type server struct {
+    gradingv1.UnimplementedGradingServiceServer
+    hub *hub
+}
+
+func (s *server) Grade(ctx context.Context, r *gradingv1.GradeRequest) (*gradingv1.GradeResponse, error) {
+    if r.GetScoreTenths() < 0 || r.GetScoreTenths() > 100 {
+        return nil, status.Error(codes.InvalidArgument, "điểm từ 0 đến 10")
+    }
+    if utf8.RuneCountInString(r.GetComment()) > 500 {
+        return nil, status.Error(codes.InvalidArgument, "nhận xét tối đa 500 ký tự")
+    }
+    // ... lưu vào database
+    s.hub.publish(r.GetClassId(), &gradingv1.GradeEvent{SubmissionId: r.GetSubmissionId(), ScoreTenths: r.GetScoreTenths()})
+    return &gradingv1.GradeResponse{}, nil
+}
+
+func (s *server) WatchGrades(r *gradingv1.WatchRequest, st grpc.ServerStreamingServer[gradingv1.GradeEvent]) error {
+    ch := s.hub.add(r.GetClassId())
+    defer s.hub.remove(r.GetClassId(), ch)
+    for {
+        select {
+        case ev := <-ch:
+            if err := st.Send(ev); err != nil {
+                return err
+            }
+        case <-st.Context().Done():
+            return nil // client ngắt
+        }
+    }
+}
+
+func timing(ctx context.Context, req any, info *grpc.UnaryServerInfo, h grpc.UnaryHandler) (any, error) {
+    start := time.Now()
+    res, err := h(ctx, req)
+    slog.Info("grpc", "method", info.FullMethod, "code", status.Code(err).String(), "dur", time.Since(start).Round(time.Microsecond))
+    return res, err
+}
+
+func main() {
+    lis, err := net.Listen("tcp", ":50052")
+    if err != nil {
+        log.Fatal(err)
+    }
+    srv := grpc.NewServer(grpc.ChainUnaryInterceptor(timing))
+    gradingv1.RegisterGradingServiceServer(srv, &server{hub: &hub{subs: map[int64]map[chan *gradingv1.GradeEvent]struct{}{}}})
+    log.Fatal(srv.Serve(lis))
+}
+</pre>
+<pre lang="go" file="client/main.go" check="no">
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/credentials/insecure"
+    "google.golang.org/grpc/status"
+
+    gradingv1 "sobaitap/gen/grading/v1"
+)
+
+func main() {
+    conn, err := grpc.NewClient("localhost:50052", grpc.WithTransportCredentials(insecure.NewCredentials()))
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer conn.Close()
+    c := gradingv1.NewGradingServiceClient(conn)
+
+    ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+    defer cancel()
+
+    stream, _ := c.WatchGrades(ctx, &gradingv1.WatchRequest{ClassId: 42})
+    time.Sleep(100 * time.Millisecond) // chờ đăng ký xong (chỉ cho ví dụ)
+
+    c.Grade(ctx, &gradingv1.GradeRequest{ClassId: 42, SubmissionId: 1, ScoreTenths: 85})
+    c.Grade(ctx, &gradingv1.GradeRequest{ClassId: 42, SubmissionId: 2, ScoreTenths: 100})
+    _, err = c.Grade(ctx, &gradingv1.GradeRequest{ClassId: 42, SubmissionId: 3, ScoreTenths: 120})
+    fmt.Println("chấm sai:", status.Code(err), status.Convert(err).Message())
+
+    for range 2 {
+        ev, err := stream.Recv()
+        if err != nil {
+            log.Fatal(err)
+        }
+        fmt.Printf("sự kiện: bài %d được %.1f điểm\n", ev.GetSubmissionId(), float64(ev.GetScoreTenths())/10)
+    }
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run ./client
+chấm sai: InvalidArgument điểm từ 0 đến 10
+sự kiện: bài 1 được 8.5 điểm
+sự kiện: bài 2 được 10.0 điểm
+</pre>
+<pre lang="out" file="Terminal — server" sim="1">
+$ go run ./server
+INFO grpc method=/grading.v1.GradingService/Grade code=OK dur=41µs
+INFO grpc method=/grading.v1.GradingService/Grade code=OK dur=12µs
+INFO grpc method=/grading.v1.GradingService/Grade code=InvalidArgument dur=9µs
+</pre>
+<p><b>Giải thích:</b> client mở stream nghe lớp 42 trước, rồi chấm 3 bài. Bài thứ ba điểm 12 bị từ chối với <code>InvalidArgument</code>, không phát sự kiện. Hai bài hợp lệ được đẩy xuống stream ngay. Server ghi log ba lời gọi unary qua interceptor (<code>WatchGrades</code> là stream nên không đi qua interceptor unary). Hub chỉ nằm trong bộ nhớ một server: chạy nhiều bản thì phát sự kiện qua NATS / Redis pub/sub (bài {{n:realtime-file}}).</p>
+</details>
+</details>

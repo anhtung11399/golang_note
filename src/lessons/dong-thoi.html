@@ -194,7 +194,7 @@ func main() {
 {Classes:[5A Tiếng Anh tối thứ 3] DueToday:2 Unread:5} <nil>
 mất 300ms
 </pre>
-<p>Mỗi goroutine ghi vào một trường <b>khác nhau</b> của <code>d</code>, nên không giẫm chân nhau. <code>context</code> (tham số <code>ctx</code>) là cách báo "dừng lại" cho các việc đang chạy, bài 10 giải thích kỹ. Tạm hiểu: <code>context.Background()</code> là "không có hạn chót, không ai huỷ".</p>
+<p>Mỗi goroutine ghi vào một trường <b>khác nhau</b> của <code>d</code>, nên không giẫm chân nhau. <code>context</code> (tham số <code>ctx</code>) là cách báo "dừng lại" cho các việc đang chạy, bài {{n:context-test}} giải thích kỹ. Tạm hiểu: <code>context.Background()</code> là "không có hạn chót, không ai huỷ".</p>
 
 <h2>Channel: đường ống giữa các goroutine</h2>
 <p>Channel là một hàng đợi có kiểu dữ liệu, an toàn khi dùng đồng thời. Goroutine này gửi vào, goroutine khác nhận ra. Mũi tên <code>&lt;-</code> chỉ hướng dữ liệu đi:</p>
@@ -366,7 +366,7 @@ func main() {
 có kết quả: dữ liệu
 quá 1 giây, bỏ
 </pre>
-<p>Trong code thật, case hay gặp nhất là <code>case &lt;-ctx.Done():</code> nghĩa là "request đã bị huỷ" (bài 10).</p>
+<p>Trong code thật, case hay gặp nhất là <code>case &lt;-ctx.Done():</code> nghĩa là "request đã bị huỷ" (bài {{n:context-test}}).</p>
 
 <h2>Mutex: khi buộc phải dùng chung dữ liệu</h2>
 <p>Nhiều goroutine cùng đọc và ghi một biến mà không đồng bộ gọi là <b>data race</b>. Kết quả sai một cách ngẫu nhiên, và với map còn làm sập chương trình. Chạy chương trình này vài lần:</p>
@@ -496,7 +496,7 @@ exit status 2
 - Goroutine sẽ chạy trước khi response được gửi
 + Nếu server tắt (deploy bản mới) hoặc goroutine panic, email bị mất hoặc cả server sập, và không có cơ chế thử lại
 - Go không cho tạo goroutine trong handler
-? Việc nền quan trọng nên đưa vào hàng đợi bền vững có thử lại (bài 20). Goroutine "bắn rồi quên" chỉ hợp với việc không quan trọng, và phải có recover.
+? Việc nền quan trọng nên đưa vào hàng đợi bền vững có thử lại (bài {{n:bat-dong-bo}}). Goroutine "bắn rồi quên" chỉ hợp với việc không quan trọng, và phải có recover.
 </quiz>
 
 <h2>Bài tập</h2>
@@ -582,7 +582,7 @@ https://pkg.go.dev -> 200 OK
 https://ten-mien-khong-ton-tai.vn -> lỗi: Get "https://ten-mien-khong-ton-tai.vn": dial tcp: lookup ten-mien-khong-ton-tai.vn: no such host
 </pre>
 <p><b>Giải thích:</b> 404 không phải lỗi của <code>client.Get</code>: server vẫn trả lời, chỉ là trả "không có trang này". <code>err</code> chỉ khác <code>nil</code> khi không nói chuyện được với server (sai tên miền, mất mạng, quá 3 giây). Khác <code>fetch</code> của JS ở chỗ nào? Không khác gì: <code>fetch</code> cũng không throw khi gặp 404.</p>
-<p>Hai chi tiết thực tế: <code>http.Client</code> mặc định <b>không có timeout</b> (bài 11), nên luôn tự đặt. Và luôn <code>Close()</code> body của response, nếu không kết nối không được dùng lại và bị rò rỉ.</p>
+<p>Hai chi tiết thực tế: <code>http.Client</code> mặc định <b>không có timeout</b> (bài {{n:http}}), nên luôn tự đặt. Và luôn <code>Close()</code> body của response, nếu không kết nối không được dùng lại và bị rò rỉ.</p>
 </details>
 </details>
 <details class="ex"><summary>Tìm và sửa race</summary>

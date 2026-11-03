@@ -33,7 +33,7 @@ func CheckPassword(hash, pw string) bool {
 }
 </pre>
 <p>Chuỗi băm bcrypt đã chứa sẵn <b>muối</b> (salt) ngẫu nhiên và cost: <code>$2a$12$R9h/cIPz0gi.URNNX3kh2O...</code>. Hai người cùng mật khẩu <code>123456</code> vẫn có hai chuỗi băm khác nhau.</p>
-<aside class="warn"><p>Đăng nhập phải trả <b>cùng một thông báo</b> cho "sai email" và "sai mật khẩu" ("Email hoặc mật khẩu không đúng"), nếu không kẻ tấn công dò được email nào đã đăng ký. Và nhớ giới hạn tần suất đăng nhập (bài 17): băm chậm không cứu được mật khẩu <code>12345678</code> nếu kẻ tấn công được thử không giới hạn.</p></aside>
+<aside class="warn"><p>Đăng nhập phải trả <b>cùng một thông báo</b> cho "sai email" và "sai mật khẩu" ("Email hoặc mật khẩu không đúng"), nếu không kẻ tấn công dò được email nào đã đăng ký. Và nhớ giới hạn tần suất đăng nhập (bài {{n:cache}}): băm chậm không cứu được mật khẩu <code>12345678</code> nếu kẻ tấn công được thử không giới hạn.</p></aside>
 <aside class="real"><p>Nhiều vụ rò rỉ lớn bị khuếch đại vì mật khẩu được băm bằng thuật toán nhanh. Vụ LinkedIn năm 2012 là ví dụ hay được nhắc: mật khẩu băm SHA-1 không muối, sau đó phần lớn bị bẻ khoá. Ngày nay, nhiều sản phẩm chọn không tự lưu mật khẩu nữa mà cho đăng nhập bằng Google / Apple, magic link qua email, hoặc passkey.</p></aside>
 
 <h2>Phiên đăng nhập (session)</h2>
@@ -185,7 +185,7 @@ func (h *Handler) updateClass(w http.ResponseWriter, r *http.Request) {
 - Không cần, vai trò phụ huynh đã đủ
 - Kiểm tra bé 123 có tồn tại
 + Kiểm tra bé 123 là con của chính phụ huynh này, tốt nhất là ngay trong câu truy vấn
-? Vai trò không thay thế được quyền sở hữu. Đổi 123 thành 124 là xem được điểm con nhà khác nếu thiếu kiểm tra này: lỗi BOLA, bài 19.
+? Vai trò không thay thế được quyền sở hữu. Đổi 123 thành 124 là xem được điểm con nhà khác nếu thiếu kiểm tra này: lỗi BOLA, bài {{n:bao-mat-api}}.
 </quiz>
 
 <h2>Bài tập</h2>
@@ -198,15 +198,15 @@ func (h *Handler) updateClass(w http.ResponseWriter, r *http.Request) {
 </ul>
 <p><b>Gợi ý từng bước</b></p>
 <ol class="steps">
-<li>Ba bảng: <code>app_users</code> (email UNIQUE, password_hash), <code>sessions</code> (token_hash, user_id, expires_at), <code>notes</code> (user_id, text). Đặt tên <code>app_users</code> để không đụng bảng <code>users</code> của bài 14 nếu dùng chung database.</li>
-<li>Đăng ký: chuẩn hoá email về chữ thường, kiểm độ dài mật khẩu, băm bằng bcrypt, <code>INSERT</code>. Trùng email thì Postgres trả lỗi <code>23505</code>, đổi thành <code>409</code> (bài 15). Đăng ký xong tạo phiên luôn.</li>
+<li>Ba bảng: <code>app_users</code> (email UNIQUE, password_hash), <code>sessions</code> (token_hash, user_id, expires_at), <code>notes</code> (user_id, text). Đặt tên <code>app_users</code> để không đụng bảng <code>users</code> của bài {{n:sql}} nếu dùng chung database.</li>
+<li>Đăng ký: chuẩn hoá email về chữ thường, kiểm độ dài mật khẩu, băm bằng bcrypt, <code>INSERT</code>. Trùng email thì Postgres trả lỗi <code>23505</code>, đổi thành <code>409</code> (bài {{n:go-postgres}}). Đăng ký xong tạo phiên luôn.</li>
 <li>Đăng nhập: tìm theo email, so mật khẩu bằng <code>bcrypt.CompareHashAndPassword</code>. Không có email và sai mật khẩu trả <b>cùng</b> một câu.</li>
-<li>Phiên: token 32 byte từ <code>crypto/rand</code>, đặt vào cookie, database chỉ lưu SHA-256 của token. Middleware đọc cookie, tìm phiên còn hạn, đưa <code>User</code> vào ctx (bài 10).</li>
+<li>Phiên: token 32 byte từ <code>crypto/rand</code>, đặt vào cookie, database chỉ lưu SHA-256 của token. Middleware đọc cookie, tìm phiên còn hạn, đưa <code>User</code> vào ctx (bài {{n:context-test}}).</li>
 <li>Ghi chú: mọi câu SQL có <code>AND user_id = $n</code> với <code>$n</code> là người đang đăng nhập.</li>
-<li>Giới hạn đăng nhập sai: một map <code>email -&gt; danh sách thời điểm sai</code> có mutex (bài 09) là đủ để làm bài. Nhiều bản server thì dùng Redis như bài 17.</li>
+<li>Giới hạn đăng nhập sai: một map <code>email -&gt; danh sách thời điểm sai</code> có mutex (bài {{n:dong-thoi}}) là đủ để làm bài. Nhiều bản server thì dùng Redis như bài {{n:cache}}.</li>
 </ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<p><b>Chuẩn bị:</b> dùng Postgres của bài 14, dán lược đồ này vào <code>psql</code>:</p>
+<p><b>Chuẩn bị:</b> dùng Postgres của bài {{n:sql}}, dán lược đồ này vào <code>psql</code>:</p>
 <pre lang="sql" file="schema.sql">
 CREATE TABLE app_users (
     id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -403,7 +403,7 @@ func requireUser(next func(http.ResponseWriter, *http.Request, User)) http.Handl
 }
 
 // loginLimiter: tối đa 5 lần đăng nhập SAI trong 15 phút cho mỗi email.
-// Lưu trong bộ nhớ cho gọn. Chạy nhiều bản server thì chuyển sang Redis (bài 17)
+// Lưu trong bộ nhớ cho gọn. Chạy nhiều bản server thì chuyển sang Redis (bài {{n:cache}})
 type loginLimiter struct {
     mu    sync.Mutex
     fails map[string][]time.Time
@@ -681,7 +681,7 @@ postgres=# SELECT encode(token_hash, 'hex') AS token_hash, user_id FROM sessions
 <li>Bình có id 3 chứ không phải 2: lần đăng ký trùng email đã lấy mất số 2 rồi mới bị UNIQUE từ chối. Bộ đếm tự tăng không quay lại, id có "lỗ" là bình thường.</li>
 <li>Bình đọc và xoá ghi chú 1 của Lan đều nhận <code>404</code>, như thể ghi chú không tồn tại. Đó là nhờ <code>AND user_id = $2</code> trong câu SQL.</li>
 <li>Sai email hay sai mật khẩu đều ra cùng một câu, nên không dò được email nào đã có tài khoản.</li>
-<li>Sau 5 lần sai, kể cả nhập đúng mật khẩu cũng bị <code>429</code>: kẻ dò mật khẩu không biết lần nào là đúng. Bộ đếm nằm trong bộ nhớ nên tắt server là mất, và mỗi bản server đếm riêng (xem bài 17).</li>
+<li>Sau 5 lần sai, kể cả nhập đúng mật khẩu cũng bị <code>429</code>: kẻ dò mật khẩu không biết lần nào là đúng. Bộ đếm nằm trong bộ nhớ nên tắt server là mất, và mỗi bản server đếm riêng (xem bài {{n:cache}}).</li>
 <li>Lệnh đăng xuất không dùng <code>-c</code> nên file <code>lan.txt</code> vẫn giữ token cũ. Gửi lại token đó vẫn bị 401: phiên đã bị xoá ở phía server, đây là ưu điểm của session so với JWT.</li>
 <li>Cookie có <code>Secure</code> mà vẫn chạy được trên <code>http://localhost</code> vì trình duyệt và curl coi localhost là an toàn. Lên production phải là HTTPS.</li>
 </ul>

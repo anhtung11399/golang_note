@@ -11,7 +11,7 @@
 <p>Uber là một trong những công ty dùng Go lớn nhất, với hàng nghìn microservice. Họ công bố <i>Uber Go Style Guide</i>, các thư viện <code>zap</code> (log nhanh), <code>fx</code> (dependency injection), và một nghiên cứu năm 2022 về data race trong mã Go của họ: phát hiện hàng nghìn race, nhiều cái do chia sẻ biến trong closure, dùng map và slice đồng thời. Đó là lý do <code>go test -race</code> xuất hiện trong mọi CI nghiêm túc.</p>
 
 <h3>Cloudflare: Go ở rìa mạng</h3>
-<p>Cloudflare dùng Go cho rất nhiều dịch vụ nội bộ và đã viết nhiều bài về cách đặt timeout cho <code>net/http</code> (bài viết "The complete guide to Go net/http timeouts" của họ là tài liệu tham khảo kinh điển cho bài 11).</p>
+<p>Cloudflare dùng Go cho rất nhiều dịch vụ nội bộ và đã viết nhiều bài về cách đặt timeout cho <code>net/http</code> (bài viết "The complete guide to Go net/http timeouts" của họ là tài liệu tham khảo kinh điển cho bài {{n:http}}).</p>
 
 <h3>Discord: khi Go không còn phù hợp</h3>
 <p>Năm 2020, Discord kể việc viết lại dịch vụ "Read States" (lưu kênh nào bạn đã đọc tới đâu) từ Go sang Rust. Dịch vụ giữ một bộ nhớ đệm rất lớn trong RAM. Cứ khoảng 2 phút, bộ thu gom rác của Go chạy và làm độ trễ tăng vọt theo chu kỳ. Bản Rust không có GC nên độ trễ đều hơn. Bài học không phải "Go chậm", mà là: <b>mỗi công cụ có giới hạn</b>, và bạn chỉ biết giới hạn đó bằng cách đo. Go đã cải thiện GC nhiều từ đó (ví dụ <code>GOMEMLIMIT</code> ở Go 1.19).</p>
@@ -51,7 +51,7 @@
 <ul>
 <li><b>Sinh mã</b>: mã hoá id tự tăng sang base62 (ngắn, không trùng, nhưng đoán được thứ tự), hoặc chuỗi ngẫu nhiên 7 ký tự + UNIQUE và thử lại khi trùng (62<sup>7</sup> khoảng 3,5 nghìn tỷ tổ hợp).</li>
 <li><b>Chuyển hướng</b>: <code>301</code> (trình duyệt nhớ, ít tải nhưng không đếm được lượt mở) hay <code>302</code> (đếm được mọi lượt).</li>
-<li><b>Đếm lượt mở</b>: không UPDATE bộ đếm mỗi lần mở (một dòng nóng bị tranh chấp, bài 16). Ghi sự kiện vào hàng đợi, gom và cộng theo lô.</li>
+<li><b>Đếm lượt mở</b>: không UPDATE bộ đếm mỗi lần mở (một dòng nóng bị tranh chấp, bài {{n:toi-uu-query}}). Ghi sự kiện vào hàng đợi, gom và cộng theo lô.</li>
 <li><b>Lạm dụng</b>: link lừa đảo, mã độc. Kiểm URL với danh sách đen (ví dụ Google Safe Browsing), giới hạn tần suất tạo link, chặn SSRF nếu có tính năng xem trước.</li>
 </ul>
 
@@ -60,9 +60,9 @@
 <ul>
 <li><b>Phòng chờ ảo</b>: không cho 500.000 người cùng đập vào API đặt vé. Xếp hàng ở phía trước (CDN / dịch vụ hàng chờ), mỗi lần cho một lượng vừa đủ vào.</li>
 <li><b>Giữ chỗ có hạn</b>: chọn ghế thì giữ 10 phút (<code>UPDATE seats SET held_by = $1, held_until = now() + interval '10 minutes' WHERE id = $2 AND (held_by IS NULL OR held_until &lt; now())</code>). Không thanh toán thì ghế tự trả lại.</li>
-<li><b>Không bán quá</b>: điều kiện nằm trong câu UPDATE (bài 16). Với vé không chọn ghế, có thể trừ số lượng nguyên tử trong Redis (<code>DECR</code>, âm thì hoàn lại) rồi ghi đơn vào database qua hàng đợi.</li>
+<li><b>Không bán quá</b>: điều kiện nằm trong câu UPDATE (bài {{n:toi-uu-query}}). Với vé không chọn ghế, có thể trừ số lượng nguyên tử trong Redis (<code>DECR</code>, âm thì hoàn lại) rồi ghi đơn vào database qua hàng đợi.</li>
 <li><b>Chống bot</b>: CAPTCHA, giới hạn mỗi tài khoản, phát hiện hành vi bất thường (OWASP API6).</li>
-<li><b>Thanh toán</b>: idempotency key, webhook xác nhận (bài 20), đối soát cuối ngày.</li>
+<li><b>Thanh toán</b>: idempotency key, webhook xác nhận (bài {{n:bat-dong-bo}}), đối soát cuối ngày.</li>
 </ul>
 
 <h2>Thiết kế 3: gửi thông báo cho một triệu người</h2>
@@ -81,9 +81,9 @@
 <ul>
 <li>Không có một request nào làm việc với một triệu dòng. Mọi thứ đi qua hàng đợi, theo lô.</li>
 <li>Mỗi lô idempotent (bảng <code>deliveries</code> có khoá chính <code>(broadcast_id, user_id)</code>).</li>
-<li>Tôn trọng giới hạn tốc độ của nhà cung cấp (token bucket, bài 17). Lỗi 429 / 5xx thì thử lại có backoff.</li>
+<li>Tôn trọng giới hạn tốc độ của nhà cung cấp (token bucket, bài {{n:cache}}). Lỗi 429 / 5xx thì thử lại có backoff.</li>
 <li>Máy trả "không còn đăng ký" (HTTP 404 / 410 với Web Push) thì xoá đăng ký đó, nếu không lần sau lại gửi thừa.</li>
-<li>Theo dõi tiến độ: đã gửi bao nhiêu, lỗi bao nhiêu, hàng đợi còn bao nhiêu (bài 21).</li>
+<li>Theo dõi tiến độ: đã gửi bao nhiêu, lỗi bao nhiêu, hàng đợi còn bao nhiêu (bài {{n:quan-sat}}).</li>
 </ul>
 
 <h2>Những mẫu lặp lại ở mọi hệ thống lớn</h2>
@@ -98,7 +98,7 @@
 <tr><td>Dữ liệu một bảng quá lớn</td><td>Index đúng, phân vùng theo thời gian, xoá / lưu trữ dữ liệu cũ</td><td>16</td></tr>
 <tr><td>Ghi dữ liệu và báo cho hệ thống khác</td><td>Outbox</td><td>20</td></tr>
 </table>
-<aside class="warn"><p><b>Microservice không phải điểm khởi đầu.</b> Nhiều công ty lớn bắt đầu bằng một ứng dụng nguyên khối (monolith), tách dịch vụ khi đội ngũ và tải đủ lớn. Tách sớm biến lời gọi hàm thành lời gọi mạng, biến một transaction thành bài toán giao dịch phân tán. Một monolith Go chia package rõ ràng (bài 08) đủ cho rất nhiều sản phẩm.</p></aside>
+<aside class="warn"><p><b>Microservice không phải điểm khởi đầu.</b> Nhiều công ty lớn bắt đầu bằng một ứng dụng nguyên khối (monolith), tách dịch vụ khi đội ngũ và tải đủ lớn. Tách sớm biến lời gọi hàm thành lời gọi mạng, biến một transaction thành bài toán giao dịch phân tán. Một monolith Go chia package rõ ràng (bài {{n:package-module}}) đủ cho rất nhiều sản phẩm.</p></aside>
 
 <quiz q="Tính năng "đếm lượt xem bài tập" làm bằng <code>UPDATE assignments SET views = views + 1 WHERE id = $1</code> mỗi lần mở. Bài tập của một lớp đông được mở 300 lần/giây lúc cao điểm. Vấn đề là gì?">
 - Không có vấn đề, Postgres xử lý được hàng nghìn UPDATE mỗi giây
@@ -113,10 +113,10 @@
 <p><b>Gợi ý từng bước</b></p>
 <ol class="steps">
 <li>Bắt đầu từ con số: bao nhiêu người dùng, mỗi người làm gì bao nhiêu lần mỗi ngày, lúc cao điểm gấp mấy lần lúc bình thường. Nhân ra request mỗi giây.</li>
-<li>Liệt kê danh từ của sản phẩm thành bảng (bài 14). Mỗi bảng: khoá chính, khoá ngoại, ràng buộc.</li>
-<li>Liệt kê việc người dùng làm thành endpoint (bài 12). Mỗi endpoint: ai được gọi.</li>
-<li>Tìm chỗ "hai người cùng làm một lúc" (bài 16) và việc chậm có thể đưa ra nền (bài 20).</li>
-<li>Cuối cùng mới nghĩ tới cache (bài 17): chỉ cache khi đã biết chỗ nào đọc nhiều.</li>
+<li>Liệt kê danh từ của sản phẩm thành bảng (bài {{n:sql}}). Mỗi bảng: khoá chính, khoá ngoại, ràng buộc.</li>
+<li>Liệt kê việc người dùng làm thành endpoint (bài {{n:rest}}). Mỗi endpoint: ai được gọi.</li>
+<li>Tìm chỗ "hai người cùng làm một lúc" (bài {{n:toi-uu-query}}) và việc chậm có thể đưa ra nền (bài {{n:bat-dong-bo}}).</li>
+<li>Cuối cùng mới nghĩ tới cache (bài {{n:cache}}): chỉ cache khi đã biết chỗ nào đọc nhiều.</li>
 </ol>
 <details class="sol"><summary>Xem một bài mẫu: app đặt lịch cắt tóc</summary>
 <p><b>Sản phẩm:</b> 2.000 tiệm cắt tóc, mỗi tiệm 3 thợ. Khách xem giờ trống và đặt lịch, tiệm xác nhận, hệ thống nhắc khách trước giờ hẹn.</p>
@@ -154,7 +154,7 @@ CREATE INDEX bookings_customer ON bookings (customer_id, starts_at DESC);
 <p><b>4. Tranh chấp dữ liệu</b></p>
 <ul>
 <li>Hai khách cùng đặt thợ A lúc 18:00: không "kiểm tra giờ trống rồi mới chèn". Cứ chèn, chỉ mục UNIQUE <code>bookings_no_double</code> từ chối người thứ hai (lỗi <code>23505</code>), API trả <code>409</code> "Giờ này vừa có người đặt".</li>
-<li>Khách bấm "Đặt" hai lần vì mạng chậm: <code>Idempotency-Key</code> (bài 20) trả lại đúng kết quả lần đầu.</li>
+<li>Khách bấm "Đặt" hai lần vì mạng chậm: <code>Idempotency-Key</code> (bài {{n:bat-dong-bo}}) trả lại đúng kết quả lần đầu.</li>
 </ul>
 <p><b>5. Việc chạy nền</b></p>
 <ul>

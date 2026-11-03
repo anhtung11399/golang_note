@@ -82,7 +82,7 @@ type UpdateMeReq struct { // chỉ những trường người dùng được t�
 <h2>API4: giới hạn mọi thứ</h2>
 <table>
 <tr><th>Tài nguyên</th><th>Giới hạn</th></tr>
-<tr><td>Kích thước body</td><td><code>http.MaxBytesReader</code> (bài 11)</td></tr>
+<tr><td>Kích thước body</td><td><code>http.MaxBytesReader</code> (bài {{n:http}})</td></tr>
 <tr><td>File upload</td><td>Kích thước mỗi file, số file mỗi lần, số file mỗi ngày mỗi người</td></tr>
 <tr><td>Phân trang</td><td><code>size</code> tối đa 100</td></tr>
 <tr><td>Độ dài chuỗi</td><td>Mọi trường chữ có độ dài tối đa (khớp với form frontend)</td></tr>
@@ -104,7 +104,7 @@ mux.Handle("/admin/", http.StripPrefix("/admin", RequireAdmin(admin)))
 <p>Cách an toàn hơn nữa: tách trang quản trị thành <b>ứng dụng riêng</b>, tên miền riêng, hệ thống đăng nhập riêng (có xác thực hai lớp), thậm chí chỉ truy cập được qua VPN. Lỗi ở API công khai khi đó không chạm tới chức năng quản trị.</p>
 
 <h2>SQL injection và các loại injection khác</h2>
-<p>Đã gặp ở bài 15: luôn dùng tham số <code>$1</code>. Những chỗ vẫn hay sót:</p>
+<p>Đã gặp ở bài {{n:go-postgres}}: luôn dùng tham số <code>$1</code>. Những chỗ vẫn hay sót:</p>
 <ul>
 <li>Tên cột sắp xếp, chiều sắp xếp lấy từ query string → dùng danh sách cho phép.</li>
 <li><code>LIKE</code> với dữ liệu người dùng: tham số vẫn an toàn, nhưng ký tự <code>%</code> và <code>_</code> trong từ khoá sẽ là ký tự đại diện. Thoát chúng nếu muốn tìm đúng chữ.</li>
@@ -172,7 +172,7 @@ func SecurityHeaders(next http.Handler) http.Handler {
 }
 </pre>
 <ul>
-<li>Không trả stack trace, câu SQL, chuỗi lỗi nội bộ cho client (bài 07).</li>
+<li>Không trả stack trace, câu SQL, chuỗi lỗi nội bộ cho client (bài {{n:xu-ly-loi}}).</li>
 <li>Tắt các endpoint gỡ lỗi (<code>/debug/pprof</code>) trên cổng công khai, đặt chúng ở cổng nội bộ.</li>
 <li>Không để bản dev (<code>DEV_FAKE_LOGIN=1</code>, dữ liệu mẫu) chạy được trên production. Kiểm tra lúc khởi động và từ chối chạy.</li>
 </ul>
@@ -212,7 +212,7 @@ gosec ./...                       # quét mẫu code không an toàn: SQL ghép 
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Tấn công thử API của chính bạn</summary>
-<p>Chạy API có đăng nhập ở lời giải bài 18 (hoặc bản Docker ở bài 22). Đóng vai kẻ tấn công, dùng <code>curl</code> thử 6 cách dưới đây. Với mỗi cách, đoán trước API sẽ trả gì, rồi mới chạy để kiểm tra.</p>
+<p>Chạy API có đăng nhập ở lời giải bài {{n:xac-thuc}} (hoặc bản Docker ở bài {{n:trien-khai}}). Đóng vai kẻ tấn công, dùng <code>curl</code> thử 6 cách dưới đây. Với mỗi cách, đoán trước API sẽ trả gì, rồi mới chạy để kiểm tra.</p>
 <ol class="steps">
 <li><b>BOLA</b>: người B đọc, xoá ghi chú của người A bằng cách đổi id trên URL.</li>
 <li><b>SQL injection</b>: gửi email là <code>' OR '1'='1</code> khi đăng nhập.</li>
@@ -253,7 +253,7 @@ $ BIG=$(python3 -c 'print("a" * 100000)')
 $ curl -s -b a.txt -X POST localhost:8080/notes -H "$J" -d "{\"text\":\"$BIG\"}"
 {"error":"JSON không hợp lệ"}
 </pre>
-<p>Chặn được nhờ <code>http.MaxBytesReader</code> (64 KB) trong hàm <code>decode</code>: server ngừng đọc khi vượt giới hạn, không nạp cả khối vào RAM. Câu báo lỗi chưa thật chính xác: muốn báo "Dữ liệu quá lớn" thì kiểm <code>*http.MaxBytesError</code> như hàm <code>DecodeJSON</code> ở bài 11.</p>
+<p>Chặn được nhờ <code>http.MaxBytesReader</code> (64 KB) trong hàm <code>decode</code>: server ngừng đọc khi vượt giới hạn, không nạp cả khối vào RAM. Câu báo lỗi chưa thật chính xác: muốn báo "Dữ liệu quá lớn" thì kiểm <code>*http.MaxBytesError</code> như hàm <code>DecodeJSON</code> ở bài {{n:http}}.</p>
 <p><b>4. Mass assignment:</b></p>
 <pre lang="out">
 $ curl -s -X POST localhost:8080/register -H "$J" -d '{"email":"c@x.vn","password":"matkhau123","id":1,"role":"admin"}'

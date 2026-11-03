@@ -1,0 +1,731 @@
+<h2>Từ "có test" đến "test đáng tin"</h2>
+<p>Bài {{n:context-test}} dạy <code>go test</code>, test dạng bảng, <code>httptest</code>. Bài này lo phần khó hơn: test những thứ có phụ thuộc bên ngoài (database, API bên thứ ba, thời gian), test tìm lỗi mà bạn không nghĩ ra (fuzz), và đo xem server chịu được bao nhiêu tải.</p>
+<arch w="820" h="270" caption="Kim tự tháp test: nhiều test nhỏ chạy nhanh ở đáy, ít test lớn chạy chậm ở đỉnh">
+node e 410 50 browser "E2E" "vài chục, phút"
+node i 410 140 pg "Tích hợp" "database thật, giây"
+node u 410 230 test "Unit" "hàng trăm, mili giây"
+text 560 50 "Playwright, cả hệ thống" small anchor=start
+text 560 140 "Postgres thật (testcontainers)" small anchor=start
+text 560 230 "hàm thuần, service + fake" small anchor=start
+text 260 50 "chậm, dễ chập chờn" small anchor=end
+text 260 230 "nhanh, ổn định" small anchor=end
+edge u i ""
+edge i e ""
+</arch>
+
+<h2>Fake hay mock</h2>
+<p>Service cần một store. Trong test, ta thay store thật bằng một bản giả. Có hai kiểu:</p>
+<table>
+<tr><th></th><th>Fake</th><th>Mock</th></tr>
+<tr><td>Là gì</td><td>một bản cài đặt đơn giản nhưng chạy thật (map trong bộ nhớ)</td><td>đối tượng ghi lại lời gọi, test khai báo trước "phải gọi hàm X với tham số Y"</td></tr>
+<tr><td>Test kiểm tra</td><td><b>kết quả</b>: sau khi gọi, dữ liệu là gì</td><td><b>cách làm</b>: đã gọi những gì</td></tr>
+<tr><td>Đổi cách cài đặt bên trong</td><td>test vẫn đúng</td><td>test hay vỡ dù hành vi không đổi</td></tr>
+<tr><td>Hợp với</td><td>store, cache, hàng đợi</td><td>xác nhận <b>có gửi</b> email, <b>có gọi</b> cổng thanh toán đúng số tiền</td></tr>
+</table>
+<p>Cộng đồng Go nghiêng về fake viết tay. Interface Go nhỏ (bài {{n:interface}}) nên fake thường chỉ vài chục dòng.</p>
+<pre lang="go" file="service/class.go">
+package service
+
+import (
+    "context"
+    "errors"
+)
+
+var ErrQuota = errors.New("đã đủ số lớp miễn phí")
+
+type Class struct {
+    ID        int64
+    TeacherID int64
+    Name      string
+}
+
+// Interface do service tự khai báo, chỉ gồm những gì service cần
+type ClassStore interface {
+    CountByTeacher(ctx context.Context, teacherID int64) (int, error)
+    Create(ctx context.Context, c Class) (Class, error)
+}
+
+type Mailer interface {
+    Send(ctx context.Context, to, subject, body string) error
+}
+
+type ClassService struct {
+    Store     ClassStore
+    Mail      Mailer
+    FreeQuota int
+}
+
+func (s *ClassService) Create(ctx context.Context, teacherID int64, email, name string) (Class, error) {
+    n, err := s.Store.CountByTeacher(ctx, teacherID)
+    if err != nil {
+        return Class{}, err
+    }
+    if n >= s.FreeQuota {
+        return Class{}, ErrQuota
+    }
+    c, err := s.Store.Create(ctx, Class{TeacherID: teacherID, Name: name})
+    if err != nil {
+        return Class{}, err
+    }
+    _ = s.Mail.Send(ctx, email, "Đã tạo lớp", "Lớp "+name+" đã sẵn sàng")
+    return c, nil
+}
+</pre>
+<pre lang="go" file="service/class_test.go">
+package service
+
+import (
+    "context"
+    "errors"
+    "sync"
+    "testing"
+)
+
+// Fake store: map trong bộ nhớ, chạy thật
+type fakeStore struct {
+    mu      sync.Mutex
+    classes []Class
+    failErr error // để thử trường hợp database lỗi
+}
+
+func (f *fakeStore) CountByTeacher(_ context.Context, tid int64) (int, error) {
+    f.mu.Lock()
+    defer f.mu.Unlock()
+    if f.failErr != nil {
+        return 0, f.failErr
+    }
+    n := 0
+    for _, c := range f.classes {
+        if c.TeacherID == tid {
+            n++
+        }
+    }
+    return n, nil
+}
+
+func (f *fakeStore) Create(_ context.Context, c Class) (Class, error) {
+    f.mu.Lock()
+    defer f.mu.Unlock()
+    c.ID = int64(len(f.classes) + 1)
+    f.classes = append(f.classes, c)
+    return c, nil
+}
+
+// Mailer ghi lại thư đã gửi: một "mock" viết tay đơn giản
+type sentMail struct{ to, subject string }
+type recordMailer struct{ sent []sentMail }
+
+func (m *recordMailer) Send(_ context.Context, to, subject, _ string) error {
+    m.sent = append(m.sent, sentMail{to, subject})
+    return nil
+}
+
+func TestCreateClass(t *testing.T) {
+    ctx := context.Background()
+
+    t.Run("tạo được lớp đầu tiên và gửi email", func(t *testing.T) {
+        st, ml := &fakeStore{}, &recordMailer{}
+        svc := &ClassService{Store: st, Mail: ml, FreeQuota: 1}
+
+        c, err := svc.Create(ctx, 7, "co.hoa@example.com", "Lớp 5A")
+        if err != nil {
+            t.Fatalf("lỗi không mong muốn: %v", err)
+        }
+        if c.ID == 0 || c.TeacherID != 7 {
+            t.Errorf("lớp sai: %+v", c)
+        }
+        if len(ml.sent) != 1 || ml.sent[0].to != "co.hoa@example.com" {
+            t.Errorf("thư đã gửi: %+v", ml.sent)
+        }
+    })
+
+    t.Run("vượt hạn mức thì báo ErrQuota, không gửi email", func(t *testing.T) {
+        st := &fakeStore{classes: []Class{{ID: 1, TeacherID: 7}}}
+        ml := &recordMailer{}
+        svc := &ClassService{Store: st, Mail: ml, FreeQuota: 1}
+
+        _, err := svc.Create(ctx, 7, "co.hoa@example.com", "Lớp 5B")
+        if !errors.Is(err, ErrQuota) {
+            t.Fatalf("muốn ErrQuota, nhận %v", err)
+        }
+        if len(ml.sent) != 0 {
+            t.Errorf("không được gửi email, nhưng đã gửi %d", len(ml.sent))
+        }
+    })
+
+    t.Run("database lỗi thì trả lỗi đó", func(t *testing.T) {
+        boom := errors.New("db down")
+        svc := &ClassService{Store: &fakeStore{failErr: boom}, Mail: &recordMailer{}, FreeQuota: 1}
+        if _, err := svc.Create(ctx, 7, "x@y.z", "A"); !errors.Is(err, boom) {
+            t.Fatalf("muốn lỗi db, nhận %v", err)
+        }
+    })
+}
+</pre>
+<pre lang="out" sim="1">
+$ go test ./service/ -v
+=== RUN   TestCreateClass
+=== RUN   TestCreateClass/tạo_được_lớp_đầu_tiên_và_gửi_email
+=== RUN   TestCreateClass/vượt_hạn_mức_thì_báo_ErrQuota,_không_gửi_email
+=== RUN   TestCreateClass/database_lỗi_thì_trả_lỗi_đó
+--- PASS: TestCreateClass (0.00s)
+    --- PASS: TestCreateClass/tạo_được_lớp_đầu_tiên_và_gửi_email (0.00s)
+    --- PASS: TestCreateClass/vượt_hạn_mức_thì_báo_ErrQuota,_không_gửi_email (0.00s)
+    --- PASS: TestCreateClass/database_lỗi_thì_trả_lỗi_đó (0.00s)
+PASS
+ok      demo/service    0.003s
+</pre>
+
+<h3>Mock sinh tự động: gomock và mockery</h3>
+<p>Nhiều công ty dùng mock sinh code, bạn cần đọc được. <code>go.uber.org/mock</code> (gomock):</p>
+<pre lang="go">
+//go:generate go run go.uber.org/mock/mockgen -source=class.go -destination=mock_test.go -package=service
+
+func TestCreateWithGomock(t *testing.T) {
+    ctrl := gomock.NewController(t)
+    st := NewMockClassStore(ctrl)
+    ml := NewMockMailer(ctrl)
+
+    // Khai báo trước: phải gọi đúng các hàm này, đúng tham số, đúng số lần
+    st.EXPECT().CountByTeacher(gomock.Any(), int64(7)).Return(0, nil)
+    st.EXPECT().Create(gomock.Any(), Class{TeacherID: 7, Name: "Lớp 5A"}).Return(Class{ID: 1, TeacherID: 7, Name: "Lớp 5A"}, nil)
+    ml.EXPECT().Send(gomock.Any(), "co.hoa@example.com", "Đã tạo lớp", gomock.Any()).Return(nil).Times(1)
+
+    svc := &ClassService{Store: st, Mail: ml, FreeQuota: 1}
+    if _, err := svc.Create(context.Background(), 7, "co.hoa@example.com", "Lớp 5A"); err != nil {
+        t.Fatal(err)
+    }
+    // ctrl tự kiểm tra cuối test: thiếu lời gọi nào đã EXPECT thì test lỗi
+}
+</pre>
+<aside class="warn"><p>Mock quá chi tiết (khai báo từng lời gọi store) làm test gắn chặt vào cách cài đặt: đổi <code>CountByTeacher</code> thành một câu SQL kiểm hạn mức ngay trong <code>Create</code> là vỡ hết test dù hành vi đúng. Dùng mock cho <b>ranh giới với bên ngoài</b> (email, thanh toán), dùng fake hoặc database thật cho store.</p></aside>
+
+<h2>Test với Postgres thật: testcontainers</h2>
+<p>Fake store không bắt được lỗi SQL: sai tên cột, thiếu index, vi phạm ràng buộc, khoá dòng. Store phải được test với <b>Postgres thật</b>. <code>testcontainers-go</code> tự bật một container Postgres khi test chạy và tắt khi xong.</p>
+<pre lang="sh">
+go get github.com/testcontainers/testcontainers-go/modules/postgres
+</pre>
+<pre lang="go" file="store/main_test.go" check="no">
+package store
+
+import (
+    "context"
+    "log"
+    "os"
+    "testing"
+    "time"
+
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/testcontainers/testcontainers-go"
+    "github.com/testcontainers/testcontainers-go/modules/postgres"
+    "github.com/testcontainers/testcontainers-go/wait"
+)
+
+var testPool *pgxpool.Pool
+
+// TestMain chạy MỘT lần cho cả package: bật Postgres, chạy migration, chạy mọi test, tắt Postgres
+func TestMain(m *testing.M) {
+    ctx := context.Background()
+    pg, err := postgres.Run(ctx, "postgres:17-alpine",
+        postgres.WithDatabase("test"),
+        postgres.WithUsername("test"),
+        postgres.WithPassword("test"),
+        postgres.WithInitScripts("../migrations/00001_init.sql"),
+        testcontainers.WithWaitStrategy(
+            wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(60*time.Second)),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    dsn, _ := pg.ConnectionString(ctx, "sslmode=disable")
+    testPool, err = pgxpool.New(ctx, dsn)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    code := m.Run()
+
+    testPool.Close()
+    _ = pg.Terminate(ctx)
+    os.Exit(code)
+}
+
+// Mỗi test chạy trong một transaction rồi rollback: dữ liệu test không lẫn sang nhau
+func withTx(t *testing.T, fn func(ctx context.Context, q Querier)) {
+    t.Helper()
+    ctx := context.Background()
+    tx, err := testPool.Begin(ctx)
+    if err != nil {
+        t.Fatal(err)
+    }
+    t.Cleanup(func() { tx.Rollback(ctx) })
+    fn(ctx, tx)
+}
+</pre>
+<pre lang="go" file="store/class_test.go" check="no">
+package store
+
+import (
+    "context"
+    "errors"
+    "testing"
+)
+
+func TestCapacityCheck(t *testing.T) {
+    withTx(t, func(ctx context.Context, q Querier) {
+        s := &ClassStore{db: q}
+        _, err := s.Create(ctx, Class{TeacherID: 1, Name: "A", Capacity: 120})
+        if !errors.Is(err, ErrInvalid) { // CHECK (capacity BETWEEN 1 AND 80) trong database
+            t.Fatalf("sĩ số 120 phải bị database từ chối, nhận %v", err)
+        }
+    })
+}
+
+func TestTeacherCannotSeeOthersClass(t *testing.T) {
+    withTx(t, func(ctx context.Context, q Querier) {
+        s := &ClassStore{db: q}
+        c, _ := s.Create(ctx, Class{TeacherID: 1, Name: "A", Capacity: 30})
+        if _, err := s.Get(ctx, 2, c.ID); !errors.Is(err, ErrNotFound) {
+            t.Fatalf("giáo viên 2 không được thấy lớp của giáo viên 1, nhận %v", err)
+        }
+    })
+}
+</pre>
+<pre lang="out" sim="1">
+$ go test ./store/ -v
+2026/11/03 10:40:02 🐳 Creating container for image postgres:17-alpine
+2026/11/03 10:40:03 ✅ Container started: 4c1d2a9e
+2026/11/03 10:40:05 🔔 Container is ready: 4c1d2a9e
+=== RUN   TestCapacityCheck
+--- PASS: TestCapacityCheck (0.01s)
+=== RUN   TestTeacherCannotSeeOthersClass
+--- PASS: TestTeacherCannotSeeOthersClass (0.00s)
+PASS
+2026/11/03 10:40:05 🐳 Terminating container: 4c1d2a9e
+ok      demo/store      3.912s
+</pre>
+<p><b>Giải thích:</b> phần lớn thời gian (khoảng 3 giây) là bật container. Mỗi test chỉ mất vài mili giây vì chạy trong transaction rồi rollback. Container được bật một lần cho cả package nhờ <code>TestMain</code>. Lần đầu chạy cần tải image Postgres (vài chục MB).</p>
+<aside class="tip"><p>Mẹo cho test nhanh: tạo database mẫu đã chạy migration một lần, rồi mỗi test <code>CREATE DATABASE t_xxx TEMPLATE mau</code> (mất khoảng 20ms) để test chạy song song bằng <code>t.Parallel()</code> mà không đụng nhau. Cách rollback ở trên đơn giản hơn nhưng không test được code tự mở transaction hoặc tranh chấp giữa hai kết nối.</p></aside>
+<aside class="prod"><p>Tách test chậm bằng build tag: đầu file ghi <code>//go:build integration</code>, chạy bằng <code>go test -tags=integration ./...</code>. Trên máy chạy nhanh <code>go test ./...</code>, CI chạy cả hai.</p></aside>
+
+<h2>Test API bên thứ ba: httptest.Server</h2>
+<p>Code gọi API ngân hàng / AI / gửi SMS. Không gọi thật trong test, cũng không cần mock: bật một <b>server HTTP giả</b> ngay trong test và trỏ client vào nó.</p>
+<pre lang="go" file="payment/client_test.go" check="no">
+func TestCreatePaymentRetriesOn503(t *testing.T) {
+    var calls atomic.Int32
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.Header.Get("Idempotency-Key") == "" {
+            t.Error("thiếu Idempotency-Key")
+        }
+        if calls.Add(1) < 3 {
+            w.WriteHeader(503) // hai lần đầu lỗi tạm thời
+            return
+        }
+        w.Write([]byte(`{"id":"pay_1","status":"pending"}`))
+    }))
+    defer srv.Close()
+
+    c := NewClient(srv.URL, "test-key") // client nhận baseURL qua tham số: dễ test
+    p, err := c.Create(context.Background(), 49000, "order-1")
+    if err != nil {
+        t.Fatal(err)
+    }
+    if p.ID != "pay_1" || calls.Load() != 3 {
+        t.Fatalf("p=%+v, calls=%d", p, calls.Load())
+    }
+}
+</pre>
+
+<h2>Thời gian trong test</h2>
+<p>Code có "hạn nộp hôm nay", "phiên hết hạn sau 30 ngày", "thử lại sau 1 phút". Đừng gọi <code>time.Now()</code> rải rác: truyền đồng hồ vào.</p>
+<pre lang="go">
+type Service struct {
+    now func() time.Time // production: time.Now, test: hàm trả giờ cố định
+}
+
+func (s *Service) IsLate(due time.Time) bool { return s.now().After(due) }
+
+// test
+svc := &Service{now: func() time.Time { return time.Date(2026, 11, 3, 23, 59, 0, 0, vn) }}
+</pre>
+<p>Go 1.25 có <code>testing/synctest</code>: chạy test trong một "bong bóng" có đồng hồ giả. <code>time.Sleep(time.Hour)</code> trong bong bóng trả về ngay, nhưng thời gian giả vẫn tiến đúng 1 giờ. Rất hợp để test timeout, ticker, retry có chờ.</p>
+<pre lang="go" file="retry_test.go" check="no">
+func TestDebounce(t *testing.T) {
+    synctest.Test(t, func(t *testing.T) {
+        var d Debouncer
+        var n atomic.Int32
+        for range 5 {
+            d.Call(2*time.Second, func() { n.Add(1) })
+            time.Sleep(500 * time.Millisecond) // đồng hồ giả: không chờ thật
+        }
+        time.Sleep(3 * time.Second)
+        synctest.Wait() // chờ mọi goroutine trong bong bóng dừng lại
+        if n.Load() != 1 {
+            t.Fatalf("debounce phải chỉ chạy 1 lần, chạy %d", n.Load())
+        }
+    })
+}
+</pre>
+
+<h2>Golden file: so sánh với kết quả đã duyệt</h2>
+<p>Output dài (JSON của báo cáo, file CSV, email HTML): thay vì viết tay chuỗi mong đợi, lưu kết quả đúng vào <code>testdata/*.golden</code> và so sánh. Khi cố ý đổi output, chạy với cờ <code>-update</code> để ghi lại.</p>
+<pre lang="go">
+var update = flag.Bool("update", false, "ghi lại file golden")
+
+func TestExportCSV(t *testing.T) {
+    got := exportCSV(sampleClass())
+    path := filepath.Join("testdata", "export.golden.csv") // go test bỏ qua thư mục testdata khi build
+    if *update {
+        os.WriteFile(path, got, 0o644)
+    }
+    want, err := os.ReadFile(path)
+    if err != nil {
+        t.Fatal(err)
+    }
+    if !bytes.Equal(got, want) {
+        t.Errorf("CSV khác bản đã duyệt. Chạy go test -update rồi xem git diff")
+    }
+}
+</pre>
+<p>Khi review pull request, <code>git diff testdata/</code> cho thấy chính xác output đổi thế nào. Thư viện so sánh dễ đọc: <code>github.com/google/go-cmp/cmp</code>, <code>cmp.Diff(want, got)</code> in ra từng chỗ khác.</p>
+
+<h2>Fuzz: để máy tìm lỗi</h2>
+<p>Bạn viết test cho các đầu vào bạn nghĩ ra. Fuzz test cho Go <b>tự sinh hàng triệu đầu vào</b>, ưu tiên những đầu vào đi vào nhánh code mới, để tìm panic hay vi phạm tính chất.</p>
+<pre lang="go" file="name_test.go">
+package name
+
+import (
+    "strings"
+    "testing"
+    "unicode/utf8"
+)
+
+// Chuẩn hoá tên: bỏ khoảng trắng thừa, viết hoa chữ đầu mỗi từ
+func Normalize(s string) string {
+    words := strings.Fields(s)
+    for i, w := range words {
+        words[i] = strings.ToUpper(w[:1]) + strings.ToLower(w[1:]) // lỗi ẩn: cắt theo byte
+    }
+    return strings.Join(words, " ")
+}
+
+func FuzzNormalize(f *testing.F) {
+    f.Add("nguyễn văn an") // vài mẫu khởi đầu
+    f.Add("  AN  ")
+    f.Fuzz(func(t *testing.T, s string) {
+        if !utf8.ValidString(s) {
+            t.Skip()
+        }
+        out := Normalize(s)
+        // Kiểm tra TÍNH CHẤT, không phải giá trị cụ thể
+        if !utf8.ValidString(out) {
+            t.Fatalf("kết quả không phải UTF-8 hợp lệ: %q → %q", s, out)
+        }
+        if Normalize(out) != out {
+            t.Fatalf("chuẩn hoá hai lần ra kết quả khác: %q", s)
+        }
+    })
+}
+</pre>
+<pre lang="out" sim="1">
+$ go test -fuzz=FuzzNormalize -fuzztime=30s
+fuzz: elapsed: 0s, gathering baseline coverage: 0/2 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 2/2 completed, now fuzzing with 8 workers
+fuzz: elapsed: 0s, execs: 1544 (12871/sec), new interesting: 3 (total: 5)
+--- FAIL: FuzzNormalize (0.13s)
+    --- FAIL: FuzzNormalize (0.00s)
+        name_test.go:28: kết quả không phải UTF-8 hợp lệ: "ấn" → "\xe1\xba\xa5n"...
+
+    Failing input written to testdata/fuzz/FuzzNormalize/8c3e1a0b2f7d9e41
+    To re-run:
+    go test -run=FuzzNormalize/8c3e1a0b2f7d9e41
+FAIL
+</pre>
+<p><b>Giải thích:</b> <code>w[:1]</code> lấy <b>byte</b> đầu tiên, nhưng chữ "ấ" dài 3 byte. Cắt giữa ký tự làm hỏng UTF-8. Fuzz tìm ra trong chưa tới 1 giây. Đầu vào gây lỗi được lưu vào <code>testdata/fuzz/</code> và từ nay chạy cùng <code>go test</code> bình thường, thành test hồi quy. Sửa: đổi sang <code>[]rune</code> (bài {{n:bien-kieu}}).</p>
+<pre lang="go" mark="good">
+r := []rune(w)
+words[i] = strings.ToUpper(string(r[:1])) + strings.ToLower(string(r[1:]))
+</pre>
+<p>Fuzz hợp với: hàm đọc / phân tích dữ liệu (CSV, JSON tự viết, đường dẫn, mã lớp), chuẩn hoá chuỗi, mã hoá / giải mã (tính chất: <code>Decode(Encode(x)) == x</code>).</p>
+
+<h2>Race detector và test lặp</h2>
+<pre lang="sh">
+go test -race ./...            # tìm truy cập dữ liệu chung không có khoá (chậm hơn 5-10 lần, luôn bật trong CI)
+go test -count=50 -run TestX   # chạy 50 lần để lộ test chập chờn (flaky)
+go test -shuffle=on ./...      # đổi thứ tự test: lộ test phụ thuộc vào test khác
+</pre>
+<p>Test chập chờn (lúc qua lúc trượt) nguy hiểm hơn không có test: mọi người quen bấm "chạy lại", tới khi lỗi thật cũng bị bỏ qua. Nguyên nhân thường gặp: <code>time.Sleep</code> để "chờ goroutine xong", phụ thuộc thứ tự của map, dùng chung dữ liệu giữa các test, giờ hệ thống.</p>
+
+<h2>Coverage: đo, đừng chạy theo con số</h2>
+<pre lang="out" sim="1">
+$ go test -coverprofile=cover.out ./...
+ok      demo/service    0.004s  coverage: 87.5% of statements
+ok      demo/store      3.902s  coverage: 74.1% of statements
+$ go tool cover -html=cover.out    # mở trình duyệt, tô đỏ các dòng chưa test
+</pre>
+<p>Coverage cao không có nghĩa là test tốt (một test gọi hàm mà không kiểm tra gì vẫn tăng coverage). Dùng nó để <b>tìm nhánh quan trọng chưa test</b>: nhánh lỗi, kiểm tra quyền, trường hợp biên. Từ Go 1.20, có thể đo coverage cả khi chạy binary thật (<code>go build -cover</code>), hữu ích cho test e2e.</p>
+
+<h2>Đo tải: server chịu được bao nhiêu</h2>
+<p>Trước khi mở bán hay trước mùa cao điểm (đầu năm học), cần biết: bao nhiêu request mỗi giây thì độ trễ bắt đầu tăng, và chỗ nào nghẽn trước (CPU, database, pool kết nối).</p>
+<pre lang="sh">
+brew install k6
+</pre>
+<pre lang="ts" file="load.js">
+import http from "k6/http";
+import { check, sleep } from "k6";
+
+export const options = {
+  stages: [
+    { duration: "30s", target: 50 },   // tăng dần lên 50 người dùng ảo
+    { duration: "1m", target: 200 },   // rồi 200
+    { duration: "30s", target: 0 },
+  ],
+  thresholds: {
+    http_req_duration: ["p(95)<300"],  // 95% request dưới 300ms, không đạt thì k6 báo lỗi (dùng trong CI)
+    http_req_failed: ["rate<0.01"],    // dưới 1% lỗi
+  },
+};
+
+export default function () {
+  const res = http.get("http://localhost:8080/api/v1/classes/42/assignments", {
+    headers: { Authorization: `Bearer ${__ENV.TOKEN}` },
+  });
+  check(res, { "status 200": (r) => r.status === 200 });
+  sleep(1); // mỗi người dùng ảo nghỉ 1 giây giữa hai lần, giống người thật
+}
+</pre>
+<pre lang="out" sim="1">
+$ k6 run -e TOKEN=$TOKEN load.js
+
+     ✓ status 200
+
+     checks.........................: 100.00% ✓ 21385     ✗ 0
+     http_req_duration..............: avg=18.2ms  min=1.9ms  med=9.4ms  max=1.2s  p(90)=31.7ms  p(95)=212.4ms
+   ✓ { expected_response:true }...: avg=18.2ms  p(95)=212.4ms
+     http_req_failed................: 0.00%   ✓ 0         ✗ 21385
+     http_reqs......................: 21385   178.2/s
+     vus_max........................: 200
+
+   ✓ http_req_duration p(95)<300
+   ✓ http_req_failed rate<0.01
+</pre>
+<p><b>Đọc kết quả:</b> trung bình 18ms nhưng p95 là 212ms và max 1,2 giây. Trung bình che mất đuôi chậm. Khi p95 nhảy vọt trong lúc số người dùng tăng, mở pprof (bài {{n:quan-sat}}) và xem số kết nối database đang chờ (<code>pool.Stat().EmptyAcquireCount()</code>): rất thường gặp là pool 10 kết nối bị dùng hết, request xếp hàng chờ kết nối.</p>
+<aside class="warn"><p>Chỉ đo tải môi trường <b>của bạn</b> (máy cá nhân, môi trường staging). Đo tải hệ thống của người khác, hay production đang có người dùng mà không báo trước, có thể bị coi là tấn công. Chạy k6 ở một máy khác với server, vì k6 cũng ăn CPU.</p></aside>
+
+<quiz q="Store được test bằng fake (map trong bộ nhớ). Câu SQL trong store thật gõ sai tên cột. Test service có bắt được không?">
+- Có
++ Không. Fake không chạy SQL. Cần test tích hợp store với Postgres thật (testcontainers) hoặc sqlc để bắt lúc sinh code
+- Có nếu bật -race
+? Mỗi tầng test bắt một loại lỗi. Fake kiểm tra logic service, database thật kiểm tra SQL và ràng buộc.
+</quiz>
+<quiz q="Fuzz test nên kiểm tra điều gì?">
+- Kết quả bằng đúng một chuỗi cụ thể
++ Tính chất luôn đúng với mọi đầu vào: không panic, kết quả hợp lệ, làm hai lần ra như một lần, giải mã lại ra đầu vào
+- Thời gian chạy
+? Fuzz sinh đầu vào ngẫu nhiên nên bạn không biết trước kết quả cụ thể. Bạn chỉ kiểm tra được những tính chất phải đúng với mọi đầu vào.
+</quiz>
+<quiz q="Kết quả k6: avg 20ms, p95 900ms. Kết luận nào đúng?">
+- Server nhanh, trung bình chỉ 20ms
++ 5% người dùng chờ gần 1 giây trở lên. Cần tìm vì sao có đuôi chậm (khoá, pool kết nối, GC, truy vấn chậm với một số dữ liệu)
+- Đo sai
+? Người dùng cảm nhận các request chậm, không cảm nhận trung bình. SLO và cảnh báo luôn dùng phân vị (p95, p99).
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Fuzz hàm đọc mã lớp</summary>
+<p>Mã lớp có dạng 8 ký tự gồm chữ in hoa và số, không có <code>O</code>, <code>0</code>, <code>I</code>, <code>1</code> (dễ nhầm). Người dùng có thể gõ chữ thường, có khoảng trắng hoặc dấu gạch: <code>" abcd-5a23 "</code>. Viết <code>ParseCode(s string) (string, error)</code> và fuzz test kiểm tra: không panic, kết quả luôn đúng 8 ký tự hợp lệ khi không lỗi, và <code>ParseCode(kết quả)</code> trả lại chính nó.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Duyệt từng <code>rune</code>, bỏ khoảng trắng và <code>-</code>, đổi <code>unicode.ToUpper</code>.</li>
+<li>Ký tự hợp lệ: <code>strings.ContainsRune("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", r)</code>.</li>
+<li>Bẫy: <code>unicode.ToUpper</code> của vài ký tự Unicode lạ ra chữ Latin? Ví dụ chữ <code>ı</code> (i không chấm của tiếng Thổ Nhĩ Kỳ) viết hoa thành <code>I</code>. Fuzz sẽ tìm ra.</li>
+<li>Tính chất thứ ba gọi là idempotent: chuẩn hoá hai lần như một lần.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go" file="code.go">
+package code
+
+import (
+    "errors"
+    "strings"
+    "unicode"
+)
+
+const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+var ErrBadCode = errors.New("mã lớp gồm 8 chữ hoặc số")
+
+func ParseCode(s string) (string, error) {
+    var b strings.Builder
+    for _, r := range s {
+        if unicode.IsSpace(r) || r == '-' {
+            continue
+        }
+        if r > unicode.MaxASCII { // chặn ký tự ngoài ASCII TRƯỚC khi viết hoa (ı → I)
+            return "", ErrBadCode
+        }
+        r = unicode.ToUpper(r)
+        if !strings.ContainsRune(alphabet, r) {
+            return "", ErrBadCode
+        }
+        b.WriteRune(r)
+        if b.Len() > 8 {
+            return "", ErrBadCode
+        }
+    }
+    if b.Len() != 8 {
+        return "", ErrBadCode
+    }
+    return b.String(), nil
+}
+</pre>
+<pre lang="go" file="code_test.go">
+package code
+
+import (
+    "strings"
+    "testing"
+)
+
+func FuzzParseCode(f *testing.F) {
+    for _, s := range []string{"ABCD5A23", " abcd-5a23 ", "ABCD", "ıııııııı", ""} {
+        f.Add(s)
+    }
+    f.Fuzz(func(t *testing.T, s string) {
+        got, err := ParseCode(s)
+        if err != nil {
+            return // từ chối thì không sao, miễn không panic
+        }
+        if len(got) != 8 {
+            t.Fatalf("%q → %q: không đủ 8 ký tự", s, got)
+        }
+        for _, r := range got {
+            if !strings.ContainsRune(alphabet, r) {
+                t.Fatalf("%q → %q: có ký tự %q không hợp lệ", s, got, r)
+            }
+        }
+        again, err := ParseCode(got)
+        if err != nil || again != got {
+            t.Fatalf("không idempotent: %q → %q → %q, %v", s, got, again, err)
+        }
+    })
+}
+
+func TestParseCode(t *testing.T) {
+    cases := map[string]string{" abcd-5a23 ": "ABCD5A23", "ıııııııı": "", "ABCD5A2O": ""}
+    for in, want := range cases {
+        got, _ := ParseCode(in)
+        if got != want {
+            t.Errorf("ParseCode(%q) = %q, muốn %q", in, got, want)
+        }
+    }
+}
+</pre>
+<pre lang="out" sim="1">
+$ go test -run TestParseCode -v
+=== RUN   TestParseCode
+--- PASS: TestParseCode (0.00s)
+PASS
+$ go test -fuzz=FuzzParseCode -fuzztime=20s
+fuzz: elapsed: 0s, gathering baseline coverage: 0/5 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 5/5 completed, now fuzzing with 8 workers
+fuzz: elapsed: 3s, execs: 412873 (137612/sec), new interesting: 11 (total: 16)
+fuzz: elapsed: 20s, execs: 2763120 (138110/sec), new interesting: 14 (total: 19)
+PASS
+ok      code    20.112s
+</pre>
+<p><b>Giải thích:</b> 2,7 triệu đầu vào trong 20 giây, không có lỗi. Nếu bỏ dòng chặn ký tự ngoài ASCII, fuzz sẽ tìm ra <code>ı</code> viết hoa thành <code>I</code> (rồi bị chặn vì không có trong bảng) và các ký tự như <code>ǅ</code>, cho thấy việc kiểm tra trước khi đổi chữ hoa quan trọng thế nào. Chữ <code>O</code> trong <code>ABCD5A2O</code> bị từ chối vì không nằm trong bảng ký tự.</p>
+</details>
+</details>
+
+<details class="ex"><summary>Test tích hợp: hai request cùng vào lớp gần đầy</summary>
+<p>Lớp sĩ số 30 đã có 29 em. Hai phụ huynh bấm "vào lớp" cùng lúc. Viết test tích hợp với Postgres thật chứng minh store chỉ cho một người vào. Dùng hàm <code>Join</code> có điều kiện sĩ số nằm trong câu INSERT (bài {{n:toi-uu-query}}).</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Không dùng <code>withTx</code> (một transaction) được, vì cần hai kết nối thật chạy song song. Dùng <code>testPool</code> trực tiếp và tự dọn dữ liệu bằng <code>t.Cleanup</code>.</li>
+<li>Tạo lớp và 29 em bằng <code>generate_series</code>: <code>INSERT INTO enrollments SELECT $1, g FROM generate_series(1, 29) g</code>.</li>
+<li>Hai goroutine cùng gọi <code>Join</code>, chờ nhau bằng một channel <code>start</code> để thật sự cùng lúc.</li>
+<li>Đếm: đúng một lỗi <code>ErrFull</code>, đúng 30 em.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go" file="store/join.go" check="no">
+var ErrFull = errors.New("lớp đã đủ sĩ số")
+
+// Điều kiện sĩ số nằm NGAY trong câu INSERT, khoá dòng lớp để hai câu không cùng đếm 29
+func (s *ClassStore) Join(ctx context.Context, classID, studentID int64) error {
+    tx, err := s.pool.Begin(ctx)
+    if err != nil {
+        return err
+    }
+    defer tx.Rollback(ctx)
+
+    var capacity int
+    if err := tx.QueryRow(ctx, `SELECT capacity FROM classes WHERE id = $1 FOR UPDATE`, classID).Scan(&capacity); err != nil {
+        return err
+    }
+    tag, err := tx.Exec(ctx, `
+        INSERT INTO enrollments (class_id, student_id)
+        SELECT $1, $2
+        WHERE (SELECT count(*) FROM enrollments WHERE class_id = $1) < $3`, classID, studentID, capacity)
+    if err != nil {
+        return err
+    }
+    if tag.RowsAffected() == 0 {
+        return ErrFull
+    }
+    return tx.Commit(ctx)
+}
+</pre>
+<pre lang="go" file="store/join_test.go" check="no">
+func TestJoinRace(t *testing.T) {
+    ctx := context.Background()
+    s := &ClassStore{pool: testPool}
+
+    var classID int64
+    err := testPool.QueryRow(ctx,
+        `INSERT INTO classes (teacher_id, name, capacity) VALUES (1, 'Lớp đua', 30) RETURNING id`).Scan(&classID)
+    if err != nil {
+        t.Fatal(err)
+    }
+    t.Cleanup(func() { testPool.Exec(ctx, `DELETE FROM classes WHERE id = $1`, classID) }) // ON DELETE CASCADE dọn enrollments
+
+    if _, err := testPool.Exec(ctx,
+        `INSERT INTO enrollments (class_id, student_id) SELECT $1, g FROM generate_series(1, 29) g`, classID); err != nil {
+        t.Fatal(err)
+    }
+
+    start := make(chan struct{})
+    errs := make(chan error, 2)
+    for _, sid := range []int64{1001, 1002} {
+        go func() {
+            <-start // cả hai chờ ở đây rồi cùng chạy
+            errs <- s.Join(ctx, classID, sid)
+        }()
+    }
+    close(start)
+
+    var full, ok int
+    for range 2 {
+        switch err := <-errs; {
+        case err == nil:
+            ok++
+        case errors.Is(err, ErrFull):
+            full++
+        default:
+            t.Fatalf("lỗi lạ: %v", err)
+        }
+    }
+    var n int
+    testPool.QueryRow(ctx, `SELECT count(*) FROM enrollments WHERE class_id = $1`, classID).Scan(&n)
+    if ok != 1 || full != 1 || n != 30 {
+        t.Fatalf("ok=%d full=%d sĩ số=%d, muốn 1, 1, 30", ok, full, n)
+    }
+}
+</pre>
+<pre lang="out" sim="1">
+$ go test ./store/ -run TestJoinRace -count=20
+ok      demo/store      4.316s
+</pre>
+<p><b>Giải thích:</b> chạy 20 lần đều qua. <code>FOR UPDATE</code> khoá dòng lớp: request thứ hai phải chờ request đầu commit, rồi mới đếm và thấy đã đủ 30. Thử bỏ <code>FOR UPDATE</code> và chạy <code>-count=20</code>: sẽ có lần cả hai cùng đếm 29 và cùng chèn được, sĩ số thành 31, test trượt. Đây đúng là loại lỗi fake store không bao giờ bắt được.</p>
+</details>
+</details>
