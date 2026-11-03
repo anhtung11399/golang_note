@@ -29,6 +29,29 @@
 </figure>
 <aside class="real"><p><code>net/http</code> của Go tạo <b>một goroutine cho mỗi kết nối</b>. Bạn viết handler như thể chỉ có một người dùng, gọi database, chờ, trả kết quả. Hàng nghìn người dùng cùng lúc là hàng nghìn goroutine, mỗi cái chỉ tốn vài KB bộ nhớ lúc đầu. Một luồng hệ điều hành thường tốn cỡ 1MB trở lên cho stack, nên mô hình "mỗi request một luồng" của các server đời cũ khó mở rộng hơn nhiều.</p></aside>
 
+<arch w="800" h="320" caption="Mô hình G-M-P của bộ lập lịch Go: hàng nghìn goroutine (G) xếp trong hàng đợi của các processor (P, bằng số nhân CPU, GOMAXPROCS), mỗi P chạy trên một luồng hệ điều hành (M). Goroutine chờ I/O được cất đi, không chiếm luồng">
+group 10 20 380 290 proc "Runtime Go"
+node p1 90 90 cpu "P1" "hàng đợi cục bộ"
+node p2 290 90 cpu "P2"
+node g1 50 200 goroutine "G"
+node g2 130 200 goroutine "G"
+node g3 250 200 goroutine "G"
+node g4 330 200 goroutine "G"
+text 200 290 "goroutine bắt đầu với stack ~2 KB, tự nới" small anchor=middle
+group 420 20 370 290 plain "Hệ điều hành"
+node m1 500 90 server "M1" "luồng OS"
+node m2 690 90 server "M2"
+node c1 500 220 server "Nhân CPU 1"
+node c2 690 220 server "Nhân CPU 2"
+node net 600 160 internet "netpoller" "goroutine chờ mạng"
+edge p1 m1 "" route=hvh
+edge p2 m2 "" route=hvh
+edge m1 c1 ""
+edge m2 c2 ""
+edge g1 p1 "" route=v
+edge g4 p2 "" route=v
+</arch>
+
 <h2>Goroutine: thêm chữ go</h2>
 <p>Đặt chữ <code>go</code> trước một lời gọi hàm thì hàm đó chạy <b>song song</b>, còn dòng code tiếp theo chạy ngay mà không chờ. Gần giống gọi một hàm <code>async</code> mà không <code>await</code>.</p>
 <pre lang="go" check="no">

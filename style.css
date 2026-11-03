@@ -257,3 +257,37 @@ details.ex .sol > summary { cursor: pointer; color: var(--go-d); font-weight: 60
   .code pre { font-size: 13px; padding: 14px; }
   figure.dg { padding: 12px; margin-left: -4px; margin-right: -4px; }
 }
+
+/* ---- Sơ đồ kiến trúc AWS ---- */
+.arch svg { font-family: 'Be Vietnam Pro', sans-serif; }
+.ag rect { fill: none; stroke-width: 1.6; }
+.ag-t { font-size: 12.5px; font-weight: 700; }
+.ag-cloud rect { stroke: #232f3e; } .ag-cloud .ag-t { fill: #232f3e; }
+.ag-region rect { stroke: #00a4a6; stroke-dasharray: 6 4; } .ag-region .ag-t { fill: #00a4a6; }
+.ag-vpc rect { stroke: #8c4fff; } .ag-vpc .ag-t { fill: #8c4fff; }
+.ag-az rect { stroke: #00a4a6; stroke-dasharray: 3 3; } .ag-az .ag-t { fill: #00a4a6; }
+.ag-public rect { stroke: #7aa116; fill: rgba(122,161,22,.08); } .ag-public .ag-t { fill: #5b7a10; }
+.ag-private rect { stroke: #00a4a6; fill: rgba(0,164,166,.07); } .ag-private .ag-t { fill: #00797b; }
+.ag-account rect { stroke: #e7157b; } .ag-account .ag-t { fill: #e7157b; }
+.ag-ou rect { stroke: #e7157b; stroke-dasharray: 5 4; } .ag-ou .ag-t { fill: #e7157b; }
+.ag-onprem rect { stroke: #7d8998; fill: rgba(125,137,152,.08); } .ag-onprem .ag-t { fill: #5a6573; }
+.ag-plain rect { stroke: var(--line); fill: var(--panel); } .ag-plain .ag-t { fill: var(--muted); }
+.ag-bad rect { stroke: #dc2626; fill: rgba(220,38,38,.06); } .ag-bad .ag-t { fill: #dc2626; }
+.an rect { stroke: none; }
+.an-i { fill: #fff; font-weight: 800; letter-spacing: .02em; }
+.an-l { fill: var(--fg); font-size: 12px; font-weight: 600; }
+.an-s { fill: var(--muted); font-size: 10.5px; }
+.an-cp rect { fill: #ed7100; } .an-st rect { fill: #7aa116; } .an-db rect { fill: #c925d1; } .an-nw rect { fill: #8c4fff; }
+.an-sec rect { fill: #dd344c; } .an-mg rect { fill: #e7157b; } .an-ai rect { fill: #e7157b; opacity: .85; } .an-dv rect { fill: #3b48cc; } .an-an rect { fill: #8c4fff; opacity: .8; }
+.an-gen rect { fill: #545b64; } .an-bad rect { fill: #111; }
+.ae { fill: none; stroke: #64748b; stroke-width: 1.8; }
+.ae.ds { stroke-dasharray: 6 4; }
+.ae-ok { stroke: #16a34a; } .ae-bad { stroke: #dc2626; } .ae-go { stroke: #ec7211; } .ae-nw { stroke: #8c4fff; }
+.ae-lb rect { fill: var(--bg); stroke: var(--line); }
+.ae-lb text { font-size: 11px; fill: var(--fg); }
+.at { fill: var(--fg); font-size: 12.5px; } .at-s { font-size: 11px; fill: var(--muted); } .at-b { font-weight: 700; }
+.at-bad { fill: #dc2626; } .at-ok { fill: #16a34a; }
+
+.an-go rect { fill: #00add8; }
+.ag-k8s rect { stroke: #326ce5; stroke-dasharray: 6 4; } .ag-k8s .ag-t { fill: #326ce5; }
+.ag-proc rect { stroke: #00add8; fill: rgba(0,173,216,.06); } .ag-proc .ag-t { fill: #007d9c; }

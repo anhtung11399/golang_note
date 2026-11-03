@@ -85,6 +85,20 @@ jobs:
 </pre>
 <aside class="prod"><p>Bảo vệ nhánh <code>main</code>: chỉ gộp được khi CI xanh và có người review. Deploy production chỉ đi từ <code>main</code>, không bao giờ từ máy cá nhân của một ai đó.</p></aside>
 
+<arch w="800" h="280" caption="Đường đi của một thay đổi: push lên Git, CI chạy kiểm tra và build image, đẩy lên registry, nền tảng chạy container deploy dần (rolling) và kiểm tra health check">
+node dev 60 130 laptop "Dev" "git push"
+node git 180 130 git "GitHub"
+node ci 320 130 ci "CI" "vet, test -race, govulncheck"
+node img 470 130 docker "Image" "distroless, vài chục MB"
+node reg 470 240 docker "Registry" "GHCR / ECR"
+node run 650 130 k8s "Cloud Run / ECS / K8s" "rolling, readyz"
+edge dev git ""
+edge git ci ""
+edge ci img "build" c=go
+edge img reg "push" route=v
+path 496 240 650 240 650 188 "deploy" c=ok
+</arch>
+
 <h2>Chạy ở đâu</h2>
 <table>
 <tr><th>Lựa chọn</th><th>Cách chạy</th><th>Hợp với</th></tr>

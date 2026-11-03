@@ -203,6 +203,22 @@ cách đúng: bán được 10 vé
 </pre>
 <p>Con số của cách sai có thể khác trên máy bạn (lúc 50, lúc 23...) nhưng gần như luôn lớn hơn 10: nhiều goroutine cùng đọc được <code>stock = 10</code> trước khi ai kịp ghi. Cách đúng luôn ra đúng 10. Đây không phải lỗi của Go: viết bằng Node.js hay Java, chạy trên nhiều bản server, cũng hỏng y như vậy.</p>
 
+<arch w="800" h="300" caption="Lost update và cách sửa: hai request đọc cùng giá trị rồi cùng ghi, bán quá số vé. Đưa điều kiện vào chính câu UPDATE (nguyên tử) hoặc khoá dòng bằng SELECT ... FOR UPDATE để request sau phải chờ">
+group 10 20 380 270 bad "Sai: đọc → kiểm tra → ghi"
+node a 80 90 goapi "Request A" "đọc stock = 1"
+node b 80 210 goapi "Request B" "đọc stock = 1"
+node db 300 150 pg "tickets" "stock = 1 → bán 2 vé"
+edge a db "UPDATE stock = 0" c=bad route=hv
+edge b db "UPDATE stock = 0" c=bad route=hv
+group 410 20 380 270 plain "Đúng: một câu nguyên tử"
+node a2 480 90 goapi "Request A"
+node b2 480 210 goapi "Request B"
+node db2 700 150 pg "tickets" "stock = 0, bán 1 vé"
+edge a2 db2 "1 dòng: thành công" c=ok route=hv
+edge b2 db2 "0 dòng: hết vé" c=go route=hv
+text 600 275 "UPDATE ... SET stock = stock - 1 WHERE id = $1 AND stock >= 1" small anchor=middle
+</arch>
+
 <h3>Cách 1: điều kiện nằm ngay trong câu UPDATE (nên dùng đầu tiên)</h3>
 <pre lang="sql" mark="good">
 UPDATE tickets SET stock = stock - 1

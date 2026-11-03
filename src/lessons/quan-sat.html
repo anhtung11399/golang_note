@@ -73,6 +73,25 @@ API --> Client: tổng 2.450ms
 </fig>
 <p><b>OpenTelemetry</b> là chuẩn mở (cũng thuộc CNCF) để tạo và gửi trace, metrics, logs, được hầu hết các nhà cung cấp hỗ trợ. Trong Go, các thư viện bọc sẵn cho <code>net/http</code>, pgx, go-redis tự tạo span. Trace id được truyền giữa các dịch vụ qua header chuẩn <code>traceparent</code> (W3C Trace Context), và qua <code>ctx</code> bên trong một dịch vụ: thêm một lý do để truyền ctx đi mọi nơi.</p>
 
+<arch w="800" h="340" caption="Stack quan sát phổ biến: ứng dụng ghi log JSON ra stdout, phơi bày /metrics cho Prometheus, gửi trace qua OpenTelemetry Collector; Grafana hiển thị và cảnh báo">
+group 10 20 240 260 proc "Server Go"
+node app 125 75 goapi "API" "slog, OTel SDK"
+node lg 70 200 file "stdout" "log JSON"
+node met 190 200 prom "/metrics" "cổng nội bộ"
+node otel 370 75 jaeger "OTel Collector"
+node prom 370 200 prom "Prometheus"
+node tempo 550 75 jaeger "Tempo / Jaeger"
+node loki 550 300 file "Loki / ELK"
+node graf 720 200 grafana "Grafana" "dashboard, alert"
+edge app otel "trace" c=go
+edge prom met "scrape" dash
+path 70 244 70 300 524 300 "log" c=go
+edge otel tempo ""
+edge tempo graf "" route=hv
+edge prom graf ""
+edge loki graf "" route=hv
+</arch>
+
 <h2>Health check</h2>
 <pre lang="go">
 // Liveness: tiến trình còn sống không? Không kiểm database (database chết thì khởi động lại server cũng vô ích)

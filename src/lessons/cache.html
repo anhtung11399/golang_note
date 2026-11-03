@@ -181,6 +181,17 @@ cache còn sống: 5m0s
 <aside class="prod"><p>Cache phải là thứ <b>có cũng được, mất cũng được</b>. Redis sập thì hệ thống chậm đi, không được chết theo. Và luôn có <b>TTL</b>: dù bạn quên xoá cache ở đâu đó, dữ liệu sai cũng chỉ tồn tại tối đa bằng TTL.</p></aside>
 <p>Hậu tố <code>:v1</code> trong khoá: khi đổi cấu trúc <code>Summary</code>, tăng lên <code>v2</code>, bản code mới không đọc nhầm dữ liệu cache dạng cũ.</p>
 
+<arch w="800" h="300" caption="Cache-aside: đọc thử Redis trước, miss thì hỏi Postgres rồi ghi vào Redis có TTL; khi ghi dữ liệu thì cập nhật Postgres trước rồi xoá khoá cache">
+node api 90 150 goapi "API Go"
+node rd 330 50 redis "Redis" "TTL 5 phút"
+node pg 330 250 pg "PostgreSQL" "nguồn sự thật"
+node w 600 250 goapi "Request ghi" "nộp bài mới"
+path 116 150 200 150 200 50 304 50 "1 GET · 3 SET khi miss" c=ok
+path 116 150 200 150 200 250 304 250 "2 miss → SELECT"
+edge w pg "a UPDATE" c=go
+path 600 224 600 50 356 50 "b DEL khoá" c=bad
+</arch>
+
 <h2>Xoá cache khi dữ liệu đổi</h2>
 <pre lang="go">
 func (s *Service) Submit(ctx context.Context, sub Submission) error {

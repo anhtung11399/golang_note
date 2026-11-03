@@ -91,6 +91,25 @@ note Handler của bạn: r.PathValue("id") = "5"
 Handler của bạn --> Client: 200 + JSON
 </fig>
 
+<arch w="800" h="330" caption="Bên trong net/http: server nhận kết nối, mỗi kết nối chạy trên một goroutine riêng; ServeMux tìm handler khớp method + đường dẫn; middleware bọc ngoài handler">
+node cl 60 160 browser "Client" "nhiều kết nối"
+node ln 200 160 lb "net.Listener" ":8080"
+group 290 10 500 310 proc "Tiến trình Go"
+node g1 360 60 goroutine "goroutine 1"
+node g2 360 160 goroutine "goroutine 2"
+node g3 360 260 goroutine "goroutine 3"
+node mw 520 160 mw "Middleware" "log, recover, auth"
+node mux 640 160 handler "ServeMux" "GET /notes/{id}"
+node h 740 160 handler "Handler"
+edge cl ln "" c=ok
+path 226 160 270 160 270 60 334 60 "" c=ok
+edge ln g2 "" c=ok
+path 226 160 270 160 270 260 334 260 "" c=ok
+edge g2 mw ""
+edge mw mux ""
+edge mux h ""
+</arch>
+
 <h2>Định tuyến kiểu Go 1.22</h2>
 <p>Từ Go 1.22, <code>ServeMux</code> của thư viện chuẩn hỗ trợ method và tham số đường dẫn, đủ cho đa số API mà không cần framework:</p>
 <pre lang="go">

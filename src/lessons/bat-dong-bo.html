@@ -94,6 +94,21 @@ Relay -> Postgres: đánh dấu đã gửi
 </fig>
 <p>Nếu hàng đợi của bạn chính là bảng <code>jobs</code> trong Postgres, bạn có outbox miễn phí: chèn việc trong cùng transaction với dữ liệu.</p>
 
+<arch w="800" h="320" caption="Mẫu outbox: ghi dữ liệu nghiệp vụ và sự kiện vào cùng một transaction; tiến trình relay đọc bảng outbox rồi đẩy sang hàng đợi (Kafka / NATS / SQS). Không bao giờ có dữ liệu mà mất sự kiện, hay sự kiện mà mất dữ liệu">
+node api 80 150 goapi "API" "giao bài mới"
+group 180 30 280 260 plain "Một transaction trong Postgres"
+node t1 320 90 pg "assignments" "INSERT bài"
+node t2 320 220 pg "outbox" "INSERT sự kiện"
+node relay 560 220 worker "Relay" "đọc outbox chưa gửi"
+node mq 700 100 kafka "Kafka / NATS"
+node c1 700 250 worker "Worker" "gửi thông báo"
+edge api t1 "" route=hv
+edge api t2 "" route=hv
+edge t2 relay "SKIP LOCKED"
+path 586 220 630 220 630 100 674 100 "publish" c=go
+edge mq c1 "" c=ok
+</arch>
+
 <h2>Nhận webhook (ví dụ: ngân hàng báo có tiền vào)</h2>
 <p>Webhook là khi hệ thống khác gọi <b>vào</b> API của bạn để báo một sự kiện: cổng thanh toán báo giao dịch thành công, GitHub báo có commit mới. Endpoint webhook công khai trên Internet, nên ai cũng gọi được. Bốn quy tắc:</p>
 <ol>

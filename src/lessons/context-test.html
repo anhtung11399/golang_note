@@ -144,6 +144,22 @@ func main() {
 </pre>
 <aside class="warn"><p>Chỉ đặt vào context những thứ <b>thuộc về request</b>: request id, thông tin người dùng đã xác thực, trace id. Không dùng context để truyền tham số tuỳ chọn hay phụ thuộc (database, logger cấu hình): như vậy hàm có tham số ẩn, rất khó đọc và test.</p></aside>
 
+<arch w="800" h="300" caption="Cây context: context gốc của request sinh ra các context con có hạn chót riêng. Client ngắt kết nối thì context gốc bị huỷ, mọi context con và mọi việc đang dùng chúng dừng theo">
+node req 80 140 ctx "r.Context()" "huỷ khi client ngắt"
+node c1 280 60 ctx "WithTimeout 2s" "gọi tỷ giá"
+node c2 280 220 ctx "WithValue" "request_id"
+node c3 480 220 ctx "WithTimeout 500ms" "truy vấn DB"
+node api 480 60 internet "API ngoài" "http.NewRequestWithContext"
+node db 680 220 pg "Postgres" "pgx huỷ câu SQL"
+node cl 80 260 browser "Client đóng tab"
+edge req c1 "" route=hv
+edge req c2 "" route=hv
+edge c2 c3 ""
+edge c1 api ""
+edge c3 db "" c=go
+edge cl req "huỷ" c=bad
+</arch>
+
 <h2>Kiểm thử: có sẵn trong Go</h2>
 <p>Không cần cài Jest. Quy tắc:</p>
 <ul>

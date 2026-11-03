@@ -42,6 +42,27 @@ note Hàng đợi: worker gửi email sau, request không phải chờ
 </fig>
 <p>Mỗi ô trong sơ đồ này là một bài trong lộ trình: HTTP (bài 11), xác thực (18), SQL và giao dịch (14 đến 16), cache (17), hàng đợi (20).</p>
 
+<arch w="800" h="380" caption="Kiến trúc backend điển hình mà lộ trình này dạy bạn xây: client gọi qua load balancer tới API viết bằng Go; API đọc ghi Postgres, cache Redis, đẩy việc chậm sang hàng đợi cho worker; mọi thứ được giám sát">
+node web 70 70 browser "Trình duyệt" "React / Angular"
+node mob 70 200 mobile "App mobile"
+node lb 220 135 lb "Load balancer" "HTTPS, TLS"
+group 300 20 260 230 proc "Cụm server Go (stateless)"
+node api1 380 90 goapi "API #1"
+node api2 480 90 goapi "API #2"
+node wk 430 200 worker "Worker" "việc nền"
+node pg 660 60 pg "PostgreSQL" "dữ liệu chính"
+node rd 660 170 redis "Redis" "cache, rate limit"
+node q 660 280 queue "Hàng đợi" "jobs"
+node obs 430 330 prom "Log, metrics, trace"
+path 96 70 160 70 160 125 194 125 "" c=ok
+path 96 200 160 200 160 145 194 145 "" c=ok
+edge lb api1 "" c=ok route=hv
+path 506 80 600 80 600 60 634 60 "SQL" 
+path 506 100 610 100 610 170 634 170 "" 
+path 456 200 560 200 560 280 634 280 "enqueue" dash
+edge obs wk "" dash
+</arch>
+
 <h2>Backend chịu trách nhiệm những gì</h2>
 <ol>
 <li><b>Nguồn sự thật (source of truth).</b> Frontend hiển thị, backend quyết định. Số dư, giá tiền, quyền truy cập, trạng thái đơn hàng chỉ đúng khi backend nói nó đúng.</li>

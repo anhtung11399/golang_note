@@ -235,6 +235,26 @@ func (h *Handler) createClass(w http.ResponseWriter, r *http.Request) {
 <aside class="warn"><p>Đoạn service trên có lỗi tranh chấp: hai request "tạo lớp" tới cùng lúc, cả hai đều đếm được 0 rồi cùng tạo, giáo viên có 2 lớp miễn phí. Bài 16 sửa nó bằng cách đưa điều kiện vào chính câu SQL. Bạn sẽ gặp kiểu lỗi "kiểm tra rồi mới làm" này ở mọi nơi.</p></aside>
 <aside class="tip"><p>Đừng tách lớp cho có. Endpoint chỉ đọc một bảng và trả về thì handler gọi thẳng store là đủ. Cấu trúc ba lớp đáng giá khi có quy tắc nghiệp vụ thật.</p></aside>
 
+<arch w="800" h="350" caption="Kiến trúc phân lớp: handler chỉ biết HTTP, service chứa nghiệp vụ và chỉ phụ thuộc interface, store cài đặt interface bằng SQL. main ghép các phần lại (dependency injection)">
+node req 60 150 browser "Request"
+group 130 20 640 320 proc "Ứng dụng Go"
+node mw 210 150 mw "Middleware" "log, recover, auth"
+node h 360 150 handler "Handler" "đọc / trả JSON"
+node s 510 150 service "Service" "nghiệp vụ, quyền, quy tắc"
+node i 510 270 store "interface Store" "định nghĩa ở service"
+node pgs 690 150 store "PostgresStore" "SQL, pgx"
+node mem 690 270 store "memStore" "dùng khi test"
+node db 690 50 pg "Postgres"
+edge req mw "" c=ok
+edge mw h "" c=ok
+edge h s "" c=ok
+edge s i "" dash
+edge pgs i "cài đặt" dash route=vh
+edge mem i "" dash
+edge pgs db ""
+text 400 335 "main(): store := NewPostgresStore(pool) → svc := NewService(store) → h := NewHandler(svc)" small anchor=middle
+</arch>
+
 <h2>Cấu hình qua biến môi trường</h2>
 <p>Theo nguyên tắc <i>12-factor app</i>, cấu hình (địa chỉ database, khoá bí mật, cổng) đến từ biến môi trường, không nằm trong code. Cùng một file chạy, đổi biến môi trường là chạy được ở máy bạn, staging hay production.</p>
 <pre lang="go" file="internal/config/config.go">

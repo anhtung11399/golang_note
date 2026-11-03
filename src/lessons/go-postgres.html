@@ -26,6 +26,22 @@ if err := pool.Ping(ctx); err != nil { // kiểm tra kết nối được ngay l
 </fig>
 <aside class="prod"><p>Kích thước pool không phải càng to càng tốt. Postgres xử lý mỗi kết nối bằng một tiến trình riêng, nên vài trăm kết nối đồng thời làm nó chậm đi. Nếu chạy 10 bản server, mỗi bản pool 20 kết nối, tổng là 200, vượt <code>max_connections</code> mặc định (100). Đặt qua URL: <code>?pool_max_conns=10</code>. Hệ thống lớn đặt <b>PgBouncer</b> ở giữa để gom kết nối.</p></aside>
 
+<arch w="800" h="320" caption="Connection pool: hàng trăm goroutine mượn kết nối từ pgxpool rồi trả lại; số kết nối thật tới Postgres giới hạn bởi pool_max_conns. Nhiều bản server cùng chia giới hạn max_connections của database">
+group 10 20 330 290 proc "Server Go #1"
+node g1 70 80 goroutine "request"
+node g2 70 160 goroutine "request"
+node g3 70 240 goroutine "request"
+node pool 240 160 store "pgxpool" "max 10 kết nối"
+group 360 20 180 290 proc "Server Go #2, #3..."
+node pool2 450 160 store "pgxpool" "max 10 mỗi bản"
+node pg 680 160 pg "PostgreSQL" "max_connections = 100"
+edge g1 pool "" route=hv
+edge g2 pool ""
+edge g3 pool "" route=hv
+path 266 160 320 160 320 290 680 290 680 204 "10 kết nối TCP" c=ok
+edge pool2 pg "10 × số bản" c=ok
+</arch>
+
 <h2>Chạy thử: chương trình Go đầu tiên đọc database</h2>
 <p>Trước khi đi vào từng phần, chạy một chương trình hoàn chỉnh để thấy toàn cảnh. Cần có Postgres đang chạy, đã tạo 5 bảng và nạp dữ liệu mẫu ở bài 14.</p>
 <p><b>Bước 1.</b> Tạo dự án và cài pgx:</p>
@@ -256,6 +272,18 @@ func (s *Store) Submit(ctx context.Context, sub Submission, teacherID int64) err
 </pre>
 <p>pgx có sẵn hàm bọc gọn hơn: <code>pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error { ... })</code> tự commit khi hàm trả nil và tự rollback khi lỗi.</p>
 <aside class="warn"><p>Không gọi API bên ngoài (gửi email, gọi cổng thanh toán) <b>bên trong</b> transaction. Transaction giữ khoá trên các dòng đã sửa. Nếu dịch vụ bên ngoài mất 10 giây, các request khác chạm vào những dòng đó cũng phải chờ 10 giây. Ghi vào database trong transaction, việc gọi ra ngoài làm sau (hoặc qua hàng đợi, bài 20).</p></aside>
+
+<arch w="800" h="260" caption="Transaction: các câu lệnh trong cùng một transaction cùng thành công (COMMIT) hoặc cùng bị huỷ (ROLLBACK); defer tx.Rollback() đảm bảo không để transaction treo khi có lỗi">
+node b 80 120 store "Begin" "pool.Begin(ctx)"
+node s1 250 120 pg "INSERT submissions"
+node s2 420 120 pg "INSERT notifications"
+node c 600 60 store "Commit" "cả hai được lưu"
+node r 600 190 store "Rollback" "không cái nào được lưu"
+edge b s1 ""
+edge s1 s2 ""
+edge s2 c "OK" c=ok route=hv
+edge s2 r "lỗi" c=bad route=hv
+</arch>
 
 <h2>Migration: đổi cấu trúc database có kiểm soát</h2>
 <p>Lược đồ database thay đổi theo thời gian. Migration là các file SQL đánh số, chạy lần lượt và chỉ chạy một lần, được commit vào git cùng với code. Mọi máy (bạn, đồng nghiệp, CI, production) đều đi qua đúng cùng các bước.</p>

@@ -289,6 +289,110 @@ function quiz(a, body) {
 }
 
 /* ---------------- Ghép trang ---------------- */
+/* ---------------- Sơ đồ kiến trúc AWS ----------------
+<arch w="760" h="400" caption="...">
+group x y w h kind "nhãn"        kind: cloud | region | vpc | az | public | private | account | onprem | ou | plain
+node id x y svc "nhãn" ["dòng 2"] x, y là tâm biểu tượng
+edge a b "nhãn" [dash] [both] [curve=N]   nối hai node
+arrow x1 y1 x2 y2 "nhãn" [dash] [both]  mũi tên tự do
+text x y "chữ" [small] [bold] [anchor=start|middle|end]
+</arch> */
+const SVC = {
+  // compute (cam)
+  ec2: ['EC2', 'cp'], asg: ['ASG', 'cp'], lambda: ['λ', 'cp'], ecs: ['ECS', 'cp'], eks: ['EKS', 'cp'], fargate: ['FGT', 'cp'], beanstalk: ['EB', 'cp'], ami: ['AMI', 'cp'], imagebuilder: ['IB', 'cp'], batch: ['BAT', 'cp'],
+  // storage (xanh lá)
+  s3: ['S3', 'st'], ebs: ['EBS', 'st'], efs: ['EFS', 'st'], fsx: ['FSx', 'st'], snapshot: ['SNAP', 'st'], backup: ['BKP', 'st'], glacier: ['GLC', 'st'], datasync: ['DS', 'st'], sgw: ['SGW', 'st'], drs: ['DRS', 'st'],
+  // database (tím hồng)
+  rds: ['RDS', 'db'], aurora: ['AUR', 'db'], dynamodb: ['DDB', 'db'], elasticache: ['EC', 'db'], dax: ['DAX', 'db'], proxy: ['PRX', 'db'],
+  // networking (tím)
+  vpc: ['VPC', 'nw'], igw: ['IGW', 'nw'], nat: ['NAT', 'nw'], alb: ['ALB', 'nw'], nlb: ['NLB', 'nw'], gwlb: ['GWLB', 'nw'], elb: ['ELB', 'nw'], route53: ['R53', 'nw'], cloudfront: ['CF', 'nw'], tgw: ['TGW', 'nw'], vgw: ['VGW', 'nw'], cgw: ['CGW', 'nw'], dx: ['DX', 'nw'], vpn: ['VPN', 'nw'], endpoint: ['VPCE', 'nw'], ga: ['GA', 'nw'], resolver: ['RSLV', 'nw'], peering: ['PCX', 'nw'], apigw: ['API', 'nw'], privatelink: ['PL', 'nw'], eni: ['ENI', 'nw'], dxgw: ['DXGW', 'nw'], nfw: ['NFW', 'sec'],
+  // security (đỏ)
+  iam: ['IAM', 'sec'], kms: ['KMS', 'sec'], waf: ['WAF', 'sec'], shield: ['SHD', 'sec'], guardduty: ['GD', 'sec'], inspector: ['INS', 'sec'], macie: ['MAC', 'sec'], securityhub: ['SH', 'sec'], acm: ['ACM', 'sec'], secrets: ['SM', 'sec'], sg: ['SG', 'sec'], nacl: ['NACL', 'sec'], sts: ['STS', 'sec'], cognito: ['COG', 'sec'], detective: ['DET', 'sec'], identitycenter: ['IDC', 'sec'], firewallmanager: ['FMS', 'sec'], accessanalyzer: ['AA', 'sec'], cloudhsm: ['HSM', 'sec'], securitylake: ['SL', 'sec'], auditmanager: ['AM', 'sec'], artifact: ['ART', 'sec'],
+  // management (hồng)
+  cloudwatch: ['CW', 'mg'], alarm: ['ALM', 'mg'], logs: ['LOGS', 'mg'], cloudtrail: ['CT', 'mg'], config: ['CFG', 'mg'], ssm: ['SSM', 'mg'], cfn: ['CFN', 'mg'], stackset: ['SS', 'mg'], organizations: ['ORG', 'mg'], controltower: ['CTW', 'mg'], trustedadvisor: ['TA', 'mg'], health: ['HLT', 'mg'], xray: ['XR', 'mg'], synthetics: ['SYN', 'mg'], ram: ['RAM', 'mg'], servicecatalog: ['SC', 'mg'], computeoptimizer: ['CO', 'mg'], grafana: ['GRF', 'mg'], prometheus: ['PROM', 'mg'],
+  // integration (hồng đậm)
+  eventbridge: ['EVB', 'ai'], sns: ['SNS', 'ai'], sqs: ['SQS', 'ai'], stepfunctions: ['SFN', 'ai'], kinesis: ['KDS', 'ai'], firehose: ['FH', 'ai'], scheduler: ['SCH', 'ai'], chatbot: ['CHAT', 'ai'],
+  // devtools (xanh dương)
+  codedeploy: ['CD', 'dv'], codepipeline: ['CP', 'dv'], ecr: ['ECR', 'cp'], athena: ['ATH', 'an'], opensearch: ['OS', 'an'], quicksight: ['QS', 'an'],
+  // backend chung (site Go)
+  gosvc: ['GO', 'go'], goapi: ['API', 'go'], worker: ['WRK', 'go'], grpcsvc: ['gRPC', 'go'], pg: ['PG', 'db'], postgres: ['PG', 'db'], mysql: ['SQL', 'db'], redis: ['RDS', 'db'], kafka: ['KFK', 'ai'], nats: ['NATS', 'ai'], rabbit: ['MQ', 'ai'], queue: ['QUEUE', 'ai'], cron: ['CRON', 'mg'], k8s: ['K8S', 'nw'], pod: ['POD', 'cp'], svc: ['SVC', 'nw'], ingress: ['ING', 'nw'], lb: ['LB', 'nw'], nginx: ['NGX', 'nw'], cdn: ['CDN', 'nw'], browser: ['WEB', 'gen'], mobile: ['APP', 'gen'], prom: ['PROM', 'mg'], jaeger: ['TRACE', 'mg'], minio: ['OBJ', 'st'], docker: ['DOCK', 'dv'], ci: ['CI', 'dv'], git: ['GIT', 'dv'], mutex: ['LOCK', 'sec'], chan: ['CHAN', 'go'], goroutine: ['G', 'go'], ctx: ['CTX', 'go'], handler: ['H', 'go'], mw: ['MW', 'go'], service: ['SVC', 'go'], store: ['REPO', 'go'], oauth: ['OIDC', 'sec'], jwt: ['JWT', 'sec'], email: ['MAIL', 'ai'], smtp: ['SMTP', 'ai'],
+  // chung
+  cpu: ['CPU', 'gen'], user: ['USER', 'gen'], users: ['USERS', 'gen'], server: ['SRV', 'gen'], dc: ['DC', 'gen'], internet: ['WWW', 'gen'], laptop: ['PC', 'gen'], admin: ['ADM', 'gen'], hacker: ['!', 'bad'], file: ['FILE', 'gen'], app: ['APP', 'gen'], db_onprem: ['DB', 'gen'], dns: ['DNS', 'gen'],
+};
+function arch(a, body) {
+  const W = +a.w || 760, H = +a.h || 400;
+  const nodes = {};
+  let back = '', mid = '', front = '';
+  const q = (line) => { const out = []; line.replace(/"([^"]*)"|(\S+)/g, (_, s, t) => { out.push(s !== undefined ? { s } : t); return ''; }); return out; };
+  const strs = (arr) => arr.filter((x) => typeof x === 'object').map((x) => x.s);
+  const flags = (arr) => arr.filter((x) => typeof x === 'string');
+  const opt = (arr, k) => { const f = flags(arr).find((x) => x.startsWith(k + '=')); return f ? f.slice(k.length + 1) : null; };
+  const lines = body.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  for (const l of lines) {
+    const t = q(l);
+    const cmd = t[0];
+    if (cmd === 'group') {
+      const [x, y, w, h] = t.slice(1, 5).map(Number);
+      const kind = t[5];
+      const label = strs(t)[0] || '';
+      back += `<g class="ag ag-${kind}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${kind === 'cloud' || kind === 'onprem' ? 14 : 8}"/><text x="${x + 10}" y="${y + 18}" class="ag-t">${esc(label)}</text></g>`;
+    } else if (cmd === 'node') {
+      const id = t[1]; const x = +t[2], y = +t[3]; const svc = t[4];
+      const [abbr, cat] = SVC[svc] || [svc.toUpperCase().slice(0, 4), 'gen'];
+      const [l1, l2] = strs(t);
+      nodes[id] = { x, y, bot: l2 ? 58 : l1 ? 44 : 26 };
+      const fs = abbr.length > 3 ? 11 : 13;
+      front += `<g class="an an-${cat}"><rect x="${x - 22}" y="${y - 22}" width="44" height="44" rx="9"/><text x="${x}" y="${y + 4.5}" text-anchor="middle" class="an-i" style="font-size:${fs}px">${esc(abbr)}</text>${l1 ? `<text x="${x}" y="${y + 38}" text-anchor="middle" class="an-l">${esc(l1)}</text>` : ''}${l2 ? `<text x="${x}" y="${y + 52}" text-anchor="middle" class="an-s">${esc(l2)}</text>` : ''}</g>`;
+    } else if (cmd === 'edge' || cmd === 'arrow' || cmd === 'path') {
+      // Đường nối vuông góc kiểu sơ đồ AWS: đi ngang / dọc, rẽ góc 90 độ
+      const label = strs(t)[0];
+      const f = flags(t);
+      const dash = f.includes('dash'), both = f.includes('both');
+      const color = opt(t, 'c');
+      const route = opt(t, 'route'); // hvh | vhv | hv | vh (mặc định tự chọn)
+      const cls = `ae${dash ? ' ds' : ''}${color ? ' ae-' + color : ''}`;
+      let pts;
+      if (cmd === 'arrow' || cmd === 'path') {
+        const nums = t.slice(1).filter((x) => typeof x === 'string' && /^-?\d+(\.\d+)?$/.test(x)).map(Number);
+        pts = [];
+        for (let i = 0; i + 1 < nums.length; i += 2) pts.push([nums[i], nums[i + 1]]);
+      } else {
+        const A = nodes[t[1]], B = nodes[t[2]];
+        if (!A || !B) throw new Error('arch: không có node ' + (A ? t[2] : t[1]));
+        const P = 26, dx = B.x - A.x, dy = B.y - A.y;
+        const r = route || (Math.abs(dy) < 4 ? 'h' : Math.abs(dx) < 4 ? 'v' : Math.abs(dx) >= Math.abs(dy) ? 'hvh' : 'vhv');
+        const sx = Math.sign(dx) || 1, sy = Math.sign(dy) || 1;
+        // đi xuống từ đáy node thì chừa chỗ cho nhãn dưới biểu tượng
+        const outV = (N, s) => (s > 0 ? N.bot : P), inV = (N, s) => (s > 0 ? P : N.bot);
+        if (r === 'h') pts = [[A.x + sx * P, A.y], [B.x - sx * P, A.y]];
+        else if (r === 'v') pts = [[A.x, A.y + sy * outV(A, sy)], [A.x, B.y - sy * inV(B, sy)]];
+        else if (r === 'hvh') { const mx = (A.x + B.x) / 2 + (+opt(t, 'off') || 0); pts = [[A.x + sx * P, A.y], [mx, A.y], [mx, B.y], [B.x - sx * P, B.y]]; }
+        else if (r === 'vhv') { const my = (A.y + B.y) / 2 + (+opt(t, 'off') || 0); pts = [[A.x, A.y + sy * outV(A, sy)], [A.x, my], [B.x, my], [B.x, B.y - sy * inV(B, sy)]]; }
+        else if (r === 'hv') pts = [[A.x + sx * P, A.y], [B.x, A.y], [B.x, B.y - sy * inV(B, sy)]];
+        else if (r === 'vh') pts = [[A.x, A.y + sy * outV(A, sy)], [A.x, B.y], [B.x - sx * P, B.y]];
+        else throw new Error('arch: route lạ ' + r);
+      }
+      const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+      mid += `<path d="${d}" class="${cls}" marker-end="url(#ar)"${both ? ' marker-start="url(#ar)"' : ''}/>`;
+      if (label) {
+        // nhãn đặt giữa đoạn dài nhất
+        let best = 0, bi = 0;
+        for (let i = 0; i < pts.length - 1; i++) { const l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); if (l > best) { best = l; bi = i; } }
+        const lx = (pts[bi][0] + pts[bi + 1][0]) / 2, ly = (pts[bi][1] + pts[bi + 1][1]) / 2;
+        const w = Math.min(label.length * 6.4 + 10, 260);
+        front += `<g class="ae-lb"><rect x="${(lx - w / 2).toFixed(1)}" y="${(ly - 9).toFixed(1)}" width="${w.toFixed(1)}" height="17" rx="4"/><text x="${lx.toFixed(1)}" y="${(ly + 3.5).toFixed(1)}" text-anchor="middle">${esc(label)}</text></g>`;
+      }
+    } else if (cmd === 'text') {
+      const x = +t[1], y = +t[2];
+      const f = flags(t);
+      const anchor = opt(t, 'anchor') || 'start';
+      const cls = ['at', f.includes('small') ? 'at-s' : '', f.includes('bold') ? 'at-b' : '', opt(t, 'c') ? 'at-' + opt(t, 'c') : ''].join(' ');
+      front += `<text x="${x}" y="${y}" text-anchor="${anchor}" class="${cls}">${esc(strs(t)[0] || '')}</text>`;
+    } else throw new Error('arch: lệnh lạ ' + l);
+  }
+  return `<figure class="dg arch"><svg viewBox="0 0 ${W} ${H}" style="min-width:${Math.min(W, 640)}px;max-width:${W}px" role="img" aria-label="${esc(a.caption || '')}">${back}${mid}${front}</svg>${a.caption ? `<figcaption>${a.caption}</figcaption>` : ''}</figure>`;
+}
+
 function render(html) {
   const keep = [];
   html = html.replace(/<pre((?:\s+\w+="[^"]*")*)\s*>([\s\S]*?)<\/pre>/g, (_, at, body) => {
@@ -296,6 +400,7 @@ function render(html) {
     return `\u0000${keep.length - 1}\u0000`;
   });
   html = html.replace(/<fig((?:\s+\w+="[^"]*")*)\s*>([\s\S]*?)<\/fig>/g, (_, at, body) => fig(attrs(at), body));
+  html = html.replace(/<arch((?:\s+\w+="[^"]*")*)\s*>([\s\S]*?)<\/arch>/g, (_, at, body) => arch(attrs(at), body));
   html = html.replace(/<quiz((?:\s+\w+="[^"]*")*)\s*>([\s\S]*?)<\/quiz>/g, (_, at, body) => quiz(attrs(at), body));
   const toc = [];
   const used = new Set();
