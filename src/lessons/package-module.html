@@ -127,6 +127,143 @@ govulncheck ./...
 </pre>
 <p>Nó chỉ báo những lỗ hổng mà code của bạn <b>thật sự gọi tới</b>, nên ít báo động giả hơn <code>npm audit</code> nhiều. Nên chạy trong CI (bài {{n:trien-khai}}).</p></aside>
 
+<h2>go get tải thư viện từ đâu</h2>
+<p>Khác npm (một registry trung tâm), module Go có tên là <b>đường dẫn repo</b> (<code>github.com/jackc/pgx/v5</code>). Nhưng mặc định <code>go</code> không tải thẳng từ GitHub mà qua <b>module proxy</b> của Google, và kiểm tra mã băm với <b>checksum database</b>, để không ai tráo được code của một phiên bản đã phát hành.</p>
+<arch w="820" h="280" caption="go get hỏi proxy, kiểm tra mã băm với sum.golang.org, ghi vào go.sum. Lần sau lấy từ bộ nhớ đệm trên máy">
+node dev 80 130 laptop "go get" "máy bạn"
+node cache 80 225 file "Bộ nhớ đệm" "~/go/pkg/mod"
+node proxy 330 60 cdn "proxy.golang.org" "GOPROXY"
+node sum 330 200 secret "sum.golang.org" "GOSUMDB"
+node gh 600 60 git "GitHub" "repo gốc"
+node gosum 600 200 file "go.sum" "commit vào git"
+path 106 130 200 130 200 60 304 60 "1 tải module"
+edge proxy gh "2 proxy lấy, giữ mãi" dash
+path 200 130 200 200 304 200 "3 so mã băm"
+edge sum gosum "4 ghi"
+edge dev cache ""
+</arch>
+<table>
+<tr><th>Biến môi trường</th><th>Dùng khi</th></tr>
+<tr><td><code>GOPROXY=https://proxy.golang.org,direct</code></td><td>mặc định: hỏi proxy trước, không có thì tải thẳng từ repo</td></tr>
+<tr><td><code>GOPRIVATE=gitlab.congty.vn/*</code></td><td>module nội bộ của công ty: không qua proxy công cộng, không gửi tên lên sum.golang.org</td></tr>
+<tr><td><code>GOFLAGS=-mod=mod</code></td><td>cho phép tự sửa go.mod khi build (thường để mặc định)</td></tr>
+</table>
+<p>Repo riêng trên GitLab / GitHub cần thêm quyền cho git, ví dụ <code>git config --global url."git@gitlab.congty.vn:".insteadOf "https://gitlab.congty.vn/"</code> để tải bằng SSH key.</p>
+<aside class="fe"><p>So với npm: <code>go.mod</code> giống <code>package.json</code>, <code>go.sum</code> giống <code>package-lock.json</code> nhưng chỉ chứa mã băm. Go chọn phiên bản theo cách "phiên bản tối thiểu thoả mãn" (MVS): nếu không ai yêu cầu bản mới hơn, Go không tự nâng. Không có thư mục <code>node_modules</code> trong dự án, mọi module nằm chung ở <code>~/go/pkg/mod</code> và không bao giờ bị sửa.</p></aside>
+
+<h2>replace và go.work: sửa thư viện, làm nhiều module</h2>
+<p><b>Đang sửa lỗi trong một thư viện</b> và muốn dự án dùng bản trên máy:</p>
+<pre lang="text" file="go.mod">
+module sobaitap
+
+go 1.25
+
+require github.com/congty/thuvien v1.3.0
+
+replace github.com/congty/thuvien => ../thuvien   // dùng thư mục trên máy thay cho bản đã phát hành
+</pre>
+<p>Nhớ xoá dòng <code>replace</code> trước khi commit, vì máy khác không có <code>../thuvien</code>. Cách gọn hơn từ Go 1.18 là <b>workspace</b>: file <code>go.work</code> (không commit) gom nhiều module trên máy lại.</p>
+<pre lang="sh">
+go work init ./sobaitap ./thuvien   # tạo go.work
+go work use ./thuvien-khac          # thêm module
+</pre>
+<p>Một repo có nhiều module (monorepo: <code>api/</code>, <code>worker/</code>, <code>shared/</code> mỗi thư mục một <code>go.mod</code>) cũng dùng <code>go.work</code>. Nhưng lời khuyên chung: <b>một repo một module</b> cho tới khi có lý do rõ ràng, vì nhiều module là nhiều phiên bản phải quản lý.</p>
+
+<h2>Công cụ dự án: go tool, go generate, go:embed</h2>
+<p><b>Công cụ phát triển</b> (sqlc, mockgen, oapi-codegen) nên được khoá phiên bản giống thư viện, để mọi người và CI dùng đúng một bản. Từ Go 1.24:</p>
+<pre lang="sh">
+go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0   # ghi vào go.mod, mục tool
+go tool sqlc generate                                    # chạy đúng phiên bản đã khoá
+</pre>
+<p><b>go generate</b> chạy các lệnh viết trong chú thích <code>//go:generate</code>. Quy ước: code sinh ra được <b>commit</b> vào git, để người khác build không cần cài công cụ.</p>
+<pre lang="go">
+//go:generate go tool sqlc generate
+//go:generate go tool mockgen -source=service.go -destination=mock_test.go -package=service
+</pre>
+<p><b>go:embed</b> nhúng file vào trong binary lúc build: migration, mẫu email, file tĩnh của trang quản trị. Deploy chỉ cần một file chạy duy nhất.</p>
+<pre lang="go">
+import "embed"
+
+//go:embed migrations/*.sql
+var migrations embed.FS
+
+//go:embed templates/welcome.html
+var welcomeHTML string // một file → string hoặc []byte
+</pre>
+
+<h2>Build cho máy khác và gắn phiên bản</h2>
+<p>Go biên dịch chéo bằng hai biến môi trường, không cần cài gì thêm:</p>
+<pre lang="sh">
+GOOS=linux GOARCH=amd64 go build -o bin/api-linux ./cmd/api     # máy chủ Linux x86
+GOOS=linux GOARCH=arm64 go build -o bin/api-arm ./cmd/api       # máy chủ ARM (AWS Graviton, rẻ hơn)
+GOOS=windows GOARCH=amd64 go build -o bin/api.exe ./cmd/api
+CGO_ENABLED=0 go build ./cmd/api                                # binary tĩnh, chạy được trong image distroless/scratch
+</pre>
+<p>Gắn phiên bản và mã commit vào binary lúc build bằng <code>-ldflags</code>, để endpoint <code>/version</code> hay log khởi động cho biết đang chạy bản nào:</p>
+<pre lang="go" file="cmd/api/main.go">
+package main
+
+import (
+    "fmt"
+    "runtime/debug"
+)
+
+var version = "dev" // ghi đè lúc build
+
+func main() {
+    commit := "?"
+    if info, ok := debug.ReadBuildInfo(); ok { // Go tự ghi thông tin git vào binary
+        for _, s := range info.Settings {
+            if s.Key == "vcs.revision" && len(s.Value) >= 7 {
+                commit = s.Value[:7]
+            }
+        }
+    }
+    fmt.Println("phiên bản", version, "commit", commit)
+}
+</pre>
+<pre lang="out" sim="1">
+$ go build -ldflags "-s -w -X main.version=1.4.3" -o api ./cmd/api && ./api
+phiên bản 1.4.3 commit 9f2c1ab
+</pre>
+<p><code>-s -w</code> bỏ thông tin gỡ lỗi, binary nhỏ hơn khoảng 25%. <code>-X main.version=...</code> đặt giá trị cho biến chuỗi <code>version</code> của package <code>main</code>.</p>
+<p><b>Build tag</b> chọn file theo điều kiện. Dòng đầu file <code>//go:build integration</code> nghĩa là file chỉ được biên dịch khi chạy <code>go test -tags=integration</code> (bài {{n:test-nang-cao}}). Tên file <code>x_linux.go</code>, <code>x_windows.go</code> tự chọn theo hệ điều hành.</p>
+
+<h2>Makefile: gom lệnh cho cả đội</h2>
+<pre lang="text" file="Makefile">
+.PHONY: dev test lint gen build
+
+dev:            ## chạy API trên máy
+	go run ./cmd/api
+
+test:           ## test nhanh + race
+	go test -race ./...
+
+lint:
+	go vet ./...
+	go tool golangci-lint run
+
+gen:            ## sinh code (sqlc, mock), chạy sau khi sửa SQL / interface
+	go generate ./...
+
+build:
+	CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=$(VERSION)" -o bin/api ./cmd/api
+</pre>
+<p>Trong Makefile, dòng lệnh phải thụt vào bằng phím <b>Tab</b>, không phải dấu cách. Người mới vào dự án chỉ cần đọc Makefile là biết các việc thường làm. Một số đội dùng <code>Taskfile.yml</code> (task) hay <code>justfile</code> thay Makefile, ý tưởng giống nhau.</p>
+<p><b>golangci-lint</b> gom hàng chục công cụ kiểm tra code vào một lệnh. Cấu hình tối thiểu nên bật:</p>
+<pre lang="yaml" file=".golangci.yml">
+version: "2"
+linters:
+  enable:
+    - errcheck      # quên kiểm tra lỗi
+    - govet
+    - staticcheck   # hàng trăm lỗi hay gặp
+    - bodyclose     # quên đóng resp.Body
+    - sqlclosecheck # quên đóng rows
+    - gosec         # lỗi bảo mật
+    - noctx         # gọi HTTP không có context
+</pre>
+
 <h2>Thư viện hay dùng cho backend</h2>
 <p>Văn hoá Go là dùng thư viện chuẩn trước, chỉ thêm thư viện ngoài khi thật cần. Đây là những cái gần như dự án backend nào cũng gặp:</p>
 <table>

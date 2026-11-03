@@ -205,6 +205,180 @@ WHERE id = $2 AND version = $3;   -- 0 dòng bị sửa → đã có người s�
 </pre>
 <p>Trong HTTP, phiên bản thường đi qua header <code>ETag</code> (server trả) và <code>If-Match</code> (client gửi lại), hoặc đơn giản là trường <code>version</code> trong JSON.</p>
 
+<h2>PATCH: phân biệt "không gửi" với "gửi null"</h2>
+<p>Form sửa lớp chỉ gửi trường người dùng đổi. Ba trường hợp phải phân biệt được:</p>
+<pre lang="json">
+{ "name": "Lớp 5A1" }              // chỉ đổi tên, ghi chú giữ nguyên
+{ "note": null }                   // XOÁ ghi chú
+{ "name": "Lớp 5A1", "note": "" }  // đổi tên, ghi chú thành chuỗi rỗng
+</pre>
+<p>Dùng struct thường với <code>string</code> thì không phân biệt được: thiếu trường và <code>""</code> đều ra chuỗi rỗng. Con trỏ <code>*string</code> phân biệt được "có / không" nhưng không phân biệt được "không gửi" với "gửi null" (cả hai ra <code>nil</code>). Cách chuẩn: một kiểu nhỏ tự ghi nhớ "đã có trong JSON chưa".</p>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+)
+
+// Opt ghi nhớ trường có xuất hiện trong JSON hay không, và có phải null không
+type Opt[T any] struct {
+    Set   bool // có xuất hiện
+    Null  bool // xuất hiện với giá trị null
+    Value T
+}
+
+func (o *Opt[T]) UnmarshalJSON(b []byte) error {
+    o.Set = true // chỉ được gọi khi khoá có trong JSON
+    if string(b) == "null" {
+        o.Null = true
+        return nil
+    }
+    return json.Unmarshal(b, &o.Value)
+}
+
+type PatchClass struct {
+    Name     Opt[string] `json:"name"`
+    Note     Opt[string] `json:"note"`
+    Capacity Opt[int]    `json:"capacity"`
+}
+
+func main() {
+    for _, body := range []string{
+        `{"name":"Lớp 5A1"}`,
+        `{"note":null}`,
+        `{"name":"Lớp 5A1","note":""}`,
+    } {
+        var p PatchClass
+        json.Unmarshal([]byte(body), &p)
+        fmt.Printf("%-30s name=%+v note=%+v\n", body, p.Name, p.Note)
+    }
+}
+</pre>
+<pre lang="out" sim="1">
+$ go run .
+{"name":"Lớp 5A1"}             name={Set:true Null:false Value:Lớp 5A1} note={Set:false Null:false Value:}
+{"note":null}                  name={Set:false Null:false Value:} note={Set:true Null:true Value:}
+{"name":"Lớp 5A1","note":""}   name={Set:true Null:false Value:Lớp 5A1} note={Set:true Null:false Value:}
+</pre>
+<p><b>Giải thích:</b> <code>encoding/json</code> chỉ gọi <code>UnmarshalJSON</code> của trường nào <b>có</b> trong JSON, nên <code>Set</code> cho biết "đã gửi". Giá trị <code>null</code> được truyền vào dưới dạng 4 byte <code>null</code>. Ba body giờ cho ra ba trạng thái khác nhau.</p>
+<p>Ghép câu UPDATE chỉ với các trường đã gửi, mỗi trường đi kèm một cờ "có gửi" ($2, $4, $6):</p>
+<pre lang="sql">
+UPDATE classes SET
+    name     = CASE WHEN $2 THEN $3 ELSE name END,
+    note     = CASE WHEN $4 THEN $5 ELSE note END,   -- $5 là NULL khi client gửi null
+    capacity = CASE WHEN $6 THEN $7 ELSE capacity END
+WHERE id = $1 AND teacher_id = $8;
+</pre>
+<p>Validate cũng theo cờ: chỉ kiểm tra độ dài <code>name</code> khi <code>Name.Set</code>, và từ chối <code>name: null</code> vì tên là bắt buộc.</p>
+
+<h2>Hành động không phải CRUD</h2>
+<p>Không phải việc gì cũng là "sửa một trường". Giao bài, khoá lớp, duyệt phụ huynh vào lớp là <b>hành động</b> có luật riêng (kiểm tra trạng thái, gửi thông báo). Hai cách đặt tên phổ biến:</p>
+<pre lang="http">
+POST /v1/classes/42/lock                    # động từ là tài nguyên con: dễ đọc, dễ phân quyền riêng
+POST /v1/classes/42/roster/7/approve
+POST /v1/assignments/9:publish              # kiểu của Google API (AIP-136)
+</pre>
+<p>Tránh <code>PATCH /classes/42 {"locked": true}</code> cho việc có hậu quả: client có thể gửi kèm các trường khác, và logic "khoá lớp thì làm gì" bị lẫn vào handler sửa chung.</p>
+
+<h2>Việc chạy lâu: 202 Accepted</h2>
+<p>"Xuất báo cáo cả năm ra PDF" mất 40 giây. Không giữ request chờ 40 giây (proxy cắt ở 30 giây, người dùng tưởng treo). Trả ngay <code>202</code> kèm địa chỉ để hỏi trạng thái:</p>
+<fig type="seq" caption="Tạo việc trả 202 ngay. Client hỏi trạng thái (hoặc nhận thông báo realtime) cho tới khi xong">
+actors: [fe] Client, [go] API, [q] Worker
+Client -> API: POST /v1/classes/42/reports
+API -> Worker: xếp việc vào hàng đợi
+API --> Client: 202, Location: /v1/jobs/j_81
+Client -> API: GET /v1/jobs/j_81
+API --> Client: 200 {status: "running", progress: 40}
+Worker -> API: xong, lưu file
+Client -> API: GET /v1/jobs/j_81
+API --> Client: 200 {status: "done", resultUrl: "..."}
+</fig>
+<pre lang="json">
+{ "id": "j_81", "status": "failed", "error": { "code": "NO_DATA", "message": "Lớp chưa có bài tập nào" } }
+</pre>
+<p>Trạng thái nên là một tập cố định: <code>queued</code>, <code>running</code>, <code>done</code>, <code>failed</code>. Thay vì hỏi liên tục, client có thể nghe SSE / WebSocket (bài {{n:realtime-file}}) để biết khi xong.</p>
+
+<h2>Thao tác hàng loạt</h2>
+<p>Giáo viên tích 30 bài rồi bấm "Đã chấm". Gửi 30 request thì chậm và dễ dở dang. Một endpoint hàng loạt:</p>
+<pre lang="http">
+POST /v1/submissions:batchGrade
+{ "items": [ {"id": 1, "score": 9}, {"id": 2, "score": 10}, {"id": 99, "score": 8} ] }
+</pre>
+<p>Phải quyết định trước một trong hai kiểu, và ghi rõ trong tài liệu:</p>
+<ul>
+<li><b>Tất cả hoặc không gì</b>: một transaction, một mục lỗi thì không mục nào được lưu, trả 422 chỉ rõ mục nào. Đơn giản cho client.</li>
+<li><b>Từng mục độc lập</b>: trả 200 với kết quả từng mục.</li>
+</ul>
+<pre lang="json">
+{ "results": [
+    { "id": 1, "ok": true },
+    { "id": 2, "ok": true },
+    { "id": 99, "ok": false, "error": { "code": "NOT_FOUND", "message": "Không tìm thấy bài nộp" } }
+] }
+</pre>
+<p>Luôn giới hạn số mục (ví dụ tối đa 100) và kiểm tra quyền cho <b>từng</b> mục: id 99 có thể là bài của lớp khác.</p>
+
+<h2>Cache HTTP và request có điều kiện</h2>
+<p>Danh sách môn học của lớp ít khi đổi, nhưng app gọi mỗi lần mở màn hình. ETag cho phép trả <b>304 Not Modified</b> không kèm dữ liệu khi client đã có bản mới nhất:</p>
+<pre lang="go">
+func subjects(w http.ResponseWriter, r *http.Request) {
+    list, version := loadSubjects(r.Context(), classID) // version: số tăng mỗi lần sửa môn, hoặc updated_at
+    etag := fmt.Sprintf(`"s-%d-%d"`, classID, version)
+
+    w.Header().Set("ETag", etag)
+    w.Header().Set("Cache-Control", "private, no-cache") // được giữ bản sao, nhưng phải hỏi lại server mỗi lần
+    if r.Header.Get("If-None-Match") == etag {
+        w.WriteHeader(http.StatusNotModified) // không gửi body
+        return
+    }
+    writeJSON(w, 200, list)
+}
+</pre>
+<pre lang="out" sim="1">
+$ curl -si localhost:8080/v1/classes/42/subjects | head -4
+HTTP/1.1 200 OK
+Cache-Control: private, no-cache
+Content-Type: application/json
+Etag: "s-42-7"
+
+$ curl -si -H 'If-None-Match: "s-42-7"' localhost:8080/v1/classes/42/subjects | head -1
+HTTP/1.1 304 Not Modified
+</pre>
+<table>
+<tr><th>Cache-Control</th><th>Nghĩa</th><th>Dùng cho</th></tr>
+<tr><td><code>no-store</code></td><td>không được lưu ở đâu cả</td><td>dữ liệu nhạy cảm, trang tài khoản</td></tr>
+<tr><td><code>private, no-cache</code></td><td>trình duyệt được lưu, phải hỏi lại (ETag) mỗi lần</td><td>dữ liệu riêng của người dùng</td></tr>
+<tr><td><code>public, max-age=60</code></td><td>CDN và trình duyệt dùng 60 giây không cần hỏi</td><td>dữ liệu công khai: bảng giá, danh mục</td></tr>
+<tr><td><code>public, max-age=31536000, immutable</code></td><td>không bao giờ đổi</td><td>file JS/CSS có mã băm trong tên</td></tr>
+</table>
+<aside class="warn"><p>API cần đăng nhập mà trả <code>public, max-age=...</code> thì CDN có thể lưu dữ liệu của người A và trả cho người B. Mặc định với API có xác thực: <code>private</code> hoặc <code>no-store</code>.</p></aside>
+
+<h2>Định dạng lỗi theo chuẩn: Problem Details</h2>
+<p>Định dạng <code>{error:{code,message}}</code> ở trên là cách tự đặt, rất phổ biến. Nếu muốn theo chuẩn, RFC 9457 (Problem Details) định nghĩa kiểu <code>application/problem+json</code>, nhiều framework và cổng API hiểu sẵn:</p>
+<pre lang="json">
+{
+  "type": "https://sobaitap.vn/errors/class-full",
+  "title": "Lớp đã đủ sĩ số",
+  "status": 409,
+  "detail": "Lớp 5A đã có 30/30 em.",
+  "instance": "/v1/classes/42/join",
+  "code": "CLASS_FULL"
+}
+</pre>
+<p>Chọn kiểu nào cũng được, quan trọng là <b>một</b> kiểu cho mọi endpoint, có mã lỗi ổn định cho code xử lý, và câu cho người đọc.</p>
+
+<h2>Giới hạn tần suất: báo cho client biết</h2>
+<p>Khi giới hạn tần suất (bài {{n:cache}}), trả 429 kèm header để client biết khi nào thử lại:</p>
+<pre lang="http">
+HTTP/1.1 429 Too Many Requests
+Retry-After: 30
+RateLimit-Limit: 100
+RateLimit-Remaining: 0
+RateLimit-Reset: 30
+</pre>
+<p>Client (và thư viện retry) nên đọc <code>Retry-After</code> thay vì thử lại ngay. Retry tự động chỉ áp dụng cho lỗi tạm thời (429, 502, 503, 504) và thao tác idempotent (GET, PUT, DELETE, hoặc POST có Idempotency-Key), kèm thời gian chờ tăng dần có ngẫu nhiên.</p>
+
 <h2>Version và tài liệu</h2>
 <ul>
 <li>Đặt <code>/v1</code> ngay từ đầu. Khi phải thay đổi phá vỡ tương thích (đổi tên trường, đổi kiểu), mở <code>/v2</code> và giữ <code>/v1</code> chạy một thời gian cho app di động cũ.</li>

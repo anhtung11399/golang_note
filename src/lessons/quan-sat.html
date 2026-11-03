@@ -92,6 +92,211 @@ edge prom graf ""
 edge loki graf "" route=hv
 </arch>
 
+<h2>Cài OpenTelemetry trong Go</h2>
+<pre lang="sh">
+go get go.opentelemetry.io/otel \
+  go.opentelemetry.io/otel/sdk/trace \
+  go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc \
+  go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp \
+  github.com/exaring/otelpgx
+</pre>
+<pre lang="go" file="internal/telemetry/otel.go" check="no">
+package telemetry
+
+import (
+    "context"
+
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+    "go.opentelemetry.io/otel/propagation"
+    "go.opentelemetry.io/otel/sdk/resource"
+    sdktrace "go.opentelemetry.io/otel/sdk/trace"
+    semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+)
+
+// Setup trả về hàm tắt: gọi khi server dừng để gửi nốt các span còn trong bộ đệm
+func Setup(ctx context.Context, service, version string) (func(context.Context) error, error) {
+    exp, err := otlptracegrpc.New(ctx) // địa chỉ đọc từ OTEL_EXPORTER_OTLP_ENDPOINT
+    if err != nil {
+        return nil, err
+    }
+    tp := sdktrace.NewTracerProvider(
+        sdktrace.WithBatcher(exp), // gom span lại gửi theo lô, không làm chậm request
+        sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL,
+            semconv.ServiceName(service),
+            semconv.ServiceVersion(version),
+        )),
+        // Lấy mẫu 10% trace (giữ theo quyết định của dịch vụ gọi trước nếu có)
+        sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(0.1))),
+    )
+    otel.SetTracerProvider(tp)
+    otel.SetTextMapPropagator(propagation.TraceContext{}) // đọc / ghi header traceparent
+    return tp.Shutdown, nil
+}
+</pre>
+<pre lang="go" file="cmd/api/main.go (trích)">
+shutdown, err := telemetry.Setup(ctx, "sobaitap-api", version)
+if err != nil {
+    log.Fatal(err)
+}
+defer shutdown(context.Background())
+
+// Mọi request HTTP vào tự có span gốc
+handler := otelhttp.NewHandler(mux, "http")
+
+// Mọi truy vấn pgx tự có span con, kèm câu SQL
+cfg, _ := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
+cfg.ConnConfig.Tracer = otelpgx.NewTracer()
+pool, _ := pgxpool.NewWithConfig(ctx, cfg)
+
+// Gọi HTTP ra ngoài: client tự gắn traceparent để dịch vụ kia nối tiếp trace
+client := &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
+</pre>
+<p>Span tự đặt cho đoạn code nghiệp vụ quan trọng:</p>
+<pre lang="go">
+var tracer = otel.Tracer("sobaitap/service")
+
+func (s *Service) GenerateReport(ctx context.Context, classID int64) (Report, error) {
+    ctx, span := tracer.Start(ctx, "GenerateReport")
+    defer span.End()
+    span.SetAttributes(attribute.Int64("class.id", classID))
+
+    scores, err := s.store.Scores(ctx, classID) // span con của pgx nằm dưới span này
+    if err != nil {
+        span.RecordError(err)
+        span.SetStatus(codes.Error, "load scores")
+        return Report{}, err
+    }
+    // ...
+}
+</pre>
+<p>Khi chạy trên máy, dùng một container Jaeger nhận trực tiếp OTLP: <code>docker run -p 16686:16686 -p 4317:4317 jaegertracing/jaeger:2.1.0</code>, đặt <code>OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317</code> rồi mở <code>localhost:16686</code>.</p>
+<arch w="820" h="250" caption="Trace trên giao diện Jaeger: mỗi thanh là một span, chiều dài là thời gian. Nhìn là thấy ngay thời gian nằm ở đâu">
+text 20 30 "Trace 4bf92f35 · GET /v1/classes/{id}/report · 2.450ms" bold anchor=start
+group 20 50 780 34 plain "http GET /v1/classes/{id}/report  2.450ms"
+group 40 94 120 34 plain "redis GET 1ms"
+group 60 138 170 34 plain "pgx SELECT 35ms"
+group 90 182 700 34 bad "POST ai.example/generate  2.400ms"
+</arch>
+
+<h2>Nối log với trace</h2>
+<p>Thấy một trace chậm, muốn xem log của đúng request đó. Hoặc thấy dòng log lỗi, muốn mở trace của nó. Cách làm: mọi dòng log có <code>trace_id</code>. Một <code>slog.Handler</code> bọc ngoài tự lấy từ ctx:</p>
+<pre lang="go">
+type traceHandler struct{ slog.Handler }
+
+func (h traceHandler) Handle(ctx context.Context, r slog.Record) error {
+    if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+        r.AddAttrs(slog.String("trace_id", sc.TraceID().String()))
+    }
+    return h.Handler.Handle(ctx, r)
+}
+
+func (h traceHandler) WithAttrs(a []slog.Attr) slog.Handler { return traceHandler{h.Handler.WithAttrs(a)} }
+func (h traceHandler) WithGroup(n string) slog.Handler     { return traceHandler{h.Handler.WithGroup(n)} }
+
+// main:
+slog.SetDefault(slog.New(traceHandler{slog.NewJSONHandler(os.Stdout, nil)}))
+
+// Ghi log bằng hàm có Context để handler lấy được trace
+slog.ErrorContext(ctx, "gọi AI lỗi", "class_id", classID, "err", err)
+</pre>
+<pre lang="out" sim="1">
+{"time":"2026-11-03T09:41:07.12+07:00","level":"ERROR","msg":"gọi AI lỗi","class_id":42,"err":"context deadline exceeded","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736"}
+</pre>
+<p>Trong Grafana, Loki và Tempo nối với nhau qua trường này: bấm vào trace id trong log là mở trace.</p>
+
+<h2>PromQL: những câu hay dùng</h2>
+<p>Grafana vẽ biểu đồ bằng truy vấn PromQL. Năm câu dùng cho gần như mọi dịch vụ:</p>
+<pre lang="text" file="PromQL">
+# Số request mỗi giây, theo route
+sum by (route) (rate(http_requests_total[5m]))
+
+# Tỉ lệ lỗi 5xx
+sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))
+
+# Độ trễ p99 theo route (từ histogram)
+histogram_quantile(0.99, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))
+
+# Số goroutine (thư viện client_golang có sẵn số liệu runtime của Go)
+go_goroutines
+
+# Kết nối database đang chờ (tự đăng ký từ pool.Stat())
+sobaitap_db_pool_acquire_waiting
+</pre>
+<p><code>rate(x[5m])</code>: tốc độ tăng mỗi giây của bộ đếm, tính trên 5 phút gần nhất. Counter luôn tăng (reset khi khởi động lại), nên gần như không bao giờ vẽ thẳng counter mà luôn qua <code>rate</code>.</p>
+<p>Số liệu runtime Go có sẵn khi dùng <code>promhttp.Handler()</code>: <code>go_goroutines</code>, <code>go_memstats_heap_inuse_bytes</code>, <code>go_gc_duration_seconds</code>. Đưa thêm số liệu của pool database:</p>
+<pre lang="go">
+prometheus.MustRegister(prometheus.NewGaugeFunc(
+    prometheus.GaugeOpts{Name: "sobaitap_db_pool_in_use", Help: "Kết nối đang dùng"},
+    func() float64 { return float64(pool.Stat().AcquiredConns()) },
+))
+prometheus.MustRegister(prometheus.NewCounterFunc(
+    prometheus.CounterOpts{Name: "sobaitap_db_pool_empty_acquire_total", Help: "Số lần phải chờ vì hết kết nối"},
+    func() float64 { return float64(pool.Stat().EmptyAcquireCount()) },
+))
+</pre>
+
+<h2>Viết luật cảnh báo</h2>
+<pre lang="yaml" file="alerts.yml">
+groups:
+  - name: sobaitap-api
+    rules:
+      - alert: TiLeLoiCao
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m])) > 0.02
+        for: 5m                     # phải kéo dài 5 phút, tránh báo vì một đợt lỗi thoáng qua
+        labels: { severity: page }  # page = đánh thức người trực
+        annotations:
+          summary: "Hơn 2% request lỗi 5xx trong 5 phút"
+          runbook: "https://wiki.sobaitap.vn/runbook/ti-le-loi-cao"
+
+      - alert: DoTreCao
+        expr: |
+          histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels: { severity: ticket } # ticket = xử lý trong giờ làm việc
+
+      - alert: HangDoiUDong
+        expr: sobaitap_jobs_oldest_pending_seconds > 600
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: "Có việc chờ hơn 10 phút trong hàng đợi"
+</pre>
+<p>Mỗi cảnh báo có <b>runbook</b>: trang ghi "nhận cảnh báo này thì kiểm tra gì, làm gì". 3 giờ sáng, người trực không phải nghĩ từ đầu.</p>
+<aside class="real"><p>Cách nâng cao từ sách SRE của Google là cảnh báo theo <b>tốc độ tiêu ngân sách lỗi</b> (burn rate): với SLO 99,5% trong 30 ngày, nếu lỗi đang ở mức tiêu hết ngân sách cả tháng trong 2 ngày thì báo ngay, còn tiêu chậm thì chỉ tạo ticket. Nhờ vậy cảnh báo ít mà đúng.</p></aside>
+
+<h2>Bắt lỗi với Sentry</h2>
+<p>Log là dòng chữ, khó gom nhóm. Công cụ theo dõi lỗi (Sentry, Rollbar) gom các lỗi giống nhau thành một "vấn đề", đếm số lần, số người dùng bị ảnh hưởng, hiện stack trace, và báo khi có lỗi <b>mới</b> sau một lần deploy.</p>
+<pre lang="go">
+import "github.com/getsentry/sentry-go"
+import sentryhttp "github.com/getsentry/sentry-go/http"
+
+sentry.Init(sentry.ClientOptions{
+    Dsn:         os.Getenv("SENTRY_DSN"),
+    Release:     version,      // gắn lỗi với phiên bản
+    Environment: "production",
+})
+defer sentry.Flush(2 * time.Second)
+
+handler = sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle(handler) // bắt panic
+
+// Ở chỗ ánh xạ lỗi 500 (writeErr), báo lỗi kèm ngữ cảnh request
+if hub := sentry.GetHubFromContext(r.Context()); hub != nil {
+    hub.CaptureException(err)
+}
+</pre>
+<aside class="warn"><p>Lọc dữ liệu cá nhân trước khi gửi lên dịch vụ bên ngoài: header <code>Authorization</code>, cookie, body có mật khẩu, email. Sentry có <code>BeforeSend</code> để xoá các trường này.</p></aside>
+
+<h2>Khi sự cố xảy ra</h2>
+<ol>
+<li><b>Giảm thiệt hại trước, tìm nguyên nhân sau.</b> Vừa deploy thì quay lại bản trước. Một tính năng gây lỗi thì tắt bằng feature flag.</li>
+<li><b>Một người chỉ huy, một kênh trao đổi.</b> Ghi lại mốc thời gian: phát hiện lúc nào, làm gì, kết quả.</li>
+<li><b>Báo cho người dùng</b> nếu ảnh hưởng nhiều (trang trạng thái).</li>
+<li><b>Viết postmortem không đổ lỗi</b>: chuyện gì xảy ra, vì sao hệ thống cho phép nó xảy ra, phát hiện có chậm không, và các việc cụ thể để không lặp lại (thêm cảnh báo, thêm test, thêm giới hạn). Câu hỏi là "hệ thống thiếu gì", không phải "ai làm sai".</li>
+</ol>
+
 <h2>Health check</h2>
 <pre lang="go">
 // Liveness: tiến trình còn sống không? Không kiểm database (database chết thì khởi động lại server cũng vô ích)

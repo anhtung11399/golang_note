@@ -190,6 +190,161 @@ w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&qu
 <li>Không để bản dev (<code>DEV_FAKE_LOGIN=1</code>, dữ liệu mẫu) chạy được trên production. Kiểm tra lúc khởi động và từ chối chạy.</li>
 </ul>
 
+<h2 id="phan-quyen-o-mot-cho-lop-policy"><a href="#phan-quyen-o-mot-cho-lop-policy" class="anchor" aria-hidden="true">#</a>Phân quyền ở một chỗ: lớp policy</h2>
+<p>BOLA xảy ra vì kiểm tra quyền nằm rải rác, mỗi handler tự nhớ (hoặc quên) kiểm tra. Khi số endpoint lên tới vài trăm, cách bền vững là gom luật phân quyền vào <b>một package</b>, và mọi đường đọc / ghi đều đi qua nó.</p>
+<figure class="dg arch"><svg viewBox="0 0 820 250" style="min-width:640px;max-width:820px" role="img" aria-label="Mọi handler hỏi cùng một lớp policy: người này có được làm hành động này với tài nguyên này không"><path d="M116.0 50.0 L240.0 50.0 L240.0 130.0 L334.0 130.0" class="ae" marker-end="url(#ar)"/><path d="M116.0 130.0 L334.0 130.0" class="ae" marker-end="url(#ar)"/><path d="M116.0 210.0 L240.0 210.0 L240.0 130.0" class="ae" marker-end="url(#ar)"/><path d="M386.0 130.0 L574.0 130.0" class="ae" marker-end="url(#ar)"/><path d="M360.0 104.0 L360.0 40.0 L574.0 40.0" class="ae ds" marker-end="url(#ar)"/><g class="an an-go"><rect x="68" y="28" width="44" height="44" rx="9"/><text x="90" y="54.5" text-anchor="middle" class="an-i" style="font-size:13px">H</text><text x="90" y="88" text-anchor="middle" class="an-l">Xem bài nộp</text></g><g class="an an-go"><rect x="68" y="108" width="44" height="44" rx="9"/><text x="90" y="134.5" text-anchor="middle" class="an-i" style="font-size:13px">H</text><text x="90" y="168" text-anchor="middle" class="an-l">Chấm điểm</text></g><g class="an an-go"><rect x="68" y="188" width="44" height="44" rx="9"/><text x="90" y="214.5" text-anchor="middle" class="an-i" style="font-size:13px">H</text><text x="90" y="248" text-anchor="middle" class="an-l">Xoá lớp</text></g><g class="an an-sec"><rect x="338" y="108" width="44" height="44" rx="9"/><text x="360" y="134.5" text-anchor="middle" class="an-i" style="font-size:11px">LOCK</text><text x="360" y="168" text-anchor="middle" class="an-l">authz.Can</text><text x="360" y="182" text-anchor="middle" class="an-s">user, action, resource</text></g><g class="an an-go"><rect x="578" y="108" width="44" height="44" rx="9"/><text x="600" y="134.5" text-anchor="middle" class="an-i" style="font-size:11px">REPO</text><text x="600" y="168" text-anchor="middle" class="an-l">Quan hệ</text><text x="600" y="182" text-anchor="middle" class="an-s">lớp của ai, bé của ai</text></g><g class="an an-gen"><rect x="578" y="18" width="44" height="44" rx="9"/><text x="600" y="44.5" text-anchor="middle" class="an-i" style="font-size:11px">FILE</text><text x="600" y="78" text-anchor="middle" class="an-l">Audit log</text><text x="600" y="92" text-anchor="middle" class="an-s">ai làm gì, lúc nào</text></g><g class="ae-lb"><rect x="465.4" y="121.0" width="29.2" height="17" rx="4"/><text x="480.0" y="133.5" text-anchor="middle">tra</text></g><g class="ae-lb"><rect x="439.6" y="31.0" width="54.8" height="17" rx="4"/><text x="467.0" y="43.5" text-anchor="middle">ghi lại</text></g></svg><figcaption>Mọi handler hỏi cùng một lớp policy: người này có được làm hành động này với tài nguyên này không</figcaption></figure>
+<div class="code"><div class="code-h"><span>internal/authz/authz.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> authz
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+)
+
+<span class="k">var</span> ErrForbidden = errors.<span class="f">New</span>(<span class="s">&quot;không có quyền&quot;</span>)
+
+<span class="k">type</span> Action <span class="t">string</span>
+
+<span class="k">const</span> (
+    ViewSubmission  Action = <span class="s">&quot;submission.view&quot;</span>
+    GradeSubmission Action = <span class="s">&quot;submission.grade&quot;</span>
+    DeleteClass     Action = <span class="s">&quot;class.delete&quot;</span>
+)
+
+<span class="k">type</span> User <span class="k">struct</span> {
+    ID      <span class="t">int64</span>
+    IsAdmin <span class="t">bool</span>
+}
+
+<span class="c">// Relations: các câu hỏi về quan hệ, trả lời bằng truy vấn database</span>
+<span class="k">type</span> Relations <span class="k">interface</span> {
+    <span class="f">TeachesClassOfSubmission</span>(ctx context.Context, teacherID, submissionID <span class="t">int64</span>) (<span class="t">bool</span>, <span class="t">error</span>)
+    <span class="f">IsGuardianOfSubmission</span>(ctx context.Context, parentID, submissionID <span class="t">int64</span>) (<span class="t">bool</span>, <span class="t">error</span>)
+    <span class="f">OwnsClass</span>(ctx context.Context, teacherID, classID <span class="t">int64</span>) (<span class="t">bool</span>, <span class="t">error</span>)
+}
+
+<span class="k">type</span> Authorizer <span class="k">struct</span>{ rel Relations }
+
+<span class="k">func</span> (a *Authorizer) <span class="f">Can</span>(ctx context.Context, u User, act Action, resourceID <span class="t">int64</span>) <span class="t">error</span> {
+    <span class="k">var</span> ok <span class="t">bool</span>
+    <span class="k">var</span> err <span class="t">error</span>
+    <span class="k">switch</span> act {
+    <span class="k">case</span> ViewSubmission:
+        <span class="c">// giáo viên của lớp, HOẶC phụ huynh của bé</span>
+        ok, err = a.rel.<span class="f">TeachesClassOfSubmission</span>(ctx, u.ID, resourceID)
+        <span class="k">if</span> err == <span class="b">nil</span> &amp;&amp; !ok {
+            ok, err = a.rel.<span class="f">IsGuardianOfSubmission</span>(ctx, u.ID, resourceID)
+        }
+    <span class="k">case</span> GradeSubmission:
+        ok, err = a.rel.<span class="f">TeachesClassOfSubmission</span>(ctx, u.ID, resourceID) <span class="c">// chỉ giáo viên</span>
+    <span class="k">case</span> DeleteClass:
+        ok, err = a.rel.<span class="f">OwnsClass</span>(ctx, u.ID, resourceID)
+    <span class="k">default</span>:
+        <span class="k">return</span> ErrForbidden <span class="c">// hành động lạ: TỪ CHỐI, không bao giờ mặc định cho phép</span>
+    }
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    <span class="k">if</span> !ok {
+        <span class="k">return</span> ErrForbidden
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *H) <span class="f">grade</span>(w http.ResponseWriter, r *http.Request) {
+    u := authz.<span class="f">UserFrom</span>(r.<span class="f">Context</span>())
+    id, _ := strconv.<span class="f">ParseInt</span>(r.<span class="f">PathValue</span>(<span class="s">&quot;id&quot;</span>), <span class="n">10</span>, <span class="n">64</span>)
+    <span class="k">if</span> err := h.authz.<span class="f">Can</span>(r.<span class="f">Context</span>(), u, authz.GradeSubmission, id); err != <span class="b">nil</span> {
+        <span class="f">writeErr</span>(w, err) <span class="c">// ErrForbidden → 404 (không lộ là bài có tồn tại)</span>
+        <span class="k">return</span>
+    }
+    <span class="c">// ...</span>
+}</code></pre></div>
+<p>Lợi ích: một bảng luật duy nhất để review, viết test cho từng ô (giáo viên lớp khác, phụ huynh bé khác, người lạ), và thêm vai trò mới chỉ sửa một chỗ. Với hệ thống lớn, có thư viện / dịch vụ chuyên cho việc này: Casbin, OPA, OpenFGA (mô hình quan hệ kiểu Google Zanzibar).</p>
+<aside class="tip"><p>Một lớp bảo vệ thứ hai: lọc theo người dùng <b>ngay trong câu SQL</b> (<code>WHERE c.teacher_id = $me</code>). Quên gọi <code>Can</code> thì câu SQL vẫn không trả dữ liệu của người khác. Hai lớp cùng lúc thì một lần quên không thành lỗ hổng.</p></aside>
+
+<h2 id="api2-nhung-loi-xac-thuc-hay-gap-o-api"><a href="#api2-nhung-loi-xac-thuc-hay-gap-o-api" class="anchor" aria-hidden="true">#</a>API2: những lỗi xác thực hay gặp ở API</h2>
+<p>Bài 21 dạy cách làm đúng. Đây là danh sách lỗi để rà lại:</p>
+<ul>
+<li>Đăng nhập, quên mật khẩu, xác minh OTP <b>không giới hạn số lần thử</b>: OTP 6 số chỉ có 1 triệu khả năng.</li>
+<li>Token đặt lại mật khẩu không hết hạn, dùng lại được nhiều lần, hoặc so sánh bằng <code>==</code> (dùng <code>subtle.ConstantTimeCompare</code>).</li>
+<li>JWT: chấp nhận thuật toán <code>none</code>, không kiểm tra <code>exp</code> / <code>aud</code> / <code>iss</code>, khoá ký yếu. Dùng thư viện chuẩn (<code>golang-jwt/jwt/v5</code>) và chỉ định rõ thuật toán được chấp nhận.</li>
+<li>Đổi email / mật khẩu không hỏi lại mật khẩu cũ, không gửi thông báo về email cũ.</li>
+<li>Đăng xuất không huỷ phiên phía server. Đổi mật khẩu không huỷ các phiên khác.</li>
+<li>Thông báo lỗi khác nhau cho "email không tồn tại" và "sai mật khẩu": kẻ xấu dò được ai có tài khoản.</li>
+</ul>
+
+<h2 id="api6-luong-nghiep-vu-bi-lam-dung"><a href="#api6-luong-nghiep-vu-bi-lam-dung" class="anchor" aria-hidden="true">#</a>API6: luồng nghiệp vụ bị lạm dụng</h2>
+<p>Không có dòng code nào "sai", nhưng luồng nghiệp vụ bị bot dùng theo cách không ai lường trước:</p>
+<table>
+<tr><th>Luồng</th><th>Bị lạm dụng</th><th>Phòng</th></tr>
+<tr><td>Đăng ký dùng thử</td><td>tạo hàng nghìn tài khoản để dùng thử mãi</td><td>giới hạn theo thiết bị / thẻ / số điện thoại, xác minh email</td></tr>
+<tr><td>Mã giảm giá</td><td>dò mã, một người dùng nhiều lần</td><td>mã đủ dài, giới hạn lượt dùng theo tài khoản, giới hạn số lần thử</td></tr>
+<tr><td>Gửi lời mời / OTP qua SMS</td><td>"SMS pumping": gửi tới số trả phí, bạn trả tiền</td><td>giới hạn theo số, theo IP, chặn đầu số lạ, có captcha</td></tr>
+<tr><td>Mở bán giới hạn</td><td>bot gom hết hàng</td><td>hàng đợi ảo, giới hạn mỗi tài khoản, captcha khi nghi ngờ</td></tr>
+<tr><td>Tạo lớp, mời phụ huynh</td><td>dùng làm kênh gửi thư rác tới email người lạ</td><td>giới hạn số lời mời / ngày, nội dung mời cố định</td></tr>
+</table>
+<p>Câu hỏi cho mỗi tính năng mới: "nếu có người gọi endpoint này 10.000 lần bằng script thì ai bị thiệt, thiệt bao nhiêu?"</p>
+
+<h2 id="api9-biet-minh-dang-co-nhung-api-nao"><a href="#api9-biet-minh-dang-co-nhung-api-nao" class="anchor" aria-hidden="true">#</a>API9: biết mình đang có những API nào</h2>
+<ul>
+<li>Bản <code>/v1</code> cũ vẫn chạy với luật kiểm tra lỏng hơn <code>/v2</code>. Kẻ tấn công gọi bản cũ.</li>
+<li>Môi trường staging dùng dữ liệu thật nhưng bảo vệ kém, có tên miền đoán được (<code>staging-api.</code>).</li>
+<li>Endpoint gỡ lỗi (<code>/debug</code>, <code>/test-email</code>) quên tắt.</li>
+</ul>
+<p>Phòng: danh sách API từ OpenAPI spec (bài 15) là nguồn sự thật. Test tự động so danh sách route thật của server với spec: route có mà spec không có thì báo lỗi CI. Đặt ngày ngừng hỗ trợ cho bản cũ và trả header <code>Deprecation</code> / <code>Sunset</code>.</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Liệt kê mọi route đã đăng ký: in lúc khởi động hoặc so với spec trong test</span>
+<span class="k">for</span> _, p := <span class="k">range</span> registeredPatterns { <span class="c">// tự giữ danh sách khi gọi mux.HandleFunc</span>
+    fmt.<span class="f">Println</span>(p)
+}</code></pre></div>
+
+<h2 id="api10-khong-tin-du-lieu-tu-api-ben-thu-ba"><a href="#api10-khong-tin-du-lieu-tu-api-ben-thu-ba" class="anchor" aria-hidden="true">#</a>API10: không tin dữ liệu từ API bên thứ ba</h2>
+<p>Dữ liệu từ ngân hàng, cổng thanh toán, AI, đối tác cũng là <b>đầu vào không tin cậy</b>, như dữ liệu người dùng:</p>
+<ul>
+<li><b>Webhook</b>: kiểm tra chữ ký (HMAC) và thời gian, đối chiếu lại số tiền với đơn trong database (bài 23). Đừng tin trường <code>amount</code> trong webhook là số tiền của đơn.</li>
+<li><b>Giới hạn</b> khi gọi ra ngoài: timeout, kích thước body đọc về (<code>io.LimitReader</code>), số lần redirect.</li>
+<li><b>Validate</b> response như validate request: kiểu, độ dài, giá trị cho phép, trước khi ghi vào database hay hiện cho người dùng.</li>
+<li><b>Nội dung AI sinh ra</b> có thể chứa HTML / script / link lạ: escape khi hiển thị, không bao giờ chạy như lệnh hay câu SQL.</li>
+</ul>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code>resp, err := client.<span class="f">Do</span>(req) <span class="c">// client có Timeout</span>
+<span class="k">if</span> err != <span class="b">nil</span> {
+    <span class="k">return</span> err
+}
+<span class="k">defer</span> resp.Body.<span class="f">Close</span>()
+body := io.<span class="f">LimitReader</span>(resp.Body, <span class="n">1</span>&lt;&lt;<span class="n">20</span>) <span class="c">// tối đa 1MB, đối tác trả 2GB cũng không làm hết RAM</span>
+<span class="k">var</span> out PartnerResp
+<span class="k">if</span> err := json.<span class="f">NewDecoder</span>(body).<span class="f">Decode</span>(&amp;out); err != <span class="b">nil</span> {
+    <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;đối tác trả dữ liệu hỏng: %w&quot;</span>, err)
+}
+<span class="k">if</span> out.Status != <span class="s">&quot;paid&quot;</span> &amp;&amp; out.Status != <span class="s">&quot;pending&quot;</span> { <span class="c">// chỉ nhận giá trị đã biết</span>
+    <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;trạng thái lạ: %q&quot;</span>, out.Status)
+}</code></pre></div>
+
+<h2 id="audit-log-ai-da-lam-gi"><a href="#audit-log-ai-da-lam-gi" class="anchor" aria-hidden="true">#</a>Audit log: ai đã làm gì</h2>
+<p>Log ứng dụng để gỡ lỗi, có thể bị xoay vòng và xoá. <b>Audit log</b> là bản ghi lâu dài các hành động nhạy cảm, để trả lời "ai đã xoá lớp này", "ai đã xem hồ sơ bé này", phục vụ điều tra sự cố và yêu cầu pháp lý.</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">CREATE</span> <span class="k">TABLE</span> audit_events (
+    id         <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    at         <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>(),
+    actor_id   <span class="t">bigint</span>,                 <span class="c">-- ai làm (NULL: hệ thống)</span>
+    action     <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,          <span class="c">-- 'class.delete', 'login.failed', 'role.grant'</span>
+    target     <span class="t">text</span>,                   <span class="c">-- 'class:42'</span>
+    ip         inet,
+    detail     <span class="t">jsonb</span>                   <span class="c">-- không chứa mật khẩu, token</span>
+);
+<span class="k">CREATE</span> <span class="k">INDEX</span> <span class="k">ON</span> audit_events (target, at);</code></pre></div>
+<p>Ghi audit trong <b>cùng transaction</b> với hành động (xoá lớp thất bại thì không có dòng audit). Ứng dụng chỉ được <code>INSERT</code> vào bảng này, không có quyền <code>UPDATE</code> / <code>DELETE</code> (cấp quyền riêng trong Postgres), để kẻ chiếm được ứng dụng không xoá được dấu vết.</p>
+
+<h2 id="mo-hinh-hoa-moi-de-doa-trong-30-phut"><a href="#mo-hinh-hoa-moi-de-doa-trong-30-phut" class="anchor" aria-hidden="true">#</a>Mô hình hoá mối đe doạ trong 30 phút</h2>
+<p>Trước khi làm một tính năng có rủi ro (thanh toán, upload, chia sẻ dữ liệu), cả đội ngồi vẽ luồng dữ liệu và đi qua sáu câu hỏi STRIDE:</p>
+<table>
+<tr><th>Chữ</th><th>Mối đe doạ</th><th>Câu hỏi cho tính năng</th></tr>
+<tr><td>S</td><td>Spoofing: giả danh</td><td>có ai giả làm người khác / giả làm ngân hàng gửi webhook được không?</td></tr>
+<tr><td>T</td><td>Tampering: sửa dữ liệu</td><td>client sửa giá, sửa điểm, sửa id được không?</td></tr>
+<tr><td>R</td><td>Repudiation: chối bỏ</td><td>có bằng chứng ai đã làm hành động này không (audit log)?</td></tr>
+<tr><td>I</td><td>Information disclosure: lộ thông tin</td><td>response, log, URL, thông báo lỗi có lộ gì không?</td></tr>
+<tr><td>D</td><td>Denial of service: làm sập</td><td>gửi file 2GB, 10.000 request, câu tìm kiếm nặng thì sao?</td></tr>
+<tr><td>E</td><td>Elevation of privilege: leo quyền</td><td>phụ huynh làm được việc của giáo viên, giáo viên làm được việc của quản trị không?</td></tr>
+</table>
+<p>Kết quả là một danh sách việc cụ thể (thêm giới hạn, thêm test phân quyền), đưa vào kế hoạch như mọi việc khác.</p>
+
 <h2 id="bi-mat-secrets"><a href="#bi-mat-secrets" class="anchor" aria-hidden="true">#</a>Bí mật (secrets)</h2>
 <ul>
 <li>Không commit khoá API, mật khẩu database, khoá ký vào git, kể cả repo riêng tư. Lỡ commit thì coi như đã lộ: <b>đổi khoá</b>, xoá khỏi lịch sử git không đủ.</li>
@@ -292,7 +447,7 @@ gosec ./...                       <span class="c"># quét mẫu code không an t
   <div class="done-box"><button class="done-btn" type="button" data-slug="bao-mat-api">Đánh dấu đã học xong bài này</button></div>
   <nav class="pn"><a class="prev" href="xac-thuc.html"><small>Bài trước</small>Xác thực và phân quyền</a><a class="next" href="bat-dong-bo.html"><small>Bài tiếp theo</small>Hàng đợi, việc chạy nền và webhook</a></nav>
 </article></main>
-  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#owasp-api-security-top-10">OWASP API Security Top 10</a><a href="#api1-bola-loi-so-mot">API1: BOLA, lỗi số một</a><a href="#api3-lo-truong-va-gan-truong-bua">API3: lộ trường và gán trường bừa</a><a href="#api4-gioi-han-moi-thu">API4: giới hạn mọi thứ</a><a href="#api5-endpoint-quan-tri">API5: endpoint quản trị</a><a href="#sql-injection-va-cac-loai-injection-khac">SQL injection và các loại injection khác</a><a href="#api7-ssrf">API7: SSRF</a><a href="#api8-cau-hinh-sai">API8: cấu hình sai</a><a href="#bi-mat-secrets">Bí mật (secrets)</a><a href="#upload-file">Upload file</a><a href="#cong-cu-tu-dong">Công cụ tự động</a><a href="#bai-tap">Bài tập</a><a href="#checklist-truoc-khi-len-production">Checklist trước khi lên production</a></nav>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#owasp-api-security-top-10">OWASP API Security Top 10</a><a href="#api1-bola-loi-so-mot">API1: BOLA, lỗi số một</a><a href="#api3-lo-truong-va-gan-truong-bua">API3: lộ trường và gán trường bừa</a><a href="#api4-gioi-han-moi-thu">API4: giới hạn mọi thứ</a><a href="#api5-endpoint-quan-tri">API5: endpoint quản trị</a><a href="#sql-injection-va-cac-loai-injection-khac">SQL injection và các loại injection khác</a><a href="#api7-ssrf">API7: SSRF</a><a href="#api8-cau-hinh-sai">API8: cấu hình sai</a><a href="#phan-quyen-o-mot-cho-lop-policy">Phân quyền ở một chỗ: lớp policy</a><a href="#api2-nhung-loi-xac-thuc-hay-gap-o-api">API2: những lỗi xác thực hay gặp ở API</a><a href="#api6-luong-nghiep-vu-bi-lam-dung">API6: luồng nghiệp vụ bị lạm dụng</a><a href="#api9-biet-minh-dang-co-nhung-api-nao">API9: biết mình đang có những API nào</a><a href="#api10-khong-tin-du-lieu-tu-api-ben-thu-ba">API10: không tin dữ liệu từ API bên thứ ba</a><a href="#audit-log-ai-da-lam-gi">Audit log: ai đã làm gì</a><a href="#mo-hinh-hoa-moi-de-doa-trong-30-phut">Mô hình hoá mối đe doạ trong 30 phút</a><a href="#bi-mat-secrets">Bí mật (secrets)</a><a href="#upload-file">Upload file</a><a href="#cong-cu-tu-dong">Công cụ tự động</a><a href="#bai-tap">Bài tập</a><a href="#checklist-truoc-khi-len-production">Checklist trước khi lên production</a></nav>
 </div>
 </body>
 </html>

@@ -177,6 +177,183 @@ func SecurityHeaders(next http.Handler) http.Handler {
 <li>Không để bản dev (<code>DEV_FAKE_LOGIN=1</code>, dữ liệu mẫu) chạy được trên production. Kiểm tra lúc khởi động và từ chối chạy.</li>
 </ul>
 
+<h2>Phân quyền ở một chỗ: lớp policy</h2>
+<p>BOLA xảy ra vì kiểm tra quyền nằm rải rác, mỗi handler tự nhớ (hoặc quên) kiểm tra. Khi số endpoint lên tới vài trăm, cách bền vững là gom luật phân quyền vào <b>một package</b>, và mọi đường đọc / ghi đều đi qua nó.</p>
+<arch w="820" h="250" caption="Mọi handler hỏi cùng một lớp policy: người này có được làm hành động này với tài nguyên này không">
+node h1 90 50 handler "Xem bài nộp" ""
+node h2 90 130 handler "Chấm điểm" ""
+node h3 90 210 handler "Xoá lớp" ""
+node p 360 130 mutex "authz.Can" "user, action, resource"
+node r 600 130 store "Quan hệ" "lớp của ai, bé của ai"
+node a 600 40 file "Audit log" "ai làm gì, lúc nào"
+path 116 50 240 50 240 130 334 130 ""
+edge h2 p ""
+path 116 210 240 210 240 130 ""
+edge p r "tra"
+path 360 104 360 40 574 40 "ghi lại" dash
+</arch>
+<pre lang="go" file="internal/authz/authz.go" check="no">
+package authz
+
+import (
+    "context"
+    "errors"
+)
+
+var ErrForbidden = errors.New("không có quyền")
+
+type Action string
+
+const (
+    ViewSubmission  Action = "submission.view"
+    GradeSubmission Action = "submission.grade"
+    DeleteClass     Action = "class.delete"
+)
+
+type User struct {
+    ID      int64
+    IsAdmin bool
+}
+
+// Relations: các câu hỏi về quan hệ, trả lời bằng truy vấn database
+type Relations interface {
+    TeachesClassOfSubmission(ctx context.Context, teacherID, submissionID int64) (bool, error)
+    IsGuardianOfSubmission(ctx context.Context, parentID, submissionID int64) (bool, error)
+    OwnsClass(ctx context.Context, teacherID, classID int64) (bool, error)
+}
+
+type Authorizer struct{ rel Relations }
+
+func (a *Authorizer) Can(ctx context.Context, u User, act Action, resourceID int64) error {
+    var ok bool
+    var err error
+    switch act {
+    case ViewSubmission:
+        // giáo viên của lớp, HOẶC phụ huynh của bé
+        ok, err = a.rel.TeachesClassOfSubmission(ctx, u.ID, resourceID)
+        if err == nil && !ok {
+            ok, err = a.rel.IsGuardianOfSubmission(ctx, u.ID, resourceID)
+        }
+    case GradeSubmission:
+        ok, err = a.rel.TeachesClassOfSubmission(ctx, u.ID, resourceID) // chỉ giáo viên
+    case DeleteClass:
+        ok, err = a.rel.OwnsClass(ctx, u.ID, resourceID)
+    default:
+        return ErrForbidden // hành động lạ: TỪ CHỐI, không bao giờ mặc định cho phép
+    }
+    if err != nil {
+        return err
+    }
+    if !ok {
+        return ErrForbidden
+    }
+    return nil
+}
+</pre>
+<pre lang="go">
+func (h *H) grade(w http.ResponseWriter, r *http.Request) {
+    u := authz.UserFrom(r.Context())
+    id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+    if err := h.authz.Can(r.Context(), u, authz.GradeSubmission, id); err != nil {
+        writeErr(w, err) // ErrForbidden → 404 (không lộ là bài có tồn tại)
+        return
+    }
+    // ...
+}
+</pre>
+<p>Lợi ích: một bảng luật duy nhất để review, viết test cho từng ô (giáo viên lớp khác, phụ huynh bé khác, người lạ), và thêm vai trò mới chỉ sửa một chỗ. Với hệ thống lớn, có thư viện / dịch vụ chuyên cho việc này: Casbin, OPA, OpenFGA (mô hình quan hệ kiểu Google Zanzibar).</p>
+<aside class="tip"><p>Một lớp bảo vệ thứ hai: lọc theo người dùng <b>ngay trong câu SQL</b> (<code>WHERE c.teacher_id = $me</code>). Quên gọi <code>Can</code> thì câu SQL vẫn không trả dữ liệu của người khác. Hai lớp cùng lúc thì một lần quên không thành lỗ hổng.</p></aside>
+
+<h2>API2: những lỗi xác thực hay gặp ở API</h2>
+<p>Bài {{n:xac-thuc}} dạy cách làm đúng. Đây là danh sách lỗi để rà lại:</p>
+<ul>
+<li>Đăng nhập, quên mật khẩu, xác minh OTP <b>không giới hạn số lần thử</b>: OTP 6 số chỉ có 1 triệu khả năng.</li>
+<li>Token đặt lại mật khẩu không hết hạn, dùng lại được nhiều lần, hoặc so sánh bằng <code>==</code> (dùng <code>subtle.ConstantTimeCompare</code>).</li>
+<li>JWT: chấp nhận thuật toán <code>none</code>, không kiểm tra <code>exp</code> / <code>aud</code> / <code>iss</code>, khoá ký yếu. Dùng thư viện chuẩn (<code>golang-jwt/jwt/v5</code>) và chỉ định rõ thuật toán được chấp nhận.</li>
+<li>Đổi email / mật khẩu không hỏi lại mật khẩu cũ, không gửi thông báo về email cũ.</li>
+<li>Đăng xuất không huỷ phiên phía server. Đổi mật khẩu không huỷ các phiên khác.</li>
+<li>Thông báo lỗi khác nhau cho "email không tồn tại" và "sai mật khẩu": kẻ xấu dò được ai có tài khoản.</li>
+</ul>
+
+<h2>API6: luồng nghiệp vụ bị lạm dụng</h2>
+<p>Không có dòng code nào "sai", nhưng luồng nghiệp vụ bị bot dùng theo cách không ai lường trước:</p>
+<table>
+<tr><th>Luồng</th><th>Bị lạm dụng</th><th>Phòng</th></tr>
+<tr><td>Đăng ký dùng thử</td><td>tạo hàng nghìn tài khoản để dùng thử mãi</td><td>giới hạn theo thiết bị / thẻ / số điện thoại, xác minh email</td></tr>
+<tr><td>Mã giảm giá</td><td>dò mã, một người dùng nhiều lần</td><td>mã đủ dài, giới hạn lượt dùng theo tài khoản, giới hạn số lần thử</td></tr>
+<tr><td>Gửi lời mời / OTP qua SMS</td><td>"SMS pumping": gửi tới số trả phí, bạn trả tiền</td><td>giới hạn theo số, theo IP, chặn đầu số lạ, có captcha</td></tr>
+<tr><td>Mở bán giới hạn</td><td>bot gom hết hàng</td><td>hàng đợi ảo, giới hạn mỗi tài khoản, captcha khi nghi ngờ</td></tr>
+<tr><td>Tạo lớp, mời phụ huynh</td><td>dùng làm kênh gửi thư rác tới email người lạ</td><td>giới hạn số lời mời / ngày, nội dung mời cố định</td></tr>
+</table>
+<p>Câu hỏi cho mỗi tính năng mới: "nếu có người gọi endpoint này 10.000 lần bằng script thì ai bị thiệt, thiệt bao nhiêu?"</p>
+
+<h2>API9: biết mình đang có những API nào</h2>
+<ul>
+<li>Bản <code>/v1</code> cũ vẫn chạy với luật kiểm tra lỏng hơn <code>/v2</code>. Kẻ tấn công gọi bản cũ.</li>
+<li>Môi trường staging dùng dữ liệu thật nhưng bảo vệ kém, có tên miền đoán được (<code>staging-api.</code>).</li>
+<li>Endpoint gỡ lỗi (<code>/debug</code>, <code>/test-email</code>) quên tắt.</li>
+</ul>
+<p>Phòng: danh sách API từ OpenAPI spec (bài {{n:framework}}) là nguồn sự thật. Test tự động so danh sách route thật của server với spec: route có mà spec không có thì báo lỗi CI. Đặt ngày ngừng hỗ trợ cho bản cũ và trả header <code>Deprecation</code> / <code>Sunset</code>.</p>
+<pre lang="go">
+// Liệt kê mọi route đã đăng ký: in lúc khởi động hoặc so với spec trong test
+for _, p := range registeredPatterns { // tự giữ danh sách khi gọi mux.HandleFunc
+    fmt.Println(p)
+}
+</pre>
+
+<h2>API10: không tin dữ liệu từ API bên thứ ba</h2>
+<p>Dữ liệu từ ngân hàng, cổng thanh toán, AI, đối tác cũng là <b>đầu vào không tin cậy</b>, như dữ liệu người dùng:</p>
+<ul>
+<li><b>Webhook</b>: kiểm tra chữ ký (HMAC) và thời gian, đối chiếu lại số tiền với đơn trong database (bài {{n:bat-dong-bo}}). Đừng tin trường <code>amount</code> trong webhook là số tiền của đơn.</li>
+<li><b>Giới hạn</b> khi gọi ra ngoài: timeout, kích thước body đọc về (<code>io.LimitReader</code>), số lần redirect.</li>
+<li><b>Validate</b> response như validate request: kiểu, độ dài, giá trị cho phép, trước khi ghi vào database hay hiện cho người dùng.</li>
+<li><b>Nội dung AI sinh ra</b> có thể chứa HTML / script / link lạ: escape khi hiển thị, không bao giờ chạy như lệnh hay câu SQL.</li>
+</ul>
+<pre lang="go">
+resp, err := client.Do(req) // client có Timeout
+if err != nil {
+    return err
+}
+defer resp.Body.Close()
+body := io.LimitReader(resp.Body, 1<<20) // tối đa 1MB, đối tác trả 2GB cũng không làm hết RAM
+var out PartnerResp
+if err := json.NewDecoder(body).Decode(&out); err != nil {
+    return fmt.Errorf("đối tác trả dữ liệu hỏng: %w", err)
+}
+if out.Status != "paid" && out.Status != "pending" { // chỉ nhận giá trị đã biết
+    return fmt.Errorf("trạng thái lạ: %q", out.Status)
+}
+</pre>
+
+<h2>Audit log: ai đã làm gì</h2>
+<p>Log ứng dụng để gỡ lỗi, có thể bị xoay vòng và xoá. <b>Audit log</b> là bản ghi lâu dài các hành động nhạy cảm, để trả lời "ai đã xoá lớp này", "ai đã xem hồ sơ bé này", phục vụ điều tra sự cố và yêu cầu pháp lý.</p>
+<pre lang="sql">
+CREATE TABLE audit_events (
+    id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    at         timestamptz NOT NULL DEFAULT now(),
+    actor_id   bigint,                 -- ai làm (NULL: hệ thống)
+    action     text NOT NULL,          -- 'class.delete', 'login.failed', 'role.grant'
+    target     text,                   -- 'class:42'
+    ip         inet,
+    detail     jsonb                   -- không chứa mật khẩu, token
+);
+CREATE INDEX ON audit_events (target, at);
+</pre>
+<p>Ghi audit trong <b>cùng transaction</b> với hành động (xoá lớp thất bại thì không có dòng audit). Ứng dụng chỉ được <code>INSERT</code> vào bảng này, không có quyền <code>UPDATE</code> / <code>DELETE</code> (cấp quyền riêng trong Postgres), để kẻ chiếm được ứng dụng không xoá được dấu vết.</p>
+
+<h2>Mô hình hoá mối đe doạ trong 30 phút</h2>
+<p>Trước khi làm một tính năng có rủi ro (thanh toán, upload, chia sẻ dữ liệu), cả đội ngồi vẽ luồng dữ liệu và đi qua sáu câu hỏi STRIDE:</p>
+<table>
+<tr><th>Chữ</th><th>Mối đe doạ</th><th>Câu hỏi cho tính năng</th></tr>
+<tr><td>S</td><td>Spoofing: giả danh</td><td>có ai giả làm người khác / giả làm ngân hàng gửi webhook được không?</td></tr>
+<tr><td>T</td><td>Tampering: sửa dữ liệu</td><td>client sửa giá, sửa điểm, sửa id được không?</td></tr>
+<tr><td>R</td><td>Repudiation: chối bỏ</td><td>có bằng chứng ai đã làm hành động này không (audit log)?</td></tr>
+<tr><td>I</td><td>Information disclosure: lộ thông tin</td><td>response, log, URL, thông báo lỗi có lộ gì không?</td></tr>
+<tr><td>D</td><td>Denial of service: làm sập</td><td>gửi file 2GB, 10.000 request, câu tìm kiếm nặng thì sao?</td></tr>
+<tr><td>E</td><td>Elevation of privilege: leo quyền</td><td>phụ huynh làm được việc của giáo viên, giáo viên làm được việc của quản trị không?</td></tr>
+</table>
+<p>Kết quả là một danh sách việc cụ thể (thêm giới hạn, thêm test phân quyền), đưa vào kế hoạch như mọi việc khác.</p>
+
 <h2>Bí mật (secrets)</h2>
 <ul>
 <li>Không commit khoá API, mật khẩu database, khoá ký vào git, kể cả repo riêng tư. Lỡ commit thì coi như đã lộ: <b>đổi khoá</b>, xoá khỏi lịch sử git không đủ.</li>

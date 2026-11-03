@@ -213,6 +213,146 @@ Idempotency-Key: 8b1f3c3e-6a2c-4c1e-9a77-2f1b1c0d9e11</code></pre></div>
 <span class="k">WHERE</span> id = $<span class="n">2</span> <span class="k">AND</span> version = $<span class="n">3</span>;   <span class="c">-- 0 dòng bị sửa → đã có người sửa trước → trả 409</span></code></pre></div>
 <p>Trong HTTP, phiên bản thường đi qua header <code>ETag</code> (server trả) và <code>If-Match</code> (client gửi lại), hoặc đơn giản là trường <code>version</code> trong JSON.</p>
 
+<h2 id="patch-phan-biet-khong-gui-voi-gui-null"><a href="#patch-phan-biet-khong-gui-voi-gui-null" class="anchor" aria-hidden="true">#</a>PATCH: phân biệt "không gửi" với "gửi null"</h2>
+<p>Form sửa lớp chỉ gửi trường người dùng đổi. Ba trường hợp phải phân biệt được:</p>
+<div class="code"><div class="code-h"><span>JSON</span><button class="copy" type="button">Sao chép</button></div><pre><code>{ <span class="s">&quot;name&quot;</span>: <span class="s">&quot;Lớp 5A1&quot;</span> }              // chỉ đổi tên, ghi chú giữ nguyên
+{ <span class="s">&quot;note&quot;</span>: <span class="b">null</span> }                   // XOÁ ghi chú
+{ <span class="s">&quot;name&quot;</span>: <span class="s">&quot;Lớp 5A1&quot;</span>, <span class="s">&quot;note&quot;</span>: <span class="s">&quot;&quot;</span> }  // đổi tên, ghi chú thành chuỗi rỗng</code></pre></div>
+<p>Dùng struct thường với <code>string</code> thì không phân biệt được: thiếu trường và <code>""</code> đều ra chuỗi rỗng. Con trỏ <code>*string</code> phân biệt được "có / không" nhưng không phân biệt được "không gửi" với "gửi null" (cả hai ra <code>nil</code>). Cách chuẩn: một kiểu nhỏ tự ghi nhớ "đã có trong JSON chưa".</p>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+)
+
+<span class="c">// Opt ghi nhớ trường có xuất hiện trong JSON hay không, và có phải null không</span>
+<span class="k">type</span> Opt[T <span class="t">any</span>] <span class="k">struct</span> {
+    Set   <span class="t">bool</span> <span class="c">// có xuất hiện</span>
+    Null  <span class="t">bool</span> <span class="c">// xuất hiện với giá trị null</span>
+    Value T
+}
+
+<span class="k">func</span> (o *Opt[T]) <span class="f">UnmarshalJSON</span>(b []<span class="t">byte</span>) <span class="t">error</span> {
+    o.Set = <span class="b">true</span> <span class="c">// chỉ được gọi khi khoá có trong JSON</span>
+    <span class="k">if</span> <span class="t">string</span>(b) == <span class="s">&quot;null&quot;</span> {
+        o.Null = <span class="b">true</span>
+        <span class="k">return</span> <span class="b">nil</span>
+    }
+    <span class="k">return</span> json.<span class="f">Unmarshal</span>(b, &amp;o.Value)
+}
+
+<span class="k">type</span> PatchClass <span class="k">struct</span> {
+    Name     Opt[<span class="t">string</span>] <span class="s">`json:&quot;name&quot;`</span>
+    Note     Opt[<span class="t">string</span>] <span class="s">`json:&quot;note&quot;`</span>
+    Capacity Opt[<span class="t">int</span>]    <span class="s">`json:&quot;capacity&quot;`</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">for</span> _, body := <span class="k">range</span> []<span class="t">string</span>{
+        <span class="s">`{&quot;name&quot;:&quot;Lớp 5A1&quot;}`</span>,
+        <span class="s">`{&quot;note&quot;:null}`</span>,
+        <span class="s">`{&quot;name&quot;:&quot;Lớp 5A1&quot;,&quot;note&quot;:&quot;&quot;}`</span>,
+    } {
+        <span class="k">var</span> p PatchClass
+        json.<span class="f">Unmarshal</span>([]<span class="t">byte</span>(body), &amp;p)
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;%-30s name=%+v note=%+v\n&quot;</span>, body, p.Name, p.Note)
+    }
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">go run .</span>
+{&quot;name&quot;:&quot;Lớp 5A1&quot;}             name={Set:true Null:false Value:Lớp 5A1} note={Set:false Null:false Value:}
+{&quot;note&quot;:null}                  name={Set:false Null:false Value:} note={Set:true Null:true Value:}
+{&quot;name&quot;:&quot;Lớp 5A1&quot;,&quot;note&quot;:&quot;&quot;}   name={Set:true Null:false Value:Lớp 5A1} note={Set:true Null:false Value:}</pre></div>
+<p><b>Giải thích:</b> <code>encoding/json</code> chỉ gọi <code>UnmarshalJSON</code> của trường nào <b>có</b> trong JSON, nên <code>Set</code> cho biết "đã gửi". Giá trị <code>null</code> được truyền vào dưới dạng 4 byte <code>null</code>. Ba body giờ cho ra ba trạng thái khác nhau.</p>
+<p>Ghép câu UPDATE chỉ với các trường đã gửi, mỗi trường đi kèm một cờ "có gửi" ($2, $4, $6):</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">UPDATE</span> classes <span class="k">SET</span>
+    name     = <span class="k">CASE</span> <span class="k">WHEN</span> $<span class="n">2</span> <span class="k">THEN</span> $<span class="n">3</span> <span class="k">ELSE</span> name <span class="k">END</span>,
+    note     = <span class="k">CASE</span> <span class="k">WHEN</span> $<span class="n">4</span> <span class="k">THEN</span> $<span class="n">5</span> <span class="k">ELSE</span> note <span class="k">END</span>,   <span class="c">-- $5 là NULL khi client gửi null</span>
+    capacity = <span class="k">CASE</span> <span class="k">WHEN</span> $<span class="n">6</span> <span class="k">THEN</span> $<span class="n">7</span> <span class="k">ELSE</span> capacity <span class="k">END</span>
+<span class="k">WHERE</span> id = $<span class="n">1</span> <span class="k">AND</span> teacher_id = $<span class="n">8</span>;</code></pre></div>
+<p>Validate cũng theo cờ: chỉ kiểm tra độ dài <code>name</code> khi <code>Name.Set</code>, và từ chối <code>name: null</code> vì tên là bắt buộc.</p>
+
+<h2 id="hanh-dong-khong-phai-crud"><a href="#hanh-dong-khong-phai-crud" class="anchor" aria-hidden="true">#</a>Hành động không phải CRUD</h2>
+<p>Không phải việc gì cũng là "sửa một trường". Giao bài, khoá lớp, duyệt phụ huynh vào lớp là <b>hành động</b> có luật riêng (kiểm tra trạng thái, gửi thông báo). Hai cách đặt tên phổ biến:</p>
+<div class="code"><div class="code-h"><span>HTTP</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">POST</span> /v1/classes/<span class="n">42</span>/lock                    # động từ là tài nguyên con: dễ đọc, dễ phân quyền riêng
+<span class="k">POST</span> /v1/classes/<span class="n">42</span>/roster/<span class="n">7</span>/approve
+<span class="k">POST</span> /v1/assignments/<span class="n">9</span>:publish              # kiểu của Google API (AIP-<span class="n">136</span>)</code></pre></div>
+<p>Tránh <code>PATCH /classes/42 {"locked": true}</code> cho việc có hậu quả: client có thể gửi kèm các trường khác, và logic "khoá lớp thì làm gì" bị lẫn vào handler sửa chung.</p>
+
+<h2 id="viec-chay-lau-202-accepted"><a href="#viec-chay-lau-202-accepted" class="anchor" aria-hidden="true">#</a>Việc chạy lâu: 202 Accepted</h2>
+<p>"Xuất báo cáo cả năm ra PDF" mất 40 giây. Không giữ request chờ 40 giây (proxy cắt ở 30 giây, người dùng tưởng treo). Trả ngay <code>202</code> kèm địa chỉ để hỏi trạng thái:</p>
+<figure class="dg"><svg viewBox="0 0 500 500" style="min-width:500px;max-width:500px" role="img" aria-label="Tạo việc trả 202 ngay. Client hỏi trạng thái (hoặc nhận thông báo realtime) cho tới khi xong"><line x1="80" y1="66" x2="80" y2="490" class="lf"/><g class="nd fe"><rect x="20" y="10" width="120" height="54" rx="10"/><text x="80" y="42" class="tt" text-anchor="middle">Client</text></g><line x1="250" y1="66" x2="250" y2="490" class="lf"/><g class="nd go"><rect x="190" y="10" width="120" height="54" rx="10"/><text x="250" y="42" class="tt" text-anchor="middle">API</text></g><line x1="420" y1="66" x2="420" y2="490" class="lf"/><g class="nd q"><rect x="360" y="10" width="120" height="54" rx="10"/><text x="420" y="42" class="tt" text-anchor="middle">Worker</text></g><line x1="80" y1="106" x2="246" y2="106" class="ln" marker-end="url(#ar)"/><text x="165" y="83" class="tl" text-anchor="middle">POST</text><text x="165" y="99" class="tl" text-anchor="middle">/v1/classes/42/reports</text><line x1="250" y1="148" x2="416" y2="148" class="ln" marker-end="url(#ar)"/><text x="335" y="141" class="tl" text-anchor="middle">xếp việc vào hàng đợi</text><line x1="250" y1="206" x2="84" y2="206" class="ln ds" marker-end="url(#ar)"/><text x="165" y="183" class="tl" text-anchor="middle">202, Location:</text><text x="165" y="199" class="tl" text-anchor="middle">/v1/jobs/j_81</text><line x1="80" y1="248" x2="246" y2="248" class="ln" marker-end="url(#ar)"/><text x="165" y="241" class="tl" text-anchor="middle">GET /v1/jobs/j_81</text><line x1="250" y1="306" x2="84" y2="306" class="ln ds" marker-end="url(#ar)"/><text x="165" y="267" class="tl" text-anchor="middle">200 {status:</text><text x="165" y="283" class="tl" text-anchor="middle">&quot;running&quot;, progress:</text><text x="165" y="299" class="tl" text-anchor="middle">40}</text><line x1="420" y1="348" x2="254" y2="348" class="ln" marker-end="url(#ar)"/><text x="335" y="341" class="tl" text-anchor="middle">xong, lưu file</text><line x1="80" y1="390" x2="246" y2="390" class="ln" marker-end="url(#ar)"/><text x="165" y="383" class="tl" text-anchor="middle">GET /v1/jobs/j_81</text><line x1="250" y1="448" x2="84" y2="448" class="ln ds" marker-end="url(#ar)"/><text x="165" y="425" class="tl" text-anchor="middle">200 {status: &quot;done&quot;,</text><text x="165" y="441" class="tl" text-anchor="middle">resultUrl: &quot;...&quot;}</text></svg><figcaption>Tạo việc trả 202 ngay. Client hỏi trạng thái (hoặc nhận thông báo realtime) cho tới khi xong</figcaption></figure>
+<div class="code"><div class="code-h"><span>JSON</span><button class="copy" type="button">Sao chép</button></div><pre><code>{ <span class="s">&quot;id&quot;</span>: <span class="s">&quot;j_81&quot;</span>, <span class="s">&quot;status&quot;</span>: <span class="s">&quot;failed&quot;</span>, <span class="s">&quot;error&quot;</span>: { <span class="s">&quot;code&quot;</span>: <span class="s">&quot;NO_DATA&quot;</span>, <span class="s">&quot;message&quot;</span>: <span class="s">&quot;Lớp chưa có bài tập nào&quot;</span> } }</code></pre></div>
+<p>Trạng thái nên là một tập cố định: <code>queued</code>, <code>running</code>, <code>done</code>, <code>failed</code>. Thay vì hỏi liên tục, client có thể nghe SSE / WebSocket (bài 26) để biết khi xong.</p>
+
+<h2 id="thao-tac-hang-loat"><a href="#thao-tac-hang-loat" class="anchor" aria-hidden="true">#</a>Thao tác hàng loạt</h2>
+<p>Giáo viên tích 30 bài rồi bấm "Đã chấm". Gửi 30 request thì chậm và dễ dở dang. Một endpoint hàng loạt:</p>
+<div class="code"><div class="code-h"><span>HTTP</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">POST</span> /v1/submissions:batchGrade
+{ &quot;items&quot;: [ {&quot;id&quot;: <span class="n">1</span>, &quot;score&quot;: <span class="n">9</span>}, {&quot;id&quot;: <span class="n">2</span>, &quot;score&quot;: <span class="n">10</span>}, {&quot;id&quot;: <span class="n">99</span>, &quot;score&quot;: <span class="n">8</span>} ] }</code></pre></div>
+<p>Phải quyết định trước một trong hai kiểu, và ghi rõ trong tài liệu:</p>
+<ul>
+<li><b>Tất cả hoặc không gì</b>: một transaction, một mục lỗi thì không mục nào được lưu, trả 422 chỉ rõ mục nào. Đơn giản cho client.</li>
+<li><b>Từng mục độc lập</b>: trả 200 với kết quả từng mục.</li>
+</ul>
+<div class="code"><div class="code-h"><span>JSON</span><button class="copy" type="button">Sao chép</button></div><pre><code>{ <span class="s">&quot;results&quot;</span>: [
+    { <span class="s">&quot;id&quot;</span>: <span class="n">1</span>, <span class="s">&quot;ok&quot;</span>: <span class="b">true</span> },
+    { <span class="s">&quot;id&quot;</span>: <span class="n">2</span>, <span class="s">&quot;ok&quot;</span>: <span class="b">true</span> },
+    { <span class="s">&quot;id&quot;</span>: <span class="n">99</span>, <span class="s">&quot;ok&quot;</span>: <span class="b">false</span>, <span class="s">&quot;error&quot;</span>: { <span class="s">&quot;code&quot;</span>: <span class="s">&quot;NOT_FOUND&quot;</span>, <span class="s">&quot;message&quot;</span>: <span class="s">&quot;Không tìm thấy bài nộp&quot;</span> } }
+] }</code></pre></div>
+<p>Luôn giới hạn số mục (ví dụ tối đa 100) và kiểm tra quyền cho <b>từng</b> mục: id 99 có thể là bài của lớp khác.</p>
+
+<h2 id="cache-http-va-request-co-dieu-kien"><a href="#cache-http-va-request-co-dieu-kien" class="anchor" aria-hidden="true">#</a>Cache HTTP và request có điều kiện</h2>
+<p>Danh sách môn học của lớp ít khi đổi, nhưng app gọi mỗi lần mở màn hình. ETag cho phép trả <b>304 Not Modified</b> không kèm dữ liệu khi client đã có bản mới nhất:</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">subjects</span>(w http.ResponseWriter, r *http.Request) {
+    list, version := <span class="f">loadSubjects</span>(r.<span class="f">Context</span>(), classID) <span class="c">// version: số tăng mỗi lần sửa môn, hoặc updated_at</span>
+    etag := fmt.<span class="f">Sprintf</span>(<span class="s">`&quot;s-%d-%d&quot;`</span>, classID, version)
+
+    w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;ETag&quot;</span>, etag)
+    w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Cache-Control&quot;</span>, <span class="s">&quot;private, no-cache&quot;</span>) <span class="c">// được giữ bản sao, nhưng phải hỏi lại server mỗi lần</span>
+    <span class="k">if</span> r.Header.<span class="f">Get</span>(<span class="s">&quot;If-None-Match&quot;</span>) == etag {
+        w.<span class="f">WriteHeader</span>(http.StatusNotModified) <span class="c">// không gửi body</span>
+        <span class="k">return</span>
+    }
+    <span class="f">writeJSON</span>(w, <span class="n">200</span>, list)
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">curl -si localhost:8080/v1/classes/42/subjects | head -4</span>
+HTTP/1.1 200 OK
+Cache-Control: private, no-cache
+Content-Type: application/json
+Etag: &quot;s-42-7&quot;
+
+<span class="t-p">$</span> <span class="t-c">curl -si -H 'If-None-Match: &quot;s-42-7&quot;' localhost:8080/v1/classes/42/subjects | head -1</span>
+HTTP/1.1 304 Not Modified</pre></div>
+<table>
+<tr><th>Cache-Control</th><th>Nghĩa</th><th>Dùng cho</th></tr>
+<tr><td><code>no-store</code></td><td>không được lưu ở đâu cả</td><td>dữ liệu nhạy cảm, trang tài khoản</td></tr>
+<tr><td><code>private, no-cache</code></td><td>trình duyệt được lưu, phải hỏi lại (ETag) mỗi lần</td><td>dữ liệu riêng của người dùng</td></tr>
+<tr><td><code>public, max-age=60</code></td><td>CDN và trình duyệt dùng 60 giây không cần hỏi</td><td>dữ liệu công khai: bảng giá, danh mục</td></tr>
+<tr><td><code>public, max-age=31536000, immutable</code></td><td>không bao giờ đổi</td><td>file JS/CSS có mã băm trong tên</td></tr>
+</table>
+<aside class="warn"><p>API cần đăng nhập mà trả <code>public, max-age=...</code> thì CDN có thể lưu dữ liệu của người A và trả cho người B. Mặc định với API có xác thực: <code>private</code> hoặc <code>no-store</code>.</p></aside>
+
+<h2 id="dinh-dang-loi-theo-chuan-problem-details"><a href="#dinh-dang-loi-theo-chuan-problem-details" class="anchor" aria-hidden="true">#</a>Định dạng lỗi theo chuẩn: Problem Details</h2>
+<p>Định dạng <code>{error:{code,message}}</code> ở trên là cách tự đặt, rất phổ biến. Nếu muốn theo chuẩn, RFC 9457 (Problem Details) định nghĩa kiểu <code>application/problem+json</code>, nhiều framework và cổng API hiểu sẵn:</p>
+<div class="code"><div class="code-h"><span>JSON</span><button class="copy" type="button">Sao chép</button></div><pre><code>{
+  <span class="s">&quot;type&quot;</span>: <span class="s">&quot;https://sobaitap.vn/errors/class-full&quot;</span>,
+  <span class="s">&quot;title&quot;</span>: <span class="s">&quot;Lớp đã đủ sĩ số&quot;</span>,
+  <span class="s">&quot;status&quot;</span>: <span class="n">409</span>,
+  <span class="s">&quot;detail&quot;</span>: <span class="s">&quot;Lớp 5A đã có 30/30 em.&quot;</span>,
+  <span class="s">&quot;instance&quot;</span>: <span class="s">&quot;/v1/classes/42/join&quot;</span>,
+  <span class="s">&quot;code&quot;</span>: <span class="s">&quot;CLASS_FULL&quot;</span>
+}</code></pre></div>
+<p>Chọn kiểu nào cũng được, quan trọng là <b>một</b> kiểu cho mọi endpoint, có mã lỗi ổn định cho code xử lý, và câu cho người đọc.</p>
+
+<h2 id="gioi-han-tan-suat-bao-cho-client-biet"><a href="#gioi-han-tan-suat-bao-cho-client-biet" class="anchor" aria-hidden="true">#</a>Giới hạn tần suất: báo cho client biết</h2>
+<p>Khi giới hạn tần suất (bài 20), trả 429 kèm header để client biết khi nào thử lại:</p>
+<div class="code"><div class="code-h"><span>HTTP</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">HTTP</span>/<span class="n">1.1</span> <span class="n">429</span> Too Many Requests
+Retry-After: <span class="n">30</span>
+RateLimit-Limit: <span class="n">100</span>
+RateLimit-Remaining: <span class="n">0</span>
+RateLimit-Reset: <span class="n">30</span></code></pre></div>
+<p>Client (và thư viện retry) nên đọc <code>Retry-After</code> thay vì thử lại ngay. Retry tự động chỉ áp dụng cho lỗi tạm thời (429, 502, 503, 504) và thao tác idempotent (GET, PUT, DELETE, hoặc POST có Idempotency-Key), kèm thời gian chờ tăng dần có ngẫu nhiên.</p>
+
 <h2 id="version-va-tai-lieu"><a href="#version-va-tai-lieu" class="anchor" aria-hidden="true">#</a>Version và tài liệu</h2>
 <ul>
 <li>Đặt <code>/v1</code> ngay từ đầu. Khi phải thay đổi phá vỡ tương thích (đổi tên trường, đổi kiểu), mở <code>/v2</code> và giữ <code>/v1</code> chạy một thời gian cho app di động cũ.</li>
@@ -246,7 +386,7 @@ Idempotency-Key: 8b1f3c3e-6a2c-4c1e-9a77-2f1b1c0d9e11</code></pre></div>
   <div class="done-box"><button class="done-btn" type="button" data-slug="rest">Đánh dấu đã học xong bài này</button></div>
   <nav class="pn"><a class="prev" href="http.html"><small>Bài trước</small>HTTP từ gốc với net/http</a><a class="next" href="kien-truc.html"><small>Bài tiếp theo</small>Middleware, log và cấu trúc phân lớp</a></nav>
 </article></main>
-  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#tai-nguyen-va-duong-dan">Tài nguyên và đường dẫn</a><a href="#method-an-toan-va-idempotent">Method: an toàn và idempotent</a><a href="#status-code-chon-dung-de-client-xu-ly-dung">Status code: chọn đúng để client xử lý đúng</a><a href="#mot-dinh-dang-loi-cho-toan-bo-api">Một định dạng lỗi cho toàn bộ API</a><a href="#validate-khong-tin-du-lieu-nao">Validate: không tin dữ liệu nào</a><a href="#phan-trang-loc-sap-xep">Phân trang, lọc, sắp xếp</a><a href="#ngay-gio-id-tien-trong-json">Ngày giờ, id, tiền trong JSON</a><a href="#idempotency-key-bam-hai-lan-khong-tra-tien-hai-lan">Idempotency key: bấm hai lần không trả tiền hai lần</a><a href="#chong-ghi-de-khi-hai-nguoi-cung-sua">Chống ghi đè khi hai người cùng sửa</a><a href="#version-va-tai-lieu">Version và tài liệu</a><a href="#bai-tap">Bài tập</a></nav>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#tai-nguyen-va-duong-dan">Tài nguyên và đường dẫn</a><a href="#method-an-toan-va-idempotent">Method: an toàn và idempotent</a><a href="#status-code-chon-dung-de-client-xu-ly-dung">Status code: chọn đúng để client xử lý đúng</a><a href="#mot-dinh-dang-loi-cho-toan-bo-api">Một định dạng lỗi cho toàn bộ API</a><a href="#validate-khong-tin-du-lieu-nao">Validate: không tin dữ liệu nào</a><a href="#phan-trang-loc-sap-xep">Phân trang, lọc, sắp xếp</a><a href="#ngay-gio-id-tien-trong-json">Ngày giờ, id, tiền trong JSON</a><a href="#idempotency-key-bam-hai-lan-khong-tra-tien-hai-lan">Idempotency key: bấm hai lần không trả tiền hai lần</a><a href="#chong-ghi-de-khi-hai-nguoi-cung-sua">Chống ghi đè khi hai người cùng sửa</a><a href="#patch-phan-biet-khong-gui-voi-gui-null">PATCH: phân biệt &quot;không gửi&quot; với &quot;gửi null&quot;</a><a href="#hanh-dong-khong-phai-crud">Hành động không phải CRUD</a><a href="#viec-chay-lau-202-accepted">Việc chạy lâu: 202 Accepted</a><a href="#thao-tac-hang-loat">Thao tác hàng loạt</a><a href="#cache-http-va-request-co-dieu-kien">Cache HTTP và request có điều kiện</a><a href="#dinh-dang-loi-theo-chuan-problem-details">Định dạng lỗi theo chuẩn: Problem Details</a><a href="#gioi-han-tan-suat-bao-cho-client-biet">Giới hạn tần suất: báo cho client biết</a><a href="#version-va-tai-lieu">Version và tài liệu</a><a href="#bai-tap">Bài tập</a></nav>
 </div>
 </body>
 </html>

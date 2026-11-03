@@ -129,6 +129,196 @@ path 496 240 650 240 650 188 "deploy" c=ok
 <li><b>Feature flag</b>: deploy code mới nhưng tắt tính năng, bật dần cho một phần người dùng. Tách việc "deploy" khỏi việc "phát hành".</li>
 </ul>
 
+<h2>Cách 1: một VPS, systemd và Caddy</h2>
+<p>Rẻ nhất và dạy bạn hiểu từng lớp. Một máy Ubuntu 2 lõi, 4GB RAM chạy thoải mái API Go phục vụ vài nghìn người dùng.</p>
+<arch w="820" h="260" caption="Caddy nhận HTTPS ở cổng 443, tự lấy chứng chỉ, chuyển vào API Go ở localhost:8080. systemd giữ API luôn chạy">
+group 230 20 570 220 onprem "VPS Ubuntu"
+node u 90 160 users "Người dùng" ""
+node c 320 160 nginx "Caddy" ":443, TLS tự động"
+node a 520 160 goapi "API Go" "localhost:8080"
+node s 520 60 cron "systemd" ""
+node p 710 160 pg "Postgres" "dịch vụ có quản lý"
+edge u c "HTTPS"
+edge c a "HTTP nội bộ"
+edge s a "tự khởi động lại" dash
+edge a p "TLS"
+</arch>
+<pre lang="text" file="/etc/systemd/system/sobaitap-api.service">
+[Unit]
+Description=Sổ bài tập API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=sobaitap
+WorkingDirectory=/opt/sobaitap
+ExecStart=/opt/sobaitap/api
+EnvironmentFile=/etc/sobaitap/api.env      # quyền 600, chỉ root đọc được
+Restart=always                              # chết thì bật lại
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=30                           # thời gian cho graceful shutdown
+# Giới hạn quyền của tiến trình
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target
+</pre>
+<pre lang="text" file="/etc/caddy/Caddyfile">
+api.sobaitap.vn {
+    encode zstd gzip
+    reverse_proxy localhost:8080
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+}
+</pre>
+<pre lang="sh">
+sudo systemctl daemon-reload
+sudo systemctl enable --now sobaitap-api   # bật ngay và tự bật khi khởi động máy
+sudo systemctl status sobaitap-api
+journalctl -u sobaitap-api -f              # xem log (stdout của chương trình)
+sudo ufw allow 22,80,443/tcp && sudo ufw enable   # tường lửa: chỉ mở SSH và web
+</pre>
+<pre lang="out" sim="1">
+$ sudo systemctl status sobaitap-api
+● sobaitap-api.service - Sổ bài tập API
+     Loaded: loaded (/etc/systemd/system/sobaitap-api.service; enabled)
+     Active: active (running) since Tue 2026-11-03 09:12:44 +07; 2min ago
+   Main PID: 41872 (api)
+     Memory: 23.4M (max: 1.0G)
+        CPU: 312ms
+</pre>
+<p>Deploy bản mới trên VPS: chép binary mới lên, đổi tên đè (thao tác <code>mv</code> là nguyên tử), <code>systemctl restart</code>. Restart có vài giây gián đoạn. Muốn không gián đoạn trên một máy: chạy hai bản ở hai cổng, Caddy chia tải cho cả hai (<code>reverse_proxy localhost:8080 localhost:8081</code>, có <code>health_uri /readyz</code>), restart lần lượt từng bản.</p>
+<aside class="prod"><p>Bảo vệ VPS tối thiểu: tắt đăng nhập SSH bằng mật khẩu (chỉ dùng key), không đăng nhập bằng root, bật cập nhật bảo mật tự động (<code>unattended-upgrades</code>), tường lửa chỉ mở 22 / 80 / 443, Postgres không bao giờ mở ra Internet.</p></aside>
+
+<h2>Cách 2: Cloud Run, gần như không vận hành</h2>
+<pre lang="sh">
+# Build bằng Cloud Build và deploy, nền tảng tự lo HTTPS, tự tăng giảm số bản (cả về 0)
+gcloud run deploy sobaitap-api \
+  --source . \
+  --region asia-southeast1 \
+  --min-instances 1 \
+  --max-instances 20 \
+  --concurrency 80 \
+  --memory 512Mi \
+  --set-secrets DATABASE_URL=database-url:latest,AUTH_SECRET=auth-secret:latest
+</pre>
+<pre lang="out" sim="1">
+Building using Dockerfile and deploying container to Cloud Run service [sobaitap-api]
+✓ Building and deploying... Done.
+  ✓ Uploading sources...
+  ✓ Building Container...
+  ✓ Creating Revision...
+  ✓ Routing traffic...
+Done.
+Service [sobaitap-api] revision [sobaitap-api-00012-xav] has been deployed and is serving 100 percent of traffic.
+Service URL: https://sobaitap-api-5k2q7xbl3a-as.a.run.app
+</pre>
+<ul>
+<li><code>--min-instances 1</code>: luôn giữ một bản chạy, tránh "khởi động lạnh" (cold start). Go khởi động rất nhanh (dưới 1 giây), nên cold start ít đau hơn Java hay Node nhiều.</li>
+<li><code>--concurrency 80</code>: mỗi bản nhận tối đa 80 request cùng lúc. Nhớ: 20 bản × pool 10 kết nối = 200 kết nối database.</li>
+<li>Cloud Run chỉ cấp CPU khi đang xử lý request (mặc định). Goroutine chạy nền (ticker dọn dẹp, worker đọc hàng đợi) sẽ bị "đóng băng" giữa các request. Việc nền đặt ở Cloud Run Jobs hoặc bật chế độ CPU luôn cấp.</li>
+</ul>
+
+<h2>Deploy tự động từ CI</h2>
+<p>Bước tiếp theo sau CI kiểm tra (ở trên): khi gộp vào <code>main</code>, tự build image, đẩy lên registry, chạy migration, deploy. Ví dụ GitHub Actions đẩy image lên GitHub Container Registry:</p>
+<pre lang="yaml" file=".github/workflows/deploy.yml">
+name: deploy
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write        # đẩy image lên ghcr.io
+  id-token: write        # đăng nhập cloud bằng OIDC, không cần lưu khoá lâu dài
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production      # cần người duyệt (cấu hình trong Settings → Environments)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Quét lỗ hổng image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"           # có lỗ hổng nghiêm trọng thì dừng, không deploy
+
+      - name: Migration rồi deploy
+        run: |
+          ./scripts/migrate.sh "${{ github.sha }}"
+          ./scripts/deploy.sh "${{ github.sha }}"
+</pre>
+<p>Ba nguyên tắc: (1) image gắn tag theo <b>mã commit</b>, không dùng <code>latest</code>, nên biết chính xác đang chạy gì và quay lại được. (2) Cùng một image đi từ staging lên production, không build lại. (3) Bí mật nằm trong secrets của nền tảng CI, ưu tiên OIDC (CI đổi token ngắn hạn lấy quyền trên cloud) thay vì dán khoá truy cập lâu dài.</p>
+
+<h2>Canary và blue-green</h2>
+<arch w="820" h="250" caption="Canary: chuyển 5% lưu lượng sang bản mới, theo dõi tỉ lệ lỗi và độ trễ, ổn thì tăng dần, xấu thì kéo về 0%">
+node u 90 125 users "Người dùng" ""
+node lb 280 125 lb "Load balancer" "chia theo tỉ lệ"
+node old 520 60 goapi "Bản 1.4.2" "95%"
+node new 520 190 goapi "Bản 1.4.3" "5% (canary)"
+node m 730 125 prom "Metrics" "lỗi, p99 theo phiên bản"
+edge u lb ""
+path 306 125 400 125 400 60 494 60 "95%"
+path 400 125 400 190 494 190 "5%" c=go
+path 546 60 650 60 650 125 704 125 ""
+path 546 190 650 190 650 125 704 125 ""
+</arch>
+<table>
+<tr><th>Kiểu</th><th>Cách làm</th><th>Ưu</th><th>Nhược</th></tr>
+<tr><td>Rolling</td><td>thay dần từng bản</td><td>đơn giản, mặc định của K8s / Cloud Run</td><td>mọi người dùng dần dần dính bản mới</td></tr>
+<tr><td>Blue-green</td><td>dựng đủ bộ bản mới bên cạnh, chuyển toàn bộ lưu lượng một lần</td><td>quay lại tức thì (chuyển về bộ cũ)</td><td>tốn gấp đôi tài nguyên trong lúc deploy</td></tr>
+<tr><td>Canary</td><td>cho một phần nhỏ người dùng dùng bản mới trước</td><td>lỗi chỉ ảnh hưởng ít người, có số liệu thật</td><td>cần metrics gắn nhãn phiên bản, cần công cụ chia lưu lượng</td></tr>
+</table>
+<pre lang="sh">
+# Cloud Run: deploy không nhận lưu lượng, rồi chuyển dần
+gcloud run deploy sobaitap-api --image ... --no-traffic --tag canary
+gcloud run services update-traffic sobaitap-api --to-tags canary=5
+gcloud run services update-traffic sobaitap-api --to-latest      # ổn rồi: 100%
+</pre>
+
+<h2>Sao lưu và khôi phục</h2>
+<p>Dịch vụ database có quản lý thường có sẵn <b>sao lưu tự động + khôi phục về một thời điểm</b> (PITR: quay về đúng 14:32 hôm qua, trước khi lỡ tay xoá). Tự chạy Postgres thì ít nhất phải có:</p>
+<pre lang="sh">
+# Sao lưu hằng đêm, định dạng custom (nén, khôi phục từng bảng được)
+pg_dump --format=custom --no-owner "$DATABASE_URL" > backup-$(date +%F).dump
+# Đẩy sang nơi khác (máy khác, kho file khác vùng), giữ 30 ngày
+aws s3 cp backup-$(date +%F).dump s3://sobaitap-backup/db/ --storage-class STANDARD_IA
+
+# Thử khôi phục định kỳ vào một database tạm, đếm số dòng các bảng chính
+createdb restore_test
+pg_restore --no-owner --dbname=restore_test backup-2026-11-03.dump
+psql restore_test -c "SELECT count(*) FROM users"
+</pre>
+<table>
+<tr><th>Khái niệm</th><th>Câu hỏi</th><th>Ví dụ</th></tr>
+<tr><td>RPO</td><td>chấp nhận mất tối đa bao nhiêu dữ liệu?</td><td>sao lưu đêm: mất tới 24 giờ. PITR: vài phút</td></tr>
+<tr><td>RTO</td><td>khôi phục mất bao lâu?</td><td>pg_restore 50GB: khoảng một giờ</td></tr>
+</table>
+<p>File người dùng upload cũng cần sao lưu: bật versioning cho bucket (xoá nhầm còn bản cũ) và sao chép sang vùng khác nếu dữ liệu quan trọng.</p>
+
 <h2>Biết đang chạy phiên bản nào</h2>
 <pre lang="go">
 import "runtime/debug"
