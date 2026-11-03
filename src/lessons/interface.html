@@ -1,0 +1,274 @@
+<h2>Interface: mô tả hành vi, không cần "implements"</h2>
+<p>Interface trong Go là một danh sách method. Kiểu nào có đủ các method đó thì <b>tự động</b> thoả interface, không cần khai báo <code>implements</code>.</p>
+<pre lang="go">
+type Notifier interface {
+    Notify(ctx context.Context, userID int64, msg string) error
+}
+
+type EmailNotifier struct{ from string }
+
+func (e *EmailNotifier) Notify(ctx context.Context, userID int64, msg string) error {
+    // gửi email...
+    return nil
+}
+
+type PushNotifier struct{}
+
+func (p *PushNotifier) Notify(ctx context.Context, userID int64, msg string) error {
+    // gửi web push...
+    return nil
+}
+
+// Hàm này không biết và không cần biết đang gửi bằng gì
+func remindHomework(ctx context.Context, n Notifier, userID int64) error {
+    return n.Notify(ctx, userID, "Con chưa nộp bài Toán hôm nay")
+}
+
+remindHomework(ctx, &EmailNotifier{from: "no-reply@app.vn"}, 42)
+remindHomework(ctx, &PushNotifier{}, 42)
+</pre>
+<aside class="fe"><p>Rất giống TypeScript: TS cũng kiểm tra theo cấu trúc (structural typing), một object có đủ thuộc tính là thoả interface. Khác biệt: trong Go chỉ tính <b>method</b>, không tính trường dữ liệu, và việc kiểm tra xảy ra cả lúc biên dịch lẫn lúc chạy.</p></aside>
+
+<h2>Interface nhỏ là interface tốt</h2>
+<p>Thư viện chuẩn của Go đầy những interface chỉ có một method. Hai cái nổi tiếng nhất:</p>
+<pre lang="go">
+type Reader interface {
+    Read(p []byte) (n int, err error)
+}
+type Writer interface {
+    Write(p []byte) (n int, err error)
+}
+</pre>
+<p>Vì chỉ cần một method, rất nhiều thứ là <code>io.Reader</code>: file, body của HTTP request, kết nối mạng, chuỗi trong bộ nhớ, dữ liệu giải nén... Một hàm nhận <code>io.Reader</code> làm việc được với tất cả.</p>
+<pre lang="go">
+// Hàm này đọc JSON từ bất kỳ nguồn nào
+func decodeUser(r io.Reader) (User, error) {
+    var u User
+    err := json.NewDecoder(r).Decode(&u)
+    return u, err
+}
+
+decodeUser(req.Body)                          // từ HTTP request
+decodeUser(strings.NewReader(`{"name":"An"}`)) // từ chuỗi, rất tiện để test
+f, _ := os.Open("user.json")
+decodeUser(f)                                  // từ file
+</pre>
+<p>Một interface quen thuộc khác là <code>error</code>: bất kỳ kiểu nào có method <code>Error() string</code> đều là lỗi (bài 07). Và <code>fmt.Stringer</code>: có method <code>String() string</code> thì <code>fmt.Println</code> sẽ dùng nó để in.</p>
+
+<h2>Interface giúp tách lớp và viết test</h2>
+<p>Đây là lý do thực tế nhất bạn dùng interface ở backend. Lớp nghiệp vụ (service) không gọi thẳng Postgres mà gọi qua một interface. Lúc chạy thật truyền vào bản Postgres, lúc test truyền vào bản giả trong bộ nhớ.</p>
+<fig type="flow" caption="Service chỉ phụ thuộc vào interface. Bản thật và bản giả thay cho nhau được">
+[go] HomeworkService / nghiệp vụ
+-> gọi qua
+[q] interface Store / GetAssignment, ListByClass...
+-> lúc chạy thật
+[db] PostgresStore / SQL thật
+</fig>
+<pre lang="go">
+// Định nghĩa interface ở nơi DÙNG nó (service), chỉ gồm method service cần
+type AssignmentStore interface {
+    Get(ctx context.Context, id int64) (Assignment, error)
+    ListByClass(ctx context.Context, classID int64) ([]Assignment, error)
+}
+
+type HomeworkService struct {
+    store AssignmentStore
+}
+
+func NewHomeworkService(s AssignmentStore) *HomeworkService {
+    return &HomeworkService{store: s}
+}
+</pre>
+<pre lang="go" file="homework_test.go">
+// Bản giả cho test: không cần database
+type fakeStore struct {
+    items map[int64]Assignment
+}
+
+func (f *fakeStore) Get(_ context.Context, id int64) (Assignment, error) {
+    a, ok := f.items[id]
+    if !ok {
+        return Assignment{}, ErrNotFound
+    }
+    return a, nil
+}
+
+func (f *fakeStore) ListByClass(_ context.Context, classID int64) ([]Assignment, error) {
+    var out []Assignment
+    for _, a := range f.items {
+        if a.ClassID == classID {
+            out = append(out, a)
+        }
+    }
+    return out, nil
+}
+
+svc := NewHomeworkService(&fakeStore{items: map[int64]Assignment{1: {ID: 1, ClassID: 5}}})
+</pre>
+<aside class="prod"><p>Câu thần chú của dân Go: <b>"Accept interfaces, return structs"</b> (nhận interface, trả về struct cụ thể). Và <b>định nghĩa interface ở phía dùng</b>, không phải phía cài đặt. PostgresStore có thể có 30 method, nhưng mỗi service chỉ khai báo interface 2, 3 method nó thật sự cần. Đừng tạo interface khi chỉ có một cài đặt và không cần test thay thế: Go không phải Java.</p></aside>
+
+<h3>Kiểm tra lúc biên dịch rằng một kiểu thoả interface</h3>
+<pre lang="go">
+// Dòng này không chạy gì cả, chỉ để trình biên dịch báo lỗi nếu *PostgresStore thiếu method
+var _ AssignmentStore = (*PostgresStore)(nil)
+</pre>
+
+<h2>any, type assertion và type switch</h2>
+<p><code>any</code> (tên khác của <code>interface{}</code>) là interface không có method nào, nên mọi giá trị đều thoả. Giống <code>unknown</code> trong TypeScript: muốn dùng phải kiểm tra kiểu trước.</p>
+<pre lang="go">
+var v any = "xin chào"
+
+s, ok := v.(string)  // type assertion có kiểm tra: ok = false nếu không phải string
+n := v.(int)         // KHÔNG kiểm tra: sai kiểu là panic
+
+switch x := v.(type) { // type switch
+case string:
+    fmt.Println("chuỗi dài", len(x))
+case int:
+    fmt.Println("số", x)
+case nil:
+    fmt.Println("nil")
+default:
+    fmt.Printf("kiểu khác: %T\n", x)
+}
+</pre>
+<aside class="tip"><p>Hạn chế dùng <code>any</code> trong code nghiệp vụ, giống như hạn chế <code>any</code> trong TypeScript. Nơi hợp lý để gặp nó: đọc JSON không biết trước cấu trúc (<code>map[string]any</code>), log, và các thư viện chung.</p></aside>
+
+<h3>Cạm bẫy: interface chứa con trỏ nil thì không nil</h3>
+<p>Một giá trị interface gồm hai phần: <b>kiểu</b> và <b>giá trị</b>. Nó chỉ bằng <code>nil</code> khi <b>cả hai</b> đều trống.</p>
+<pre lang="go" mark="bad">
+type MyErr struct{}
+func (*MyErr) Error() string { return "lỗi" }
+
+func check() error {
+    var e *MyErr = nil
+    return e // trả về interface error có kiểu *MyErr, giá trị nil
+}
+
+if err := check(); err != nil {
+    fmt.Println("có lỗi!") // DÒNG NÀY CHẠY, dù bạn tưởng không có lỗi
+}
+</pre>
+<pre lang="go" mark="good">
+func check() error {
+    // ...
+    return nil // trả thẳng nil, không trả biến con trỏ kiểu cụ thể
+}
+</pre>
+
+<h2>Embedding: ghép thay vì kế thừa</h2>
+<p>Go không có kế thừa. Muốn dùng lại, bạn <b>nhúng</b> một kiểu vào kiểu khác. Trường và method của kiểu được nhúng được "đưa lên" kiểu ngoài.</p>
+<pre lang="go">
+type Timestamps struct {
+    CreatedAt time.Time
+    UpdatedAt time.Time
+}
+
+func (t *Timestamps) Touch() { t.UpdatedAt = time.Now() }
+
+type Class struct {
+    Timestamps        // nhúng: không đặt tên trường
+    ID   int64
+    Name string
+}
+
+c := Class{Name: "5A"}
+c.Touch()             // gọi method của Timestamps như của Class
+fmt.Println(c.UpdatedAt)
+</pre>
+<p>Interface cũng nhúng được vào nhau:</p>
+<pre lang="go">
+type ReadWriter interface {
+    io.Reader
+    io.Writer
+}
+</pre>
+<aside class="fe"><p>Giống React chuyển từ class component kế thừa sang ghép component và hook: "composition over inheritance". Go chỉ cho bạn con đường ghép.</p></aside>
+
+<h2>Generics (từ Go 1.18)</h2>
+<p>Generics cho phép viết hàm / kiểu dùng được cho nhiều kiểu dữ liệu, giống <code>function f&lt;T&gt;(x: T)</code> trong TypeScript.</p>
+<pre lang="go">
+// [T any]: tham số kiểu T, không ràng buộc gì
+func Map[T, U any](items []T, f func(T) U) []U {
+    out := make([]U, 0, len(items))
+    for _, it := range items {
+        out = append(out, f(it))
+    }
+    return out
+}
+
+names := Map(users, func(u User) string { return u.Name })
+
+// Ràng buộc: T phải so sánh lớn nhỏ được
+func MaxOf[T cmp.Ordered](items []T) (T, bool) {
+    var zero T
+    if len(items) == 0 {
+        return zero, false
+    }
+    m := items[0]
+    for _, x := range items[1:] {
+        if x > m {
+            m = x
+        }
+    }
+    return m, true
+}
+
+// Kiểu generic: response phân trang dùng cho mọi loại tài nguyên
+type Page[T any] struct {
+    Items []T `json:"items"`
+    Total int `json:"total"`
+    Page  int `json:"page"`
+}
+</pre>
+<aside class="tip"><p>Thư viện chuẩn đã có sẵn nhiều hàm generic: package <code>slices</code> (Sort, Contains, Index, Max...), <code>maps</code>, <code>cmp</code>. Dùng generics khi bạn sắp chép cùng một đoạn code cho nhiều kiểu. Đừng dùng chỉ vì nó có: interface thường là lựa chọn đơn giản hơn khi cái bạn cần là <i>hành vi</i> khác nhau.</p></aside>
+
+<quiz q="Kiểu <code>*FileLogger</code> có method <code>Write(p []byte) (int, error)</code>. Cần làm gì để truyền nó vào hàm nhận <code>io.Writer</code>?">
+- Thêm dòng implements io.Writer vào khai báo struct
++ Không cần làm gì, nó đã thoả io.Writer
+- Phải nhúng io.Writer vào struct FileLogger
+? Interface trong Go được thoả một cách ngầm định: có đủ method với đúng chữ ký là đủ.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Thông báo nhiều kênh</summary>
+<p>Viết kiểu <code>MultiNotifier</code> chứa một danh sách <code>Notifier</code>, bản thân nó cũng thoả <code>Notifier</code>: gọi lần lượt từng kênh, kênh lỗi thì vẫn chạy tiếp các kênh khác, cuối cùng trả về tất cả lỗi gộp lại (gợi ý: <code>errors.Join</code>).</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go">
+type MultiNotifier []Notifier
+
+func (m MultiNotifier) Notify(ctx context.Context, userID int64, msg string) error {
+    var errs []error
+    for _, n := range m {
+        if err := n.Notify(ctx, userID, msg); err != nil {
+            errs = append(errs, err)
+        }
+    }
+    return errors.Join(errs...) // không có lỗi nào thì trả về nil
+}
+
+var _ Notifier = MultiNotifier(nil) // kiểm tra lúc biên dịch
+
+n := MultiNotifier{&EmailNotifier{}, &PushNotifier{}}
+</pre>
+<p>Đây là mẫu <i>composite</i>: bên gọi vẫn chỉ thấy một <code>Notifier</code>. Một kiểu dựa trên slice cũng có method được.</p>
+</details>
+</details>
+<details class="ex"><summary>Hàm GroupBy generic</summary>
+<p>Viết <code>GroupBy[T any, K comparable](items []T, key func(T) K) map[K][]T</code>. Dùng nó để gom danh sách bài tập theo môn học.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go">
+func GroupBy[T any, K comparable](items []T, key func(T) K) map[K][]T {
+    out := make(map[K][]T)
+    for _, it := range items {
+        k := key(it)
+        out[k] = append(out[k], it)
+    }
+    return out
+}
+
+bySubject := GroupBy(assignments, func(a Assignment) string { return a.Subject })
+</pre>
+<p><code>comparable</code> là ràng buộc có sẵn: kiểu dùng được với <code>==</code>, điều kiện để làm khoá của map.</p>
+</details>
+</details>

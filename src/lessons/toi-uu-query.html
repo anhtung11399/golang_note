@@ -1,0 +1,212 @@
+<h2>Index: mục lục của bảng</h2>
+<p>Không có index, để tìm <code>WHERE email = 'lan@x.vn'</code> Postgres phải đọc <b>từng dòng</b> của bảng (sequential scan). 100 dòng thì không sao. 10 triệu dòng thì mỗi lần đăng nhập đọc cả bảng.</p>
+<p>Index (mặc định là cây <b>B-tree</b>) giữ các giá trị của cột theo thứ tự, mỗi giá trị trỏ tới dòng chứa nó. Tìm trong cây chỉ cần đi qua vài tầng, giống tra từ điển theo chữ cái thay vì đọc từng trang.</p>
+<figure class="dg">
+<svg viewBox="0 0 680 230" style="min-width:540px;max-width:680px" role="img" aria-label="Cây B-tree">
+  <g class="nd go"><rect x="270" y="14" width="140" height="44" rx="8"/></g>
+  <text x="340" y="41" class="tl" text-anchor="middle" style="font-weight:700">g · p</text>
+  <g class="nd"><rect x="60" y="100" width="140" height="44" rx="8"/></g><text x="130" y="127" class="tl" text-anchor="middle">a · c · e</text>
+  <g class="nd go"><rect x="270" y="100" width="140" height="44" rx="8"/></g><text x="340" y="127" class="tl" text-anchor="middle">h · k · lan · m</text>
+  <g class="nd"><rect x="480" y="100" width="140" height="44" rx="8"/></g><text x="550" y="127" class="tl" text-anchor="middle">q · t · x</text>
+  <path d="M300 58 L150 100" class="ln" marker-end="url(#ar)"/>
+  <path d="M340 58 V100" class="ln sgo" style="stroke:#00add8;stroke-width:2.5" marker-end="url(#ar)"/>
+  <path d="M380 58 L530 100" class="ln" marker-end="url(#ar)"/>
+  <g class="nd db"><rect x="270" y="176" width="140" height="40" rx="8"/></g><text x="340" y="201" class="tl" text-anchor="middle">dòng của lan@x.vn</text>
+  <path d="M340 144 V176" class="ln" style="stroke:#00add8;stroke-width:2.5" marker-end="url(#ar)"/>
+  <text x="440" y="200" class="ts">10 triệu dòng: khoảng 3 đến 4 tầng</text>
+</svg>
+<figcaption>Tìm "lan": từ gốc đi đúng một nhánh mỗi tầng, thay vì đọc 10 triệu dòng</figcaption>
+</figure>
+<pre lang="sql">
+CREATE INDEX idx_assignments_class_due ON assignments (class_id, due_date DESC);
+CREATE INDEX idx_submissions_student ON submissions (student_id);
+</pre>
+<p>Khoá chính và cột <code>UNIQUE</code> tự có index. <b>Khoá ngoại thì không</b> (trong Postgres): bạn phải tự tạo index cho <code>class_id</code>, <code>teacher_id</code>... nếu không, mỗi lần lọc theo lớp hay xoá một lớp (CASCADE) là quét toàn bảng con.</p>
+
+<h3>Index nhiều cột: thứ tự quan trọng</h3>
+<p>Index <code>(class_id, due_date)</code> giống danh bạ sắp theo (họ, tên):</p>
+<table>
+<tr><th>Truy vấn</th><th>Dùng được index?</th></tr>
+<tr><td><code>WHERE class_id = 5</code></td><td>Có (cột đầu)</td></tr>
+<tr><td><code>WHERE class_id = 5 AND due_date &gt;= '2026-11-01'</code></td><td>Có, rất tốt</td></tr>
+<tr><td><code>WHERE class_id = 5 ORDER BY due_date DESC LIMIT 20</code></td><td>Có, và khỏi phải sắp xếp</td></tr>
+<tr><td><code>WHERE due_date = '2026-11-10'</code></td><td>Gần như không (thiếu cột đầu), giống tìm theo tên mà không biết họ</td></tr>
+</table>
+<p>Quy tắc: cột lọc bằng <code>=</code> đứng trước, cột lọc theo khoảng hoặc sắp xếp đứng sau.</p>
+
+<h3>Index không miễn phí</h3>
+<ul>
+<li>Mỗi lần INSERT / UPDATE / DELETE phải cập nhật mọi index của bảng. Bảng ghi nhiều mà có 10 index thì ghi chậm.</li>
+<li>Index chiếm ổ đĩa và bộ nhớ đệm.</li>
+<li>Hàm trên cột làm index vô dụng: <code>WHERE lower(email) = $1</code> không dùng index trên <code>email</code>. Hoặc lưu email chữ thường sẵn, hoặc tạo index trên biểu thức <code>(lower(email))</code>.</li>
+</ul>
+
+<h2>EXPLAIN: hỏi database nó định làm gì</h2>
+<pre lang="sql">
+EXPLAIN ANALYZE
+SELECT id, title FROM assignments
+WHERE class_id = 42 ORDER BY due_date DESC LIMIT 20;
+</pre>
+<pre lang="text" file="Trước khi có index">
+Limit  (actual time=180.2..180.3 rows=20)
+  ->  Sort  (Sort Key: due_date DESC)
+        ->  Seq Scan on assignments  (actual time=0.02..176.9 rows=412 loops=1)
+              Filter: (class_id = 42)
+              Rows Removed by Filter: 1999588
+Execution Time: 180.4 ms
+</pre>
+<pre lang="text" file="Sau khi CREATE INDEX (class_id, due_date DESC)">
+Limit  (actual time=0.03..0.06 rows=20)
+  ->  Index Scan using idx_assignments_class_due on assignments  (rows=20)
+        Index Cond: (class_id = 42)
+Execution Time: 0.08 ms
+</pre>
+<p>Những thứ cần nhìn: <b>Seq Scan</b> trên bảng lớn, <b>Rows Removed by Filter</b> rất lớn (đọc nhiều bỏ nhiều), <b>Sort</b> trên nhiều dòng, và <code>actual time</code>. Từ 180ms xuống 0,08ms là chuyện bình thường khi thêm đúng index.</p>
+<aside class="warn"><p><code>EXPLAIN ANALYZE</code> <b>chạy thật</b> câu lệnh. Với UPDATE / DELETE, bọc trong <code>BEGIN; ... ROLLBACK;</code>. Và kế hoạch trên máy bạn (100 dòng) có thể khác hẳn production (10 triệu dòng): Postgres chọn cách chạy dựa trên thống kê dữ liệu thật.</p></aside>
+<aside class="prod"><p>Bật extension <code>pg_stat_statements</code> trên production: nó thống kê câu truy vấn nào tốn tổng thời gian nhiều nhất. Thường 5 câu truy vấn chiếm phần lớn tải, sửa chúng trước. Các dịch vụ Postgres có quản lý (AWS RDS, Google Cloud SQL, Supabase, Neon) đều có sẵn hoặc bật được.</p></aside>
+
+<h2>Lỗi N+1: kẻ giết hiệu năng số một</h2>
+<pre lang="go" mark="bad">
+classes, _ := store.ClassesOf(ctx, teacherID)          // 1 truy vấn
+for i, c := range classes {
+    n, _ := store.CountStudents(ctx, c.ID)            // + N truy vấn, mỗi lớp một lần
+    classes[i].StudentCount = n
+}
+// 30 lớp = 31 truy vấn. Mỗi lần đi về database mất ~1ms → 31ms chỉ để chờ mạng
+</pre>
+<pre lang="go" mark="good">
+// Một truy vấn lấy hết, gom bằng map trong Go (mẫu ở bài 04)
+rows, err := db.Query(ctx, `
+    SELECT class_id, count(*) FROM enrollments
+    WHERE class_id = ANY($1) GROUP BY class_id`, classIDs) // pgx đổi []int64 thành mảng Postgres
+// ... đọc vào map[int64]int rồi gán cho từng lớp
+
+// Hoặc gộp luôn vào truy vấn đầu bằng JOIN + GROUP BY (bài 14)
+</pre>
+<aside class="fe"><p>Giống lỗi gọi API trong vòng lặp ở frontend: mỗi item trong danh sách tự <code>fetch</code> chi tiết của nó. Ở frontend là 30 request HTTP, ở backend là 30 lần đi về database cho <b>mỗi</b> request của người dùng. Nhân với 1.000 người dùng mỗi phút là 30.000 truy vấn vô ích.</p></aside>
+<aside class="real"><p>ORM là nơi N+1 hay xuất hiện nhất, vì truy cập <code>class.Students</code> trông như đọc một trường nhưng thật ra chạy một câu SQL. Vì vậy các ORM đều có cơ chế "preload / eager loading". Với SQL thuần, N+1 dễ thấy hơn: một câu <code>Query</code> nằm trong vòng <code>for</code>.</p></aside>
+
+<h2>Phân trang keyset (cursor) bằng SQL</h2>
+<pre lang="sql" mark="bad">
+-- Trang 5000: Postgres vẫn phải đọc qua 100.000 dòng rồi bỏ đi
+SELECT * FROM notifications WHERE user_id = 7
+ORDER BY created_at DESC, id DESC
+LIMIT 20 OFFSET 100000;
+</pre>
+<pre lang="sql" mark="good">
+-- Nhớ dòng cuối của trang trước (created_at, id) rồi lấy tiếp "sau" nó
+SELECT id, created_at, body FROM notifications
+WHERE user_id = 7
+  AND (created_at, id) < ($2, $3)        -- so sánh theo bộ: đúng cả khi trùng created_at
+ORDER BY created_at DESC, id DESC
+LIMIT 21;                                 -- lấy dư 1 dòng để biết còn trang sau không
+-- Index tương ứng: (user_id, created_at DESC, id DESC)
+</pre>
+<p>Con trỏ gửi cho client là <code>(created_at, id)</code> của dòng cuối, mã hoá base64 để client coi nó là chuỗi mờ. Truy vấn luôn nhanh như trang đầu, dù sâu tới đâu.</p>
+
+<h2>Tranh chấp: hai request cùng sửa một dòng</h2>
+<p>Đây là phần quan trọng nhất của bài và là chỗ backend khác frontend nhiều nhất. Ví dụ bán vé: còn 1 vé, hai người bấm mua cùng lúc.</p>
+<pre lang="go" mark="bad">
+// Đọc → kiểm tra → ghi: ba bước rời nhau
+var stock int
+db.QueryRow(ctx, `SELECT stock FROM tickets WHERE id = $1`, id).Scan(&stock)
+if stock < 1 {
+    return ErrSoldOut
+}
+db.Exec(ctx, `UPDATE tickets SET stock = $1 WHERE id = $2`, stock-1, id)
+db.Exec(ctx, `INSERT INTO orders ...`)
+</pre>
+<fig type="seq" caption="Lost update: cả hai cùng đọc được stock = 1 trước khi ai kịp ghi">
+actors: [fe] Người A, [fe] Người B, [db] Database
+Người A -> Database: SELECT stock → 1
+Người B -> Database: SELECT stock → 1
+Người A -> Database: UPDATE stock = 0, tạo đơn A
+Người B -> Database: UPDATE stock = 0, tạo đơn B
+note Database: bán 2 vé trong khi chỉ còn 1
+</fig>
+<h3>Cách 1: điều kiện nằm ngay trong câu UPDATE (nên dùng đầu tiên)</h3>
+<pre lang="sql" mark="good">
+UPDATE tickets SET stock = stock - 1
+WHERE id = $1 AND stock >= 1
+RETURNING stock;
+-- 0 dòng bị sửa → hết vé. Một câu lệnh là nguyên tử: không ai chen vào giữa được
+</pre>
+<p>Ghép với tạo đơn trong cùng một transaction (bài 15): UPDATE không sửa được dòng nào thì rollback và trả "hết vé".</p>
+
+<h3>Cách 2: khoá dòng bằng SELECT ... FOR UPDATE</h3>
+<p>Khi logic kiểm tra phức tạp, không viết gọn trong một câu UPDATE được:</p>
+<pre lang="go">
+err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+    var balance int64
+    // Khoá dòng ví này tới khi transaction kết thúc. Request khác muốn khoá cùng dòng phải CHỜ
+    if err := tx.QueryRow(ctx, `SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE`, uid).Scan(&balance); err != nil {
+        return err
+    }
+    if balance < amount {
+        return ErrInsufficientFunds
+    }
+    // ... kiểm tra hạn mức trong ngày, trạng thái tài khoản, v.v.
+    _, err := tx.Exec(ctx, `UPDATE wallets SET balance = balance - $1 WHERE user_id = $2`, amount, uid)
+    return err
+})
+</pre>
+<aside class="tip"><p><code>FOR UPDATE SKIP LOCKED</code> bỏ qua những dòng đang bị khoá thay vì chờ. Đây là cách làm hàng đợi việc ngay trong Postgres: nhiều worker cùng lấy việc mà không giành nhau một việc (bài 20).</p></aside>
+
+<h3>Cách 3: optimistic concurrency với cột version</h3>
+<p>Đã gặp ở bài 12: <code>UPDATE ... WHERE id = $1 AND version = $2</code>. Không khoá gì, chỉ phát hiện xung đột và báo 409. Hợp với dữ liệu ít khi bị sửa cùng lúc (người dùng sửa form).</p>
+
+<h3>Mức cô lập (isolation level)</h3>
+<table>
+<tr><th>Mức</th><th>Ý nghĩa</th></tr>
+<tr><td><b>Read Committed</b> (mặc định của Postgres)</td><td>Mỗi câu lệnh thấy dữ liệu đã commit tính tới lúc câu lệnh đó bắt đầu. Không chống được lost update kiểu đọc rồi ghi như ví dụ trên</td></tr>
+<tr><td>Repeatable Read</td><td>Cả transaction nhìn một ảnh chụp cố định. Hai transaction cùng sửa một dòng thì một cái bị lỗi, phải thử lại</td></tr>
+<tr><td>Serializable</td><td>Kết quả như thể các transaction chạy lần lượt. An toàn nhất, nhưng phải xử lý lỗi <code>40001</code> bằng cách chạy lại cả transaction</td></tr>
+</table>
+<p>Trong thực tế, đa số hệ thống chạy Read Committed và dùng cách 1 hoặc cách 2 ở những chỗ cần.</p>
+<aside class="real"><p>Lỗi "bán quá số lượng" xảy ra thật ở các đợt flash sale, bán vé concert, mở bán sản phẩm giới hạn. Ở tải rất cao, ngay cả khoá dòng trong database cũng thành nút cổ chai (mọi người xếp hàng trên <b>một dòng</b>). Các sàn lớn khi đó chia kho thành nhiều phần, hoặc trừ kho trong Redis bằng lệnh nguyên tử rồi ghi database sau qua hàng đợi. Bài 23 bàn về thiết kế này.</p></aside>
+
+<quiz q="Tính năng "tạo lớp miễn phí, tối đa 1 lớp" đang làm: <code>SELECT count(*)</code> rồi nếu &lt; 1 thì <code>INSERT</code>. Cách sửa gọn nhất để hai request cùng lúc không tạo ra 2 lớp?">
+- Thêm time.Sleep ngẫu nhiên trước khi INSERT
+- Dùng sync.Mutex trong Go quanh đoạn code
++ Gộp điều kiện vào câu ghi: INSERT ... SELECT ... WHERE (SELECT count(*) ...) &lt; 1, hoặc khoá dòng của giáo viên bằng FOR UPDATE trong transaction
+? Mutex trong Go chỉ khoá trong một tiến trình. Chạy 3 bản server sau load balancer thì vô dụng. Điều kiện phải nằm ở database, nơi dùng chung.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Giới hạn số lớp an toàn khi chạy song song</summary>
+<p>Viết lại <code>CreateClass</code> sao cho một giáo viên không bao giờ có quá <code>quota</code> lớp, kể cả khi 10 request tới cùng lúc trên 3 bản server. Viết test chạy 10 goroutine cùng tạo lớp và kiểm tra chỉ đúng <code>quota</code> lớp được tạo.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go">
+func (s *Store) CreateClassWithQuota(ctx context.Context, c Class, quota int) (Class, error) {
+    return c, pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+        // Khoá dòng giáo viên: mọi request tạo lớp của CÙNG giáo viên xếp hàng tại đây
+        if _, err := tx.Exec(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, c.TeacherID); err != nil {
+            return err
+        }
+        var n int
+        if err := tx.QueryRow(ctx, `SELECT count(*) FROM classes WHERE teacher_id = $1`, c.TeacherID).Scan(&n); err != nil {
+            return err
+        }
+        if n >= quota {
+            return domain.ErrQuotaExceeded
+        }
+        return tx.QueryRow(ctx,
+            `INSERT INTO classes (teacher_id, name, capacity) VALUES ($1, $2, $3) RETURNING id, created_at`,
+            c.TeacherID, c.Name, c.Capacity).Scan(&c.ID, &c.CreatedAt)
+    })
+}
+</pre>
+<p>Không thể khoá "những dòng chưa tồn tại", nên ta khoá một dòng chắc chắn tồn tại và đại diện cho giáo viên: chính dòng <code>users</code>. Các giáo viên khác nhau không chặn nhau. Test: tạo 10 goroutine cùng gọi, đếm số lần thành công phải bằng <code>quota</code>, số lần <code>ErrQuotaExceeded</code> bằng phần còn lại.</p>
+</details>
+</details>
+<details class="ex"><summary>Đọc EXPLAIN</summary>
+<p>Tạo bảng <code>assignments</code> với 1 triệu dòng giả bằng <code>INSERT ... SELECT ... FROM generate_series(1, 1000000)</code> (chỉ làm trên Postgres chạy bằng Docker ở máy bạn). So sánh <code>EXPLAIN ANALYZE</code> của truy vấn danh sách theo lớp trước và sau khi tạo index. Thử thêm <code>OFFSET 500000</code> để thấy offset chậm thế nào.</p>
+<details class="sol"><summary>Gợi ý</summary>
+<pre lang="sql">
+INSERT INTO assignments (class_id, title, due_date)
+SELECT (random() * 5000)::int + 1, 'Bài ' || g, date '2026-01-01' + (g % 300)
+FROM generate_series(1, 1000000) g;   -- cần có sẵn các lớp id 1..5001 vì có khoá ngoại
+ANALYZE assignments;                  -- cập nhật thống kê cho bộ lập kế hoạch
+</pre>
+</details>
+</details>

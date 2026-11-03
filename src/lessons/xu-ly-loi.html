@@ -1,0 +1,219 @@
+<h2>Lỗi là giá trị</h2>
+<p>Go không có <code>try / catch</code>. Hàm có thể thất bại thì trả về một giá trị kiểu <code>error</code> ở vị trí cuối, và người gọi kiểm tra ngay:</p>
+<pre lang="go">
+f, err := os.Open("data.csv")
+if err != nil {
+    return fmt.Errorf("mở file dữ liệu: %w", err)
+}
+defer f.Close()
+</pre>
+<p><code>error</code> chỉ là một interface có sẵn:</p>
+<pre lang="go">
+type error interface {
+    Error() string
+}
+</pre>
+<table>
+<tr><th>JavaScript</th><th>Go</th></tr>
+<tr><td><code>throw new Error("x")</code></td><td><code>return errors.New("x")</code></td></tr>
+<tr><td><code>try { a() } catch (e) { ... }</code></td><td><code>if err := a(); err != nil { ... }</code></td></tr>
+<tr><td>Lỗi bay lên tự động qua nhiều tầng</td><td>Mỗi tầng tự quyết định: xử lý, hay bọc thêm ngữ cảnh rồi trả lên</td></tr>
+<tr><td>Nhìn chữ ký hàm không biết hàm có thể ném lỗi</td><td>Chữ ký <code>(T, error)</code> nói rõ hàm có thể lỗi</td></tr>
+<tr><td><code>e instanceof NotFoundError</code></td><td><code>errors.Is(err, ErrNotFound)</code> / <code>errors.As(err, &amp;target)</code></td></tr>
+</table>
+<aside class="fe"><p>Lúc đầu bạn sẽ thấy <code>if err != nil</code> lặp lại ở khắp nơi. Đây là chủ đích: đường đi của lỗi hiện rõ trên màn hình. Khi đọc một hàm Go, bạn thấy ngay mọi chỗ có thể hỏng và chuyện gì xảy ra lúc đó, điều mà <code>await</code> trong một khối <code>try</code> lớn không cho bạn thấy.</p></aside>
+
+<h2>Bọc lỗi để giữ ngữ cảnh</h2>
+<p>Một lỗi trần như <code>connection refused</code> không cho biết gì. Mỗi tầng nên thêm ngữ cảnh bằng <code>fmt.Errorf</code> với <code>%w</code> (wrap):</p>
+<pre lang="go">
+func (r *Repo) GetClass(ctx context.Context, id int64) (Class, error) {
+    var c Class
+    err := r.db.QueryRow(ctx, `SELECT id, name FROM classes WHERE id = $1`, id).Scan(&c.ID, &c.Name)
+    if err != nil {
+        return Class{}, fmt.Errorf("lấy lớp %d: %w", id, err)
+    }
+    return c, nil
+}
+
+func (s *Service) ClassReport(ctx context.Context, id int64) (Report, error) {
+    c, err := s.repo.GetClass(ctx, id)
+    if err != nil {
+        return Report{}, fmt.Errorf("tạo báo cáo lớp: %w", err)
+    }
+    // ...
+}
+</pre>
+<p>Lỗi cuối cùng đọc như một câu chuyện, từ ngoài vào trong:</p>
+<pre lang="text" file="log">
+tạo báo cáo lớp: lấy lớp 42: failed to connect to `host=db`: dial tcp 10.0.0.5:5432: connect: connection refused
+</pre>
+<fig type="seq" caption="Mỗi tầng bọc thêm một lớp ngữ cảnh. Tầng HTTP quyết định trả gì cho người dùng">
+actors: [fe] Client, [go] Handler, [go] Service, [db] Repository
+Client -> Handler: GET /classes/42/report
+Handler -> Service: ClassReport(42)
+Service -> Repository: GetClass(42)
+Repository --> Service: "lấy lớp 42: connection refused"
+Service --> Handler: "tạo báo cáo lớp: lấy lớp 42: ..."
+note Handler: ghi log lỗi đầy đủ, một lần duy nhất
+Handler --> Client: 500 {"error": "Máy chủ đang bận, thử lại sau"}
+</fig>
+<aside class="warn"><p><code>%w</code> và <code>%v</code> khác nhau: <code>%w</code> giữ lỗi gốc bên trong để <code>errors.Is</code> / <code>errors.As</code> còn tìm thấy. <code>%v</code> chỉ chép chữ, lỗi gốc mất. Gần như luôn dùng <code>%w</code>.</p></aside>
+
+<h2>Lỗi định sẵn (sentinel) và errors.Is</h2>
+<p>Với các lỗi nghiệp vụ mà người gọi cần phân biệt, khai báo sẵn thành biến của package:</p>
+<pre lang="go">
+var (
+    ErrNotFound  = errors.New("không tìm thấy")
+    ErrForbidden = errors.New("không có quyền")
+    ErrConflict  = errors.New("dữ liệu đã thay đổi")
+)
+
+func (r *Repo) GetClass(ctx context.Context, id int64) (Class, error) {
+    // ...
+    if errors.Is(err, pgx.ErrNoRows) {
+        return Class{}, ErrNotFound // đổi lỗi của thư viện thành lỗi của mình
+    }
+    // ...
+}
+
+// Ở tầng trên, dù lỗi đã bị bọc nhiều lớp, errors.Is vẫn tìm thấy:
+if errors.Is(err, ErrNotFound) {
+    // trả 404
+}
+</pre>
+<aside class="prod"><p>Repository nên <b>dịch</b> lỗi của thư viện database (<code>pgx.ErrNoRows</code>, lỗi trùng khoá...) thành lỗi của chính ứng dụng (<code>ErrNotFound</code>, <code>ErrConflict</code>). Nhờ vậy tầng service và HTTP không phụ thuộc vào việc bạn dùng Postgres hay thứ khác.</p></aside>
+
+<h2>Kiểu lỗi riêng và errors.As</h2>
+<p>Khi lỗi cần mang thêm dữ liệu (trường nào sai, sai vì sao), tạo một kiểu lỗi riêng:</p>
+<pre lang="go">
+type ValidationError struct {
+    Field   string
+    Message string
+}
+
+func (e *ValidationError) Error() string {
+    return e.Field + ": " + e.Message
+}
+
+func validate(req CreateClassReq) error {
+    if utf8.RuneCountInString(req.Name) > 60 {
+        return &ValidationError{Field: "name", Message: "Tên lớp tối đa 60 ký tự"}
+    }
+    return nil
+}
+
+// Tầng HTTP lấy lại lỗi cụ thể để trả về cho client
+var ve *ValidationError
+if errors.As(err, &ve) {
+    // trả 400 với ve.Field, ve.Message
+}
+</pre>
+
+<h2>Biến lỗi thành response HTTP ở một chỗ</h2>
+<p>Ngoài thực tế, mỗi dự án có một hàm duy nhất quyết định lỗi nào thành status code nào và người dùng thấy câu gì. Không handler nào tự viết <code>500</code> lung tung.</p>
+<pre lang="go" file="internal/httpx/errors.go">
+func WriteError(w http.ResponseWriter, r *http.Request, err error) {
+    var ve *ValidationError
+    switch {
+    case errors.As(err, &ve):
+        writeJSON(w, http.StatusBadRequest, errBody("INVALID", ve.Message))
+    case errors.Is(err, ErrNotFound):
+        writeJSON(w, http.StatusNotFound, errBody("NOT_FOUND", "Không tìm thấy"))
+    case errors.Is(err, ErrForbidden):
+        writeJSON(w, http.StatusForbidden, errBody("FORBIDDEN", "Bạn không có quyền"))
+    case errors.Is(err, context.DeadlineExceeded):
+        writeJSON(w, http.StatusGatewayTimeout, errBody("TIMEOUT", "Máy chủ xử lý quá lâu"))
+    default:
+        // Lỗi không lường trước: ghi log đầy đủ, KHÔNG trả chi tiết cho client
+        slog.ErrorContext(r.Context(), "lỗi không xử lý", "err", err, "path", r.URL.Path)
+        writeJSON(w, http.StatusInternalServerError, errBody("INTERNAL", "Có lỗi xảy ra, vui lòng thử lại"))
+    }
+}
+</pre>
+<aside class="warn"><p>Đừng bao giờ trả nguyên <code>err.Error()</code> của lỗi hệ thống cho client. Chuỗi lỗi có thể chứa tên bảng, câu SQL, địa chỉ IP nội bộ, đường dẫn file: những thứ kẻ tấn công rất muốn biết. Lỗi nghiệp vụ (validation) thì được viết sẵn cho người dùng đọc nên trả được.</p></aside>
+
+<h3>Xử lý lỗi một lần</h3>
+<pre lang="go" mark="bad">
+if err != nil {
+    log.Printf("lỗi lấy lớp: %v", err) // ghi log ở đây
+    return err                          // rồi trả lên, tầng trên lại ghi log lần nữa
+}
+</pre>
+<p>Kết quả là một lỗi xuất hiện 4 lần trong log ở 4 tầng. Quy tắc: <b>hoặc xử lý (ghi log, trả response), hoặc bọc và trả lên. Không làm cả hai.</b> Thường chỉ tầng ngoài cùng (handler / middleware) ghi log.</p>
+
+<h2>panic và recover</h2>
+<p><code>panic</code> dừng hàm ngay lập tức và đi ngược lên chuỗi gọi hàm, chạy các <code>defer</code> trên đường đi. Nếu không ai <code>recover</code>, cả chương trình dừng.</p>
+<p>Panic dành cho <b>lỗi lập trình</b>, những thứ "không thể xảy ra nếu code đúng": truy cập ngoài phạm vi slice, nil pointer, cấu hình bắt buộc bị thiếu lúc khởi động. Lỗi có thể đoán trước (người dùng nhập sai, không tìm thấy, mạng lỗi) <b>luôn</b> dùng <code>error</code>.</p>
+<pre lang="go">
+func mustEnv(key string) string {
+    v := os.Getenv(key)
+    if v == "" {
+        panic("thiếu biến môi trường " + key) // chấp nhận được: lúc khởi động, sai cấu hình thì nên dừng ngay
+    }
+    return v
+}
+</pre>
+<p><code>recover</code> chỉ có tác dụng bên trong một hàm <code>defer</code>. Ứng dụng phổ biến nhất: middleware chặn panic để một request lỗi không kéo sập cả server:</p>
+<pre lang="go">
+func Recover(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        defer func() {
+            if v := recover(); v != nil {
+                slog.Error("panic", "value", v, "stack", string(debug.Stack()))
+                http.Error(w, "Có lỗi xảy ra", http.StatusInternalServerError)
+            }
+        }()
+        next.ServeHTTP(w, r)
+    })
+}
+</pre>
+<aside class="real"><p><code>net/http</code> của Go đã tự recover panic trong handler và chỉ đóng kết nối đó, nên server không sập. Nhưng nó không ghi log theo định dạng của bạn và client chỉ thấy kết nối bị cắt. Middleware như trên cho bạn log có cấu trúc và một response tử tế. <b>Lưu ý:</b> panic trong một goroutine bạn tự tạo ra (<code>go func() {...}()</code>) thì không middleware nào cứu được: nó làm dừng <b>cả tiến trình</b>. Goroutine chạy nền phải tự có recover.</p></aside>
+
+<quiz q="Repository gọi DB và nhận <code>pgx.ErrNoRows</code>. Repository nên trả gì lên service?">
+- Trả nguyên pgx.ErrNoRows để service tự xử lý
+- Trả nil, nil để báo là không có dữ liệu
++ Trả lỗi riêng của ứng dụng như ErrNotFound (có thể bọc thêm ngữ cảnh)
+? Dịch lỗi thư viện thành lỗi miền nghiệp vụ giúp các tầng trên không phụ thuộc vào thư viện database. Trả nil, nil buộc người gọi kiểm tra thêm nil và rất dễ dẫn tới nil pointer panic.
+</quiz>
+
+<quiz q="<code>err := fmt.Errorf(&quot;lưu đơn: %v&quot;, ErrConflict)</code>. Sau đó <code>errors.Is(err, ErrConflict)</code> trả về gì?">
+- true
++ false
+- Lỗi biên dịch
+? %v chỉ chèn chuỗi, không giữ lỗi gốc. Phải dùng %w thì errors.Is mới tìm thấy ErrConflict bên trong.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Rút tiền</summary>
+<p>Viết <code>Withdraw(balance, amount int64) (int64, error)</code>. Trả <code>*ValidationError</code> khi <code>amount &lt;= 0</code>, trả lỗi định sẵn <code>ErrInsufficientFunds</code> khi không đủ tiền, bọc kèm số dư hiện tại. Viết hàm <code>statusOf(err error) int</code> trả 400 / 409 / 500 tương ứng.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go">
+var ErrInsufficientFunds = errors.New("số dư không đủ")
+
+func Withdraw(balance, amount int64) (int64, error) {
+    if amount <= 0 {
+        return balance, &ValidationError{Field: "amount", Message: "Số tiền phải lớn hơn 0"}
+    }
+    if amount > balance {
+        return balance, fmt.Errorf("rút %d, còn %d: %w", amount, balance, ErrInsufficientFunds)
+    }
+    return balance - amount, nil
+}
+
+func statusOf(err error) int {
+    var ve *ValidationError
+    switch {
+    case err == nil:
+        return 200
+    case errors.As(err, &ve):
+        return 400
+    case errors.Is(err, ErrInsufficientFunds):
+        return 409
+    default:
+        return 500
+    }
+}
+</pre>
+<p>Ở bài 16 bạn sẽ thấy kiểm tra số dư ngay trong Go như thế này là <b>chưa đủ</b> khi có hai request rút tiền cùng lúc. Kiểm tra phải nằm trong câu SQL.</p>
+</details>
+</details>

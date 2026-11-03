@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 24: Dự án: API &quot;Sổ bài tập&quot; chuẩn production · Go cho dân Frontend</title>
+<meta name="description" content="Tự xây API cho giáo viên và phụ huynh: đăng nhập, lớp, bài tập, nộp bài, phân quyền, phân trang, việc chạy nền, Docker, test.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an" aria-current="page"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="du-an">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#0f766e">Chặng 6 · Dự án cuối</span><span>Bài 24</span><span>240 phút đọc + làm bài</span></div>
+    <h1>Dự án: API &quot;Sổ bài tập&quot; chuẩn production</h1>
+    <p class="lead">Tự xây API cho giáo viên và phụ huynh: đăng nhập, lớp, bài tập, nộp bài, phân quyền, phân trang, việc chạy nền, Docker, test.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Ghép mọi kiến thức thành một dịch vụ hoàn chỉnh</li><li>Có một dự án để đưa vào CV</li><li>Tự tin nhận task backend Go</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="de-bai"><a href="#de-bai" class="anchor" aria-hidden="true">#</a>Đề bài</h2>
+<p>Xây API cho ứng dụng <b>"Sổ bài tập"</b>: giáo viên giao bài về nhà cho lớp, học sinh nộp bài, giáo viên chấm. Đây là một sản phẩm có thật trên thị trường, đủ các bài toán bạn đã học: phân quyền theo sở hữu, giới hạn, tranh chấp, việc chạy nền, upload file.</p>
+<table>
+<tr><th>Vai trò</th><th>Làm được gì</th></tr>
+<tr><td>Giáo viên</td><td>Tạo lớp (miễn phí tối đa 2 lớp), xem mã lớp, xem danh sách học sinh, giao bài, xem ai đã nộp / chưa nộp, chấm điểm và nhận xét</td></tr>
+<tr><td>Học sinh</td><td>Vào lớp bằng mã lớp (không vượt sĩ số), xem bài tập của các lớp mình học, nộp bài (văn bản), xem điểm của chính mình, nộp lại khi chưa được chấm</td></tr>
+</table>
+<p>Yêu cầu phi chức năng: chỉ dùng Go + PostgreSQL (+ Redis tuỳ chọn), có test, chạy được bằng một lệnh <code>docker compose up</code>, đạt checklist bảo mật ở bài 19.</p>
+
+<h2 id="kien-truc"><a href="#kien-truc" class="anchor" aria-hidden="true">#</a>Kiến trúc</h2>
+<figure class="dg"><svg viewBox="0 0 968.3200000000002 86" style="min-width:600px;max-width:968.3200000000002px" role="img" aria-label="Một repo, hai chương trình: API và worker dùng chung database"><g class="nd fe"><rect x="10" y="10" width="120.08000000000001" height="66" rx="10"/><text x="70.04" y="40" class="tt" text-anchor="middle">Client</text><text x="70.04" y="58" class="ts" text-anchor="middle">web, app, curl</text></g><line x1="132.08" y1="43" x2="252" y2="43" class="ln" marker-end="url(#ar)"/><text x="193.04000000000002" y="34" class="tl" text-anchor="middle">HTTPS + cookie</text><g class="nd go"><rect x="256" y="10" width="194.00000000000003" height="66" rx="10"/><text x="353" y="40" class="tt" text-anchor="middle">cmd/api</text><text x="353" y="58" class="ts" text-anchor="middle">handler → service → store</text></g><line x1="452" y1="43" x2="516" y2="43" class="ln" marker-end="url(#ar)"/><text x="485" y="34" class="tl" text-anchor="middle">SQL</text><g class="nd db"><rect x="520" y="10" width="153.68" height="66" rx="10"/><text x="596.84" y="40" class="tt" text-anchor="middle">PostgreSQL</text><text x="596.84" y="58" class="ts" text-anchor="middle">dữ liệu + bảng jobs</text></g><line x1="675.6800000000001" y1="43" x2="773.7600000000001" y2="43" class="ln" marker-end="url(#ar)"/><text x="725.72" y="34" class="tl" text-anchor="middle">SKIP LOCKED</text><g class="nd go"><rect x="777.7600000000001" y="10" width="180.56" height="66" rx="10"/><text x="868.0400000000001" y="40" class="tt" text-anchor="middle">cmd/worker</text><text x="868.0400000000001" y="58" class="ts" text-anchor="middle">gửi thông báo, nhắc hạn</text></g></svg><figcaption>Một repo, hai chương trình: API và worker dùng chung database</figcaption></figure>
+<div class="code"><div class="code-h"><span>Cấu trúc thư mục</span><button class="copy" type="button">Sao chép</button></div><pre><code>sobaitap/
+├── cmd/
+│   ├── api/main.go
+│   └── worker/main.go
+├── internal/
+│   ├── config/config.go
+│   ├── domain/            kiểu dữ liệu + lỗi: User, Class, Assignment, Submission, ErrNotFound...
+│   ├── store/             SQL bằng pgx (hoặc sqlc)
+│   ├── service/           auth.go, classes.go, assignments.go, submissions.go
+│   ├── httpapi/           routes.go, middleware.go, json.go, errors.go, handler theo tài nguyên
+│   └── jobs/              định nghĩa việc nền + worker
+├── migrations/
+├── compose.yaml
+├── Dockerfile
+└── Makefile</code></pre></div>
+
+<h2 id="luoc-do-database"><a href="#luoc-do-database" class="anchor" aria-hidden="true">#</a>Lược đồ database</h2>
+<div class="code"><div class="code-h"><span>migrations/00001_init.sql</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- +goose Up</span>
+<span class="k">CREATE</span> <span class="k">TABLE</span> users (
+    id            <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    email         <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">UNIQUE</span> <span class="k">CHECK</span> (email = lower(email)),
+    name          <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (char_length(name) <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">80</span>),
+    role          <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (role <span class="k">IN</span> (<span class="s">'teacher'</span>, <span class="s">'student'</span>)),
+    password_hash <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    created_at    <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>()
+);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> sessions (
+    token_hash  bytea <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    user_id     <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> users(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    expires_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span>
+);
+<span class="k">CREATE</span> <span class="k">INDEX</span> <span class="k">ON</span> sessions (user_id);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> classes (
+    id          <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    teacher_id  <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> users(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    name        <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (char_length(name) <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">60</span>),
+    join_code   <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">UNIQUE</span>,
+    capacity    <span class="t">int</span>  <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (capacity <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">80</span>),
+    created_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>()
+);
+<span class="k">CREATE</span> <span class="k">INDEX</span> <span class="k">ON</span> classes (teacher_id);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> enrollments (
+    class_id    <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> classes(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    student_id  <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> users(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    joined_at   <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>(),
+    <span class="k">PRIMARY</span> <span class="k">KEY</span> (class_id, student_id)
+);
+<span class="k">CREATE</span> <span class="k">INDEX</span> <span class="k">ON</span> enrollments (student_id);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> assignments (
+    id          <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    class_id    <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> classes(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    title       <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (char_length(title) <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">200</span>),
+    due_date    <span class="t">date</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    created_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>()
+);
+<span class="k">CREATE</span> <span class="k">INDEX</span> <span class="k">ON</span> assignments (class_id, due_date <span class="k">DESC</span>, id <span class="k">DESC</span>);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> submissions (
+    assignment_id <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> assignments(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    student_id    <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> users(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    content       <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (char_length(content) <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">5000</span>),
+    score         <span class="t">numeric</span>(<span class="n">4</span>,<span class="n">2</span>) <span class="k">CHECK</span> (score <span class="k">BETWEEN</span> <span class="n">0</span> <span class="k">AND</span> <span class="n">10</span>),
+    comment       <span class="t">text</span> <span class="k">CHECK</span> (char_length(comment) &lt;= <span class="n">500</span>),
+    submitted_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>(),
+    graded_at     <span class="t">timestamptz</span>,
+    <span class="k">PRIMARY</span> <span class="k">KEY</span> (assignment_id, student_id)
+);
+<span class="k">CREATE</span> <span class="k">INDEX</span> <span class="k">ON</span> submissions (student_id);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> jobs (
+    id         <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    kind       <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    payload    <span class="t">jsonb</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    run_at     <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>(),
+    attempts   <span class="t">int</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="n">0</span>,
+    last_error <span class="t">text</span>,
+    status     <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="s">'pending'</span>
+);
+<span class="k">CREATE</span> <span class="k">INDEX</span> jobs_ready <span class="k">ON</span> jobs (run_at) <span class="k">WHERE</span> status = <span class="s">'pending'</span>;
+
+<span class="c">-- +goose Down</span>
+<span class="k">DROP</span> <span class="k">TABLE</span> jobs, submissions, assignments, enrollments, classes, sessions, users;</code></pre></div>
+
+<h2 id="danh-sach-endpoint"><a href="#danh-sach-endpoint" class="anchor" aria-hidden="true">#</a>Danh sách endpoint</h2>
+<table>
+<tr><th>Endpoint</th><th>Ai</th><th>Ghi chú</th></tr>
+<tr><td><code>POST /v1/auth/register</code></td><td>Mọi người</td><td>201. Trùng email 409. Rate limit theo IP</td></tr>
+<tr><td><code>POST /v1/auth/login</code></td><td>Mọi người</td><td>Đặt cookie. 5 lần sai / 15 phút / email → 429</td></tr>
+<tr><td><code>POST /v1/auth/logout</code></td><td>Đã đăng nhập</td><td>Xoá session, 204</td></tr>
+<tr><td><code>GET /v1/me</code></td><td>Đã đăng nhập</td><td></td></tr>
+<tr><td><code>POST /v1/classes</code></td><td>Giáo viên</td><td>Tối đa 2 lớp, an toàn khi gọi đồng thời → 409 <code>CLASS_QUOTA</code></td></tr>
+<tr><td><code>GET /v1/classes</code></td><td>Cả hai</td><td>Giáo viên: lớp mình dạy. Học sinh: lớp mình học</td></tr>
+<tr><td><code>GET /v1/classes/{id}/students?page=</code></td><td>Giáo viên của lớp</td><td>Không trả email học sinh</td></tr>
+<tr><td><code>POST /v1/classes/join</code></td><td>Học sinh</td><td>Body <code>{joinCode}</code>. Đủ sĩ số → 409 <code>CLASS_FULL</code>, an toàn khi gọi đồng thời</td></tr>
+<tr><td><code>POST /v1/classes/{id}/assignments</code></td><td>Giáo viên của lớp</td><td>Tạo việc nền "thông báo bài mới" trong cùng transaction</td></tr>
+<tr><td><code>GET /v1/classes/{id}/assignments?page=</code></td><td>Thành viên của lớp</td><td>Học sinh thấy kèm trạng thái nộp của chính mình</td></tr>
+<tr><td><code>PUT /v1/assignments/{id}/submission</code></td><td>Học sinh của lớp</td><td>Nộp / nộp lại. Đã chấm → 409 <code>GRADED</code>. PUT vì gửi lại là ghi đè</td></tr>
+<tr><td><code>GET /v1/assignments/{id}/submissions</code></td><td>Giáo viên của lớp</td><td>Mọi học sinh của lớp, kể cả em chưa nộp (LEFT JOIN)</td></tr>
+<tr><td><code>PUT /v1/assignments/{id}/submissions/{studentId}/grade</code></td><td>Giáo viên của lớp</td><td>Body <code>{score, comment}</code>. Em chưa nộp → 404</td></tr>
+</table>
+
+<h2 id="lo-trinh-lam-tung-buoc"><a href="#lo-trinh-lam-tung-buoc" class="anchor" aria-hidden="true">#</a>Lộ trình làm từng bước</h2>
+<p>Làm theo thứ tự. Mỗi bước có tiêu chí "xong" rõ ràng, commit sau mỗi bước.</p>
+
+<h3>Bước 1: khung dự án (bài 08, 11, 13)</h3>
+<ul>
+<li><code>go mod init</code>, cấu trúc thư mục, <code>config.Load()</code>, logger slog JSON.</li>
+<li><code>http.Server</code> có timeout, graceful shutdown, middleware RequestID / Logger / Recover / SecurityHeaders.</li>
+<li><code>GET /livez</code>, <code>GET /readyz</code>.</li>
+<li><b>Xong khi:</b> <code>go run ./cmd/api</code> chạy, Ctrl+C tắt sạch, mỗi request có một dòng log JSON.</li>
+</ul>
+
+<h3>Bước 2: database (bài 14, 15)</h3>
+<ul>
+<li>Compose với Postgres, migration bằng goose, pool pgx, <code>/readyz</code> ping database.</li>
+<li>Helper test: tạo database / schema riêng cho mỗi test.</li>
+<li><b>Xong khi:</b> <code>goose up</code> rồi <code>goose down</code> rồi <code>goose up</code> chạy sạch.</li>
+</ul>
+
+<h3>Bước 3: đăng ký, đăng nhập (bài 18)</h3>
+<div class="code"><div class="code-h"><span>internal/service/auth.go (trích)</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Auth) <span class="f">Login</span>(ctx context.Context, email, password <span class="t">string</span>) (token <span class="t">string</span>, err <span class="t">error</span>) {
+    email = strings.<span class="f">ToLower</span>(strings.<span class="f">TrimSpace</span>(email))
+    ok, err := s.limiter.<span class="f">Allow</span>(ctx, <span class="s">&quot;login:&quot;</span>+email) <span class="c">// 5 lần / 15 phút</span>
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, err
+    }
+    <span class="k">if</span> !ok {
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, domain.ErrTooManyRequests
+    }
+    u, err := s.store.<span class="f">UserByEmail</span>(ctx, email)
+    <span class="k">if</span> errors.<span class="f">Is</span>(err, domain.ErrNotFound) {
+        <span class="c">// Vẫn tốn thời gian như khi có tài khoản, để không lộ email nào đã đăng ký qua thời gian phản hồi</span>
+        bcrypt.<span class="f">CompareHashAndPassword</span>(s.dummyHash, []<span class="t">byte</span>(password))
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, domain.ErrBadCredentials
+    }
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, err
+    }
+    <span class="k">if</span> bcrypt.<span class="f">CompareHashAndPassword</span>([]<span class="t">byte</span>(u.PasswordHash), []<span class="t">byte</span>(password)) != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, domain.ErrBadCredentials
+    }
+    token, hash, err := <span class="f">NewSessionToken</span>()
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, err
+    }
+    <span class="k">return</span> token, s.store.<span class="f">CreateSession</span>(ctx, hash, u.ID, time.<span class="f">Now</span>().<span class="f">Add</span>(<span class="n">30</span>*<span class="n">24</span>*time.Hour))
+}</code></pre></div>
+<ul>
+<li><b>Xong khi:</b> có test cho: đăng ký trùng email (kể cả khác hoa thường), đăng nhập sai không lộ email tồn tại, quá 5 lần bị 429, đăng xuất thì cookie cũ bị 401.</li>
+</ul>
+
+<h3>Bước 4: lớp học và hạn mức (bài 16)</h3>
+<div class="code"><div class="code-h"><span>Vào lớp: kiểm sĩ số NGAY trong câu ghi</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> enrollments (class_id, student_id)
+<span class="k">SELECT</span> c.id, $<span class="n">2</span>
+<span class="k">FROM</span> classes c
+<span class="k">WHERE</span> c.join_code = $<span class="n">1</span>
+  <span class="k">AND</span> (<span class="k">SELECT</span> <span class="k">count</span>(*) <span class="k">FROM</span> enrollments e <span class="k">WHERE</span> e.class_id = c.id) &lt; c.capacity
+<span class="k">ON</span> <span class="k">CONFLICT</span> <span class="k">DO</span> <span class="k">NOTHING</span>
+<span class="k">RETURNING</span> class_id;</code></pre></div>
+<aside class="warn"><p>Câu trên vẫn có khe hở ở mức cô lập Read Committed: hai học sinh vào lớp còn đúng 1 chỗ có thể cùng đếm thấy chỗ trống. Hãy khoá dòng lớp trước trong transaction (<code>SELECT ... FROM classes WHERE join_code = $1 FOR UPDATE</code>), giống cách khoá dòng giáo viên ở bài 16. Viết test 20 goroutine cùng vào lớp sĩ số 5 để chứng minh.</p></aside>
+<ul>
+<li>Mã lớp: 8 ký tự ngẫu nhiên từ <code>crypto/rand</code>, bỏ các ký tự dễ nhầm (0/O, 1/I/L), UNIQUE, trùng thì sinh lại.</li>
+<li><b>Xong khi:</b> test đồng thời chứng minh không vượt hạn mức 2 lớp và không vượt sĩ số.</li>
+</ul>
+
+<h3>Bước 5: bài tập, nộp bài, chấm bài (bài 12, 15, 19)</h3>
+<div class="code"><div class="code-h"><span>Nộp bài: học sinh phải thuộc lớp, bài chưa được chấm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> submissions (assignment_id, student_id, content)
+<span class="k">SELECT</span> a.id, $<span class="n">2</span>, $<span class="n">3</span>
+<span class="k">FROM</span> assignments a
+<span class="k">JOIN</span> enrollments e <span class="k">ON</span> e.class_id = a.class_id <span class="k">AND</span> e.student_id = $<span class="n">2</span>
+<span class="k">WHERE</span> a.id = $<span class="n">1</span>
+<span class="k">ON</span> <span class="k">CONFLICT</span> (assignment_id, student_id)
+<span class="k">DO</span> <span class="k">UPDATE</span> <span class="k">SET</span> content = EXCLUDED.content, submitted_at = <span class="k">now</span>()
+<span class="k">WHERE</span> submissions.score <span class="k">IS</span> <span class="k">NULL</span>
+<span class="k">RETURNING</span> submitted_at;
+<span class="c">-- 0 dòng: hoặc không thuộc lớp / không có bài (404), hoặc đã chấm (409).</span>
+<span class="c">-- Phân biệt bằng một truy vấn kiểm tra sau khi thất bại.</span></code></pre></div>
+<div class="code"><div class="code-h"><span>Danh sách nộp bài cho giáo viên: kiểm quyền + LEFT JOIN</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">SELECT</span> u.id, u.name, s.content, s.score, s.submitted_at
+<span class="k">FROM</span> assignments a
+<span class="k">JOIN</span> classes c      <span class="k">ON</span> c.id = a.class_id <span class="k">AND</span> c.teacher_id = $<span class="n">1</span>
+<span class="k">JOIN</span> enrollments en <span class="k">ON</span> en.class_id = a.class_id
+<span class="k">JOIN</span> users u        <span class="k">ON</span> u.id = en.student_id
+<span class="k">LEFT</span> <span class="k">JOIN</span> submissions s <span class="k">ON</span> s.assignment_id = a.id <span class="k">AND</span> s.student_id = en.student_id
+<span class="k">WHERE</span> a.id = $<span class="n">2</span>
+<span class="k">ORDER</span> <span class="k">BY</span> u.name, u.id
+<span class="k">LIMIT</span> $<span class="n">3</span> <span class="k">OFFSET</span> $<span class="n">4</span>;</code></pre></div>
+<ul>
+<li><b>Xong khi:</b> có bộ test phân quyền: giáo viên B không xem / chấm được bài của lớp giáo viên A, học sinh không thuộc lớp không nộp được, học sinh không xem được bài nộp của bạn khác, học sinh không gọi được endpoint chấm bài.</li>
+</ul>
+
+<h3>Bước 6: việc chạy nền (bài 20)</h3>
+<ul>
+<li>Giao bài → trong cùng transaction chèn job <code>assignment.created</code>.</li>
+<li><code>cmd/worker</code>: lấy việc bằng <code>SKIP LOCKED</code>, "gửi thông báo" (ghi log), bảng <code>notifications_sent</code> chống gửi trùng, thử lại có backoff, dừng an toàn.</li>
+<li>Việc định kỳ: 19 giờ mỗi ngày (giờ Việt Nam) nhắc học sinh có bài hạn ngày mai chưa nộp. Chạy 2 worker cùng lúc mà mỗi học sinh vẫn chỉ nhận một lời nhắc mỗi ngày.</li>
+</ul>
+
+<h3>Bước 7: quan sát và đóng gói (bài 21, 22)</h3>
+<ul>
+<li>Metrics RED ở cổng nội bộ, pprof ở localhost.</li>
+<li>Dockerfile nhiều giai đoạn, Compose chạy cả api + worker + postgres, GitHub Actions: vet, test -race, govulncheck, build.</li>
+<li><b>Xong khi:</b> clone repo về máy sạch, <code>docker compose up</code> là chạy, CI xanh.</li>
+</ul>
+
+<h3>Bước 8 (nâng cao, chọn làm)</h3>
+<ul>
+<li>Upload ảnh bài làm: presigned URL tới S3 / R2 / MinIO, giới hạn dung lượng và số file, kiểm quyền khi tải về.</li>
+<li>Cache tổng quan lớp bằng Redis + singleflight, xoá cache khi có bài nộp mới.</li>
+<li>Cursor pagination cho danh sách thông báo.</li>
+<li>OpenAPI cho toàn bộ API, sinh client TypeScript và làm một giao diện nhỏ bằng framework frontend bạn quen.</li>
+<li>Deploy lên Cloud Run hoặc Fly.io với Postgres có quản lý.</li>
+</ul>
+
+<h2 id="loi-nguoi-moi-hay-mac-o-du-an-nay"><a href="#loi-nguoi-moi-hay-mac-o-du-an-nay" class="anchor" aria-hidden="true">#</a>Lỗi người mới hay mắc ở dự án này</h2>
+<table>
+<tr><th>Lỗi</th><th>Đã học ở</th></tr>
+<tr><td>Trả nguyên struct User (có <code>password_hash</code>) ra JSON</td><td>Bài 19, API3</td></tr>
+<tr><td><code>GET /assignments/{id}</code> không kiểm người gọi có thuộc lớp</td><td>Bài 19, API1</td></tr>
+<tr><td>Đếm số lớp / sĩ số trong Go rồi mới INSERT</td><td>Bài 16</td></tr>
+<tr><td>Gửi thông báo ngay trong handler bằng <code>go func()</code></td><td>Bài 09, 20</td></tr>
+<tr><td>Danh sách rỗng trả <code>null</code></td><td>Bài 04</td></tr>
+<tr><td>Hạn nộp "hôm nay" tính theo UTC, lệch 7 giờ</td><td>Bài 14</td></tr>
+<tr><td>Quên <code>rows.Close()</code>, pool cạn sau vài giờ chạy</td><td>Bài 15</td></tr>
+<tr><td>Không có timeout ở server và client</td><td>Bài 11</td></tr>
+</table>
+
+<h2 id="dua-vao-cv"><a href="#dua-vao-cv" class="anchor" aria-hidden="true">#</a>Đưa vào CV</h2>
+<p>Khi xong, repo của bạn nên có một README trả lời được: hệ thống làm gì, chạy thế nào bằng một lệnh, kiến trúc (một sơ đồ), các quyết định thiết kế và vì sao (vì sao session thay vì JWT, vì sao hàng đợi trong Postgres, cách chống vượt sĩ số), và cách chạy test. Người phỏng vấn backend hỏi đúng những câu đó.</p>
+<aside class="real"><p>Phỏng vấn backend Go thường hỏi: goroutine khác thread thế nào, channel có đệm và không đệm, cách tránh data race, context dùng để làm gì, index hoạt động ra sao, transaction và mức cô lập, xử lý hai request đồng thời, thiết kế một hệ thống nhỏ (rút gọn link, hệ thống thông báo). Bạn đã làm tất cả những thứ đó trong dự án này.</p></aside>
+
+<h2 id="ban-da-di-duoc-toi-day"><a href="#ban-da-di-duoc-toi-day" class="anchor" aria-hidden="true">#</a>Bạn đã đi được tới đây</h2>
+<p>Nếu đã làm xong 8 bước, bạn có đủ nền tảng để nhận task backend Go ở công ty: đọc hiểu code hiện có, viết endpoint mới đúng chuẩn, thiết kế bảng, viết test, và biết những chỗ nguy hiểm cần hỏi người có kinh nghiệm hơn. Phần còn lại học qua công việc thật: mỗi sự cố, mỗi lần review code là một bài học mới.</p>
+<p>Giữ hai trang tra cứu bên cạnh khi làm việc: <a href="thuat-ngu.html">Từ điển thuật ngữ</a> và <a href="nguyen-tac.html">Nguyên tắc làm backend</a>.</p>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="du-an">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="he-thong-that.html"><small>Bài trước</small>Các hệ thống thật hoạt động ra sao</a><a class="next" href="thuat-ngu.html"><small>Tra cứu</small>Từ điển thuật ngữ backend</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#de-bai">Đề bài</a><a href="#kien-truc">Kiến trúc</a><a href="#luoc-do-database">Lược đồ database</a><a href="#danh-sach-endpoint">Danh sách endpoint</a><a href="#lo-trinh-lam-tung-buoc">Lộ trình làm từng bước</a><a href="#loi-nguoi-moi-hay-mac-o-du-an-nay">Lỗi người mới hay mắc ở dự án này</a><a href="#dua-vao-cv">Đưa vào CV</a><a href="#ban-da-di-duoc-toi-day">Bạn đã đi được tới đây</a></nav>
+</div>
+</body>
+</html>

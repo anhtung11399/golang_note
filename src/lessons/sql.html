@@ -1,0 +1,265 @@
+<h2>Vì sao vẫn là SQL</h2>
+<p>Có rất nhiều loại database (MongoDB, DynamoDB, Cassandra...), nhưng với đa số ứng dụng nghiệp vụ, <b>cơ sở dữ liệu quan hệ</b> (PostgreSQL, MySQL) vẫn là lựa chọn mặc định: dữ liệu có cấu trúc rõ, có quan hệ với nhau, cần giao dịch đúng tuyệt đối. Lộ trình này dùng <b>PostgreSQL</b>, database mã nguồn mở được dùng rộng rãi nhất cho backend hiện nay.</p>
+<pre lang="sh">
+# Chạy Postgres bằng Docker (cách nhanh nhất trên máy cá nhân)
+docker run -d --name pg -e POSTGRES_PASSWORD=dev -p 5432:5432 postgres:17
+docker exec -it pg psql -U postgres     # mở cửa sổ gõ SQL
+</pre>
+<aside class="fe"><p>Hãy nghĩ một bảng như một mảng object cùng kiểu, mỗi dòng là một object, mỗi cột là một thuộc tính có kiểu cố định. Khác với state ở frontend: dữ liệu này dùng chung cho mọi người, sống nhiều năm, và database sẽ <b>từ chối</b> dữ liệu sai ràng buộc thay vì để bạn tự kiểm tra.</p></aside>
+
+<h2>Thiết kế bảng cho "Sổ bài tập"</h2>
+<p>Nghiệp vụ: giáo viên có nhiều lớp. Lớp có nhiều học sinh, một học sinh có thể học nhiều lớp (học thêm). Lớp có nhiều bài tập. Mỗi học sinh nộp mỗi bài tập một lần, có điểm.</p>
+<figure class="dg">
+<svg viewBox="0 0 760 330" style="min-width:620px;max-width:760px" role="img" aria-label="Sơ đồ quan hệ các bảng">
+  <g class="nd go"><rect x="20" y="20" width="170" height="110" rx="10"/></g>
+  <text x="105" y="44" class="tl" text-anchor="middle" style="font-weight:700">users</text>
+  <text x="34" y="68" class="ts">id (PK)</text><text x="34" y="88" class="ts">email (UNIQUE)</text><text x="34" y="108" class="ts">name, role</text>
+
+  <g class="nd go"><rect x="290" y="20" width="180" height="110" rx="10"/></g>
+  <text x="380" y="44" class="tl" text-anchor="middle" style="font-weight:700">classes</text>
+  <text x="304" y="68" class="ts">id (PK)</text><text x="304" y="88" class="ts">teacher_id → users.id</text><text x="304" y="108" class="ts">name, capacity</text>
+
+  <g class="nd db"><rect x="290" y="200" width="180" height="110" rx="10"/></g>
+  <text x="380" y="224" class="tl" text-anchor="middle" style="font-weight:700">enrollments</text>
+  <text x="304" y="248" class="ts">class_id → classes.id</text><text x="304" y="268" class="ts">student_id → users.id</text><text x="304" y="288" class="ts">PK (class_id, student_id)</text>
+
+  <g class="nd go"><rect x="570" y="20" width="170" height="110" rx="10"/></g>
+  <text x="655" y="44" class="tl" text-anchor="middle" style="font-weight:700">assignments</text>
+  <text x="584" y="68" class="ts">id (PK)</text><text x="584" y="88" class="ts">class_id → classes.id</text><text x="584" y="108" class="ts">title, due_date</text>
+
+  <g class="nd db"><rect x="570" y="200" width="170" height="110" rx="10"/></g>
+  <text x="655" y="224" class="tl" text-anchor="middle" style="font-weight:700">submissions</text>
+  <text x="584" y="248" class="ts">assignment_id → ...</text><text x="584" y="268" class="ts">student_id → users.id</text><text x="584" y="288" class="ts">score, submitted_at</text>
+
+  <path d="M190 70 H290" class="ln" marker-end="url(#ar)"/><text x="240" y="62" class="ts" text-anchor="middle">1 - n</text>
+  <path d="M470 70 H570" class="ln" marker-end="url(#ar)"/><text x="520" y="62" class="ts" text-anchor="middle">1 - n</text>
+  <path d="M380 130 V200" class="ln" marker-end="url(#ar)"/><text x="388" y="170" class="ts">1 - n</text>
+  <path d="M105 130 V255 H290" class="ln" marker-end="url(#ar)"/><text x="190" y="248" class="ts" text-anchor="middle">học sinh</text>
+  <path d="M655 130 V200" class="ln" marker-end="url(#ar)"/><text x="663" y="170" class="ts">1 - n</text>
+</svg>
+<figcaption>Học sinh và lớp là quan hệ nhiều - nhiều, nên cần bảng nối <code>enrollments</code></figcaption>
+</figure>
+<pre lang="sql" file="migrations/001_init.sql">
+CREATE TABLE users (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    email       text NOT NULL UNIQUE,
+    name        text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
+    role        text NOT NULL CHECK (role IN ('teacher', 'student')),
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE classes (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    teacher_id  bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name        text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 60),
+    capacity    int NOT NULL CHECK (capacity BETWEEN 1 AND 80),
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- Bảng nối cho quan hệ nhiều - nhiều
+CREATE TABLE enrollments (
+    class_id    bigint NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    student_id  bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at   timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (class_id, student_id)        -- một học sinh vào một lớp đúng một lần
+);
+
+CREATE TABLE assignments (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    class_id    bigint NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    title       text NOT NULL,
+    due_date    date NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE submissions (
+    assignment_id bigint NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    student_id    bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    score         numeric(4,2) CHECK (score BETWEEN 0 AND 10),  -- NULL = chưa chấm
+    submitted_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (assignment_id, student_id)
+);
+</pre>
+
+<h2>Ràng buộc: để database giữ dữ liệu đúng</h2>
+<table>
+<tr><th>Ràng buộc</th><th>Đảm bảo điều gì</th></tr>
+<tr><td><code>PRIMARY KEY</code></td><td>Mỗi dòng có định danh duy nhất, không NULL</td></tr>
+<tr><td><code>NOT NULL</code></td><td>Không được để trống</td></tr>
+<tr><td><code>UNIQUE</code></td><td>Không trùng (email). Dù hai request đăng ký cùng email tới cùng lúc, chỉ một cái thành công</td></tr>
+<tr><td><code>REFERENCES</code> (khoá ngoại)</td><td>Không có lớp nào trỏ tới giáo viên không tồn tại</td></tr>
+<tr><td><code>ON DELETE CASCADE</code></td><td>Xoá lớp thì tự xoá bài tập, bài nộp của lớp đó</td></tr>
+<tr><td><code>CHECK</code></td><td>Giá trị trong khoảng cho phép: điểm 0 đến 10, sĩ số 1 đến 80</td></tr>
+</table>
+<aside class="prod"><p>Kiểm tra ở Go là tốt, nhưng <b>ràng buộc trong database là lớp phòng thủ cuối cùng</b>: nó vẫn đúng khi có bug trong code, khi hai request chạy song song, khi ai đó sửa dữ liệu bằng tay hay viết script nhập liệu. Code bạn viết hôm nay sẽ được người khác sửa trong 3 năm tới, còn ràng buộc thì vẫn ở đó.</p></aside>
+
+<h3>Khoá chính: số tự tăng hay UUID?</h3>
+<table>
+<tr><th></th><th>Số tự tăng (identity / bigserial)</th><th>UUID</th></tr>
+<tr><td>Kích thước</td><td>8 byte</td><td>16 byte</td></tr>
+<tr><td>Đoán được id khác?</td><td>Có: thấy đơn 1001 là đoán được 1002</td><td>Không</td></tr>
+<tr><td>Tạo ở client / nhiều máy</td><td>Không, phải hỏi database</td><td>Được</td></tr>
+<tr><td>Hiệu năng index</td><td>Rất tốt (luôn chèn vào cuối)</td><td>UUID v4 ngẫu nhiên làm index phân mảnh. UUID v7 / ULID (có thời gian ở đầu) khắc phục được</td></tr>
+</table>
+<p>Cả hai đều phổ biến. Lưu ý: id đoán được <b>không</b> phải lỗ hổng nếu mọi endpoint đều kiểm quyền (bài 19). Đừng dựa vào id khó đoán để bảo mật.</p>
+
+<h2>CRUD cơ bản</h2>
+<pre lang="sql">
+-- Tạo, và lấy lại id vừa tạo
+INSERT INTO classes (teacher_id, name, capacity) VALUES (7, 'Lớp 5A', 35)
+RETURNING id, created_at;
+
+-- Đọc
+SELECT id, name, capacity FROM classes WHERE teacher_id = 7 ORDER BY created_at DESC LIMIT 20;
+
+-- Sửa (luôn có WHERE!)
+UPDATE classes SET name = 'Lớp 5A1' WHERE id = 42 AND teacher_id = 7;
+
+-- Xoá (luôn có WHERE!)
+DELETE FROM classes WHERE id = 42 AND teacher_id = 7;
+</pre>
+<aside class="warn"><p><code>UPDATE classes SET name = 'x'</code> quên <code>WHERE</code> là sửa <b>mọi dòng</b> của bảng. Khi sửa dữ liệu bằng tay trên production: mở transaction (<code>BEGIN</code>), chạy, xem số dòng bị ảnh hưởng, đúng rồi mới <code>COMMIT</code>.</p></aside>
+<p>Để ý điều kiện <code>AND teacher_id = 7</code>: không chỉ sửa lớp 42, mà sửa lớp 42 <b>nếu nó thuộc giáo viên 7</b>. Gộp kiểm quyền vào câu SQL là thói quen tốt nhất bạn có thể tập từ bây giờ.</p>
+
+<h2>JOIN: ghép dữ liệu từ nhiều bảng</h2>
+<pre lang="sql">
+-- Bài tập kèm tên lớp (INNER JOIN: chỉ lấy dòng có ở cả hai bên)
+SELECT a.id, a.title, a.due_date, c.name AS class_name
+FROM assignments a
+JOIN classes c ON c.id = a.class_id
+WHERE c.teacher_id = 7;
+
+-- Mọi học sinh của lớp 42 kèm điểm bài 9 (LEFT JOIN: giữ cả học sinh chưa nộp)
+SELECT u.id, u.name, s.score, s.submitted_at
+FROM enrollments e
+JOIN users u ON u.id = e.student_id
+LEFT JOIN submissions s ON s.student_id = e.student_id AND s.assignment_id = 9
+WHERE e.class_id = 42
+ORDER BY u.name;
+</pre>
+<table>
+<tr><th>Học sinh</th><th>score</th><th>submitted_at</th></tr>
+<tr><td>An</td><td>9.00</td><td>2026-11-02 19:05</td></tr>
+<tr><td>Bình</td><td><i>NULL</i></td><td><i>NULL</i></td></tr>
+<tr><td>Chi</td><td>7.50</td><td>2026-11-02 20:41</td></tr>
+</table>
+<p>Bình chưa nộp: <code>LEFT JOIN</code> vẫn giữ dòng của Bình với các cột của <code>submissions</code> là NULL. Nếu dùng <code>JOIN</code> thường, Bình biến mất khỏi danh sách, và giáo viên không biết ai chưa nộp.</p>
+<aside class="warn"><p>Để ý: điều kiện <code>s.assignment_id = 9</code> nằm trong <code>ON</code>, không phải trong <code>WHERE</code>. Đặt vào <code>WHERE</code> thì dòng NULL của Bình bị lọc mất, LEFT JOIN thành JOIN thường. Đây là lỗi SQL kinh điển.</p></aside>
+
+<h2>Gom nhóm: GROUP BY</h2>
+<pre lang="sql">
+-- Mỗi lớp của giáo viên 7: số học sinh, số bài tập
+SELECT c.id, c.name,
+       count(DISTINCT e.student_id) AS students,
+       count(DISTINCT a.id)         AS assignments
+FROM classes c
+LEFT JOIN enrollments e ON e.class_id = c.id
+LEFT JOIN assignments a ON a.class_id = c.id
+WHERE c.teacher_id = 7
+GROUP BY c.id, c.name;
+
+-- Điểm trung bình theo học sinh trong lớp 42, chỉ lấy em dưới 5
+SELECT s.student_id, round(avg(s.score), 2) AS avg_score, count(*) AS graded
+FROM submissions s
+JOIN assignments a ON a.id = s.assignment_id
+WHERE a.class_id = 42 AND s.score IS NOT NULL
+GROUP BY s.student_id
+HAVING avg(s.score) < 5;   -- HAVING lọc SAU khi gom, WHERE lọc TRƯỚC
+</pre>
+
+<h2>NULL: không phải 0, không phải chuỗi rỗng</h2>
+<ul>
+<li><code>NULL</code> nghĩa là "không biết / không có". <code>score = NULL</code> luôn ra "không biết", không bao giờ đúng. Phải viết <code>score IS NULL</code>.</li>
+<li><code>avg</code>, <code>sum</code>, <code>count(cột)</code> bỏ qua NULL. <code>count(*)</code> đếm mọi dòng.</li>
+<li>Trong Go, đọc cột có thể NULL vào kiểu con trỏ (<code>*float64</code>) hoặc kiểu riêng của driver (<code>pgtype.Numeric</code>). Đọc NULL vào <code>float64</code> thường sẽ báo lỗi.</li>
+</ul>
+
+<h2>Chuẩn hoá: mỗi thông tin nằm một chỗ</h2>
+<pre lang="text" file="Thiết kế chưa chuẩn hoá">
+submissions: student_id | student_name | student_email | class_name | score
+</pre>
+<p>Học sinh đổi tên: phải sửa hàng trăm dòng, sót một dòng là dữ liệu mâu thuẫn. Chuẩn hoá nghĩa là tách thông tin về đúng bảng của nó (tên học sinh ở <code>users</code>), các bảng khác chỉ giữ khoá ngoại.</p>
+<p>Ngoài thực tế đôi khi người ta <b>cố tình</b> chép dữ liệu (phi chuẩn hoá) để đọc nhanh, ví dụ lưu sẵn <code>submission_count</code> trong <code>assignments</code> thay vì đếm mỗi lần. Đổi lại phải giữ nó đồng bộ. Hãy bắt đầu bằng thiết kế chuẩn hoá, chỉ phi chuẩn hoá khi đo được là chậm.</p>
+<aside class="real"><p>Một ví dụ phi chuẩn hoá có chủ đích: <b>đơn hàng lưu lại giá tại thời điểm mua</b> (<code>order_items.unit_price</code>), dù bảng sản phẩm đã có giá. Vì giá sản phẩm sẽ đổi, nhưng hoá đơn đã thanh toán thì không được đổi theo. Ghi nhận lịch sử khác với chép trùng.</p></aside>
+
+<h2>Thời gian trong database</h2>
+<ul>
+<li>Thời điểm (lúc tạo, lúc nộp): <code>timestamptz</code>. Postgres lưu dạng UTC và đổi theo múi giờ của phiên kết nối khi hiển thị.</li>
+<li>Ngày theo lịch (hạn nộp, ngày điểm danh): <code>date</code>. Nhớ quy đổi "hôm nay" theo giờ Việt Nam (<code>Asia/Ho_Chi_Minh</code>) chứ không theo UTC: từ 0 giờ tới 7 giờ sáng ở Việt Nam, ngày UTC vẫn là hôm qua.</li>
+</ul>
+
+<quiz q="Bạn muốn liệt kê <b>mọi</b> học sinh trong lớp kèm điểm bài 9, kể cả em chưa nộp. Viết <code>LEFT JOIN submissions s ON s.student_id = e.student_id WHERE s.assignment_id = 9</code>. Kết quả?">
+- Đúng như mong muốn
++ Mất các em chưa nộp, vì WHERE loại các dòng có s.assignment_id là NULL
+- Lỗi cú pháp
+? Điều kiện trên bảng bên phải của LEFT JOIN phải đặt trong ON. Đặt trong WHERE thì LEFT JOIN thành JOIN thường.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Viết các truy vấn báo cáo</summary>
+<p>Với 5 bảng ở trên, viết SQL cho:</p>
+<ol>
+<li>Danh sách học sinh lớp 42 <b>chưa nộp</b> bài tập 9.</li>
+<li>Với mỗi bài tập của lớp 42: tiêu đề, số em đã nộp, sĩ số lớp.</li>
+<li>Năm học sinh có điểm trung bình cao nhất lớp 42 (chỉ tính bài đã chấm).</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="sql">
+-- 1. Chưa nộp: LEFT JOIN rồi lấy dòng không khớp
+SELECT u.id, u.name
+FROM enrollments e
+JOIN users u ON u.id = e.student_id
+LEFT JOIN submissions s ON s.student_id = e.student_id AND s.assignment_id = 9
+WHERE e.class_id = 42 AND s.student_id IS NULL;
+
+-- Cách khác, thường dễ đọc hơn: NOT EXISTS
+SELECT u.id, u.name
+FROM enrollments e
+JOIN users u ON u.id = e.student_id
+WHERE e.class_id = 42
+  AND NOT EXISTS (SELECT 1 FROM submissions s WHERE s.assignment_id = 9 AND s.student_id = e.student_id);
+
+-- 2. Số bài nộp mỗi bài tập + sĩ số
+SELECT a.id, a.title,
+       (SELECT count(*) FROM submissions s WHERE s.assignment_id = a.id) AS submitted,
+       (SELECT count(*) FROM enrollments e WHERE e.class_id = a.class_id) AS total
+FROM assignments a
+WHERE a.class_id = 42
+ORDER BY a.due_date DESC;
+
+-- 3. Top 5 điểm trung bình
+SELECT u.id, u.name, round(avg(s.score), 2) AS avg_score
+FROM submissions s
+JOIN assignments a ON a.id = s.assignment_id
+JOIN users u ON u.id = s.student_id
+WHERE a.class_id = 42 AND s.score IS NOT NULL
+GROUP BY u.id, u.name
+ORDER BY avg_score DESC
+LIMIT 5;
+</pre>
+</details>
+</details>
+<details class="ex"><summary>Thêm tính năng vào lược đồ</summary>
+<p>Thêm: giáo viên đính kèm nhiều file vào bài tập (tên file, kích thước, đường dẫn lưu trữ), và mỗi lớp có nhiều môn học, bài tập thuộc một môn. Viết <code>CREATE TABLE</code> / <code>ALTER TABLE</code> với đủ ràng buộc.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="sql">
+CREATE TABLE subjects (
+    id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    class_id  bigint NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    name      text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 40),
+    UNIQUE (class_id, name)                 -- một lớp không có hai môn trùng tên
+);
+
+ALTER TABLE assignments ADD COLUMN subject_id bigint REFERENCES subjects(id) ON DELETE RESTRICT;
+
+CREATE TABLE assignment_files (
+    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    assignment_id  bigint NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    file_name      text NOT NULL,
+    size_bytes     bigint NOT NULL CHECK (size_bytes BETWEEN 1 AND 26214400), -- tối đa 25 MB
+    storage_key    text NOT NULL UNIQUE
+);
+</pre>
+<p><code>ON DELETE RESTRICT</code> ở <code>subject_id</code>: không cho xoá môn khi còn bài tập thuộc môn đó, buộc giáo viên xử lý bài tập trước. Chọn CASCADE hay RESTRICT là quyết định nghiệp vụ, hãy hỏi người làm sản phẩm. Thêm cột vào bảng đã có dữ liệu thì cột mới phải cho phép NULL hoặc có DEFAULT.</p>
+</details>
+</details>

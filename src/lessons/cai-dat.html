@@ -1,0 +1,167 @@
+<h2>Cài đặt</h2>
+<p>Tải bản cài từ <a href="https://go.dev/dl/" target="_blank" rel="noopener">go.dev/dl</a> (có bản cho macOS, Windows, Linux), hoặc trên macOS dùng Homebrew:</p>
+<pre lang="sh">
+brew install go
+go version        # in ra phiên bản, ví dụ: go version go1.2x darwin/arm64
+</pre>
+<p>Lộ trình này dùng các tính năng có từ <b>Go 1.22</b> trở lên (định tuyến mới của <code>net/http</code>, vòng lặp <code>for i := range 10</code>). Cài bản mới nhất là đủ.</p>
+<p><b>Trình soạn thảo:</b> VS Code + tiện ích <i>Go</i> (của nhóm Go tại Google). Nó cài <code>gopls</code> (giống TypeScript language server), tự định dạng và tự thêm import khi lưu file. GoLand của JetBrains cũng rất tốt nếu bạn quen WebStorm.</p>
+<aside class="tip"><p>Chưa muốn cài? Mở <a href="https://go.dev/play/" target="_blank" rel="noopener">go.dev/play</a> và dán code của các bài 02 đến 07 vào chạy thử. Từ bài 08 trở đi bạn sẽ cần máy thật.</p></aside>
+
+<h2>Chương trình đầu tiên</h2>
+<pre lang="sh">
+mkdir hello && cd hello
+go mod init example.com/hello   # tạo go.mod, giống npm init
+</pre>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "fmt"
+    "os"
+)
+
+func main() {
+    name := "bạn"
+    if len(os.Args) > 1 {
+        name = os.Args[1]
+    }
+    fmt.Printf("Xin chào, %s!\n", name)
+}
+</pre>
+<pre lang="sh">
+go run .            # biên dịch tạm và chạy: Xin chào, bạn!
+go run . Tùng       # Xin chào, Tùng!
+go build -o hello . # tạo file chạy tên hello
+./hello Lan
+</pre>
+<p>Giải thích từng dòng:</p>
+<ul>
+<li><code>package main</code>: file này thuộc package tên <code>main</code>. Package <code>main</code> là đặc biệt: nó tạo ra chương trình chạy được, và phải có hàm <code>main()</code> làm điểm bắt đầu.</li>
+<li><code>import</code>: dùng package khác. <code>fmt</code> (định dạng và in chuỗi) và <code>os</code> (làm việc với hệ điều hành) là thư viện chuẩn, có sẵn.</li>
+<li><code>name := "bạn"</code>: khai báo biến và gán giá trị, kiểu được suy ra là <code>string</code> (bài 02).</li>
+<li><code>fmt.Printf</code>: giống <code>console.log</code> có định dạng. <code>%s</code> là chỗ chèn chuỗi.</li>
+</ul>
+
+<h2>Code Go được chạy như thế nào</h2>
+<p>JavaScript được trình duyệt hoặc Node đọc và chạy (có JIT). Go thì khác: trình biên dịch dịch toàn bộ code thành <b>mã máy</b> cho một hệ điều hành và loại CPU cụ thể, đóng gói luôn thư viện và runtime (bộ lập lịch goroutine, bộ thu gom rác) vào <b>một file duy nhất</b>.</p>
+<fig type="flow" caption="Từ mã nguồn tới file chạy: máy chủ không cần cài Go hay thư viện gì">
+[go] main.go + package khác / mã nguồn của bạn
+-> go build
+[go] Trình biên dịch / kiểm tra kiểu, tối ưu
+-> liên kết
+[ok] Một file chạy / mã máy + runtime Go
+-> copy lên server
+[ext] Máy chủ Linux / chạy ngay: ./app
+</fig>
+<p>Bạn còn có thể biên dịch cho hệ điều hành khác ngay trên máy Mac:</p>
+<pre lang="sh">
+GOOS=linux GOARCH=amd64 go build -o app-linux .   # file chạy cho máy chủ Linux x86
+GOOS=windows GOARCH=amd64 go build -o app.exe .
+</pre>
+<aside class="real"><p>Đây là một lý do các công cụ như Docker, kubectl, Terraform, Hugo được viết bằng Go: người dùng chỉ cần tải một file về là chạy, không cần cài runtime.</p></aside>
+
+<h2>Bộ lệnh go: đối chiếu với npm</h2>
+<table>
+<tr><th>Việc cần làm</th><th>Thế giới npm</th><th>Go</th></tr>
+<tr><td>Tạo dự án</td><td><code>npm init</code></td><td><code>go mod init example.com/app</code></td></tr>
+<tr><td>File khai báo phụ thuộc</td><td><code>package.json</code></td><td><code>go.mod</code></td></tr>
+<tr><td>File khoá phiên bản</td><td><code>package-lock.json</code></td><td><code>go.sum</code> (mã băm để kiểm tra thư viện không bị sửa)</td></tr>
+<tr><td>Cài thư viện</td><td><code>npm install zod</code></td><td><code>go get github.com/jackc/pgx/v5</code></td></tr>
+<tr><td>Dọn thư viện thừa, thêm thư viện thiếu</td><td><code>npm prune</code></td><td><code>go mod tidy</code></td></tr>
+<tr><td>Chạy khi phát triển</td><td><code>npm run dev</code></td><td><code>go run .</code></td></tr>
+<tr><td>Build</td><td><code>npm run build</code></td><td><code>go build ./...</code></td></tr>
+<tr><td>Định dạng code</td><td>Prettier</td><td><code>go fmt ./...</code> (có sẵn, không có tuỳ chọn nào để cãi nhau)</td></tr>
+<tr><td>Lint</td><td>ESLint</td><td><code>go vet ./...</code> (có sẵn), thêm <code>staticcheck</code> hoặc <code>golangci-lint</code></td></tr>
+<tr><td>Test</td><td>Jest / Vitest</td><td><code>go test ./...</code> (có sẵn)</td></tr>
+<tr><td>Nơi chứa thư viện</td><td><code>node_modules</code> trong dự án</td><td>Bộ nhớ đệm chung trên máy (<code>go env GOMODCACHE</code>), không nằm trong dự án</td></tr>
+</table>
+<p><code>./...</code> nghĩa là "package hiện tại và mọi package con". Bạn sẽ gõ nó rất nhiều.</p>
+
+<h3>go.mod trông thế nào</h3>
+<pre lang="text" file="go.mod">
+module example.com/hello
+
+go 1.23
+
+require github.com/jackc/pgx/v5 v5.7.1
+</pre>
+<p>Dòng <code>module</code> là tên module, cũng là tiền tố để import các package bên trong dự án. Thường đặt theo đường dẫn repo, ví dụ <code>github.com/ten-ban/sobaitap</code>. Dòng <code>go</code> là phiên bản Go tối thiểu.</p>
+
+<h2>Trình biên dịch nghiêm khắc</h2>
+<p>Go từ chối biên dịch nếu có <b>biến cục bộ không dùng</b> hoặc <b>import không dùng</b>. Lúc đầu thấy khó chịu, nhưng nhờ vậy code Go hiếm khi có rác.</p>
+<pre lang="go" mark="bad">
+package main
+
+import (
+    "fmt"
+    "os" // lỗi: "os" imported and not used
+)
+
+func main() {
+    x := 5 // lỗi: declared and not used: x
+    fmt.Println("hi")
+}
+</pre>
+<p>Tiện ích Go của VS Code tự thêm và xoá import khi bạn lưu file, nên thực tế bạn ít khi phải tự sửa lỗi import.</p>
+<aside class="fe"><p>Giống bật <code>noUnusedLocals</code> trong <code>tsconfig</code>, nhưng không tắt được (tham số hàm không dùng thì Go vẫn cho phép). Muốn bỏ qua một giá trị, gán cho dấu gạch dưới: <code>_ = x</code>.</p></aside>
+
+<h2>Đọc tài liệu và mã nguồn</h2>
+<p>Mọi package công khai đều có tài liệu trên <a href="https://pkg.go.dev" target="_blank" rel="noopener">pkg.go.dev</a>, sinh tự động từ chú thích trong code. Ngay trong terminal:</p>
+<pre lang="sh">
+go doc fmt.Printf           # xem tài liệu của một hàm
+go doc net/http.Server      # xem một kiểu
+</pre>
+<p>Trong VS Code, giữ <kbd>Cmd</kbd> và bấm vào tên hàm để nhảy vào mã nguồn của chính thư viện chuẩn. Code thư viện chuẩn Go rất dễ đọc: đây là cách học nhanh nhất.</p>
+
+<quiz q="Bạn build file chạy trên Mac rồi copy lên máy chủ Linux, chạy thì báo lỗi định dạng file. Vì sao?">
+- Vì máy chủ chưa cài Go
++ Vì file được biên dịch cho macOS. Cần build lại với GOOS=linux (và GOARCH đúng loại CPU của máy chủ)
+- Vì thiếu thư mục node_modules
+? File chạy của Go là mã máy cho một hệ điều hành và CPU cụ thể. Máy chủ không cần cài Go, nhưng file phải được build đúng nền tảng.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Lời chào có tham số</summary>
+<p>Sửa chương trình để nhận hai tham số: tên và số lần chào. <code>go run . Lan 3</code> in ra 3 dòng "Xin chào, Lan!". Gợi ý: <code>strconv.Atoi</code> đổi chuỗi thành số và trả về lỗi nếu chuỗi không phải số.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "fmt"
+    "os"
+    "strconv"
+)
+
+func main() {
+    if len(os.Args) < 3 {
+        fmt.Println("Cách dùng: hello <tên> <số lần>")
+        os.Exit(1)
+    }
+    name := os.Args[1]
+    n, err := strconv.Atoi(os.Args[2])
+    if err != nil || n < 1 {
+        fmt.Println("Số lần phải là số nguyên dương")
+        os.Exit(1)
+    }
+    for i := 0; i < n; i++ {
+        fmt.Printf("Xin chào, %s!\n", name)
+    }
+}
+</pre>
+<p>Để ý cách Go trả lỗi: <code>strconv.Atoi</code> trả về hai giá trị, số và lỗi. Bạn sẽ thấy mẫu <code>x, err := ...</code> rồi <code>if err != nil</code> ở khắp nơi (bài 07).</p>
+</details>
+</details>
+<details class="ex"><summary>Build cho ba hệ điều hành</summary>
+<p>Build chương trình trên ra ba file cho macOS, Linux và Windows. So sánh kích thước với thư mục <code>node_modules</code> của một dự án React bất kỳ.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="sh">
+GOOS=darwin  GOARCH=arm64 go build -o dist/hello-mac .
+GOOS=linux   GOARCH=amd64 go build -o dist/hello-linux .
+GOOS=windows GOARCH=amd64 go build -o dist/hello.exe .
+ls -lh dist
+</pre>
+<p>Mỗi file chỉ vài MB và chạy độc lập. Thêm <code>-ldflags="-s -w"</code> để bỏ thông tin gỡ lỗi, file còn nhỏ hơn.</p>
+</details>
+</details>

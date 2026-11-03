@@ -1,0 +1,205 @@
+<h2>Hai câu hỏi khác nhau</h2>
+<table>
+<tr><th></th><th>Xác thực (authentication)</th><th>Phân quyền (authorization)</th></tr>
+<tr><td>Câu hỏi</td><td><b>Bạn là ai?</b></td><td><b>Bạn được làm gì?</b></td></tr>
+<tr><td>Ví dụ</td><td>Đăng nhập bằng mật khẩu, Google, mã OTP</td><td>Giáo viên chỉ sửa được lớp của mình, phụ huynh chỉ xem được con mình</td></tr>
+<tr><td>Thất bại thì</td><td>401</td><td>403 hoặc 404</td></tr>
+<tr><td>Làm ở đâu</td><td>Một chỗ (middleware)</td><td><b>Ở mọi endpoint, mọi truy vấn</b></td></tr>
+</table>
+<p>Phần lớn sự cố rò rỉ dữ liệu qua API không phải do đăng nhập yếu, mà do <b>quên kiểm quyền</b> ở một endpoint nào đó. Bài này đi qua cả hai, phân quyền được nhấn mạnh hơn.</p>
+
+<h2>Lưu mật khẩu: băm chậm, có muối</h2>
+<p>Không bao giờ lưu mật khẩu, kể cả đã mã hoá (mã hoá thì giải mã được). Lưu <b>giá trị băm</b> bằng thuật toán chuyên cho mật khẩu: cố tình <b>chậm</b> và tốn bộ nhớ, để kẻ trộm database không thể thử hàng tỷ mật khẩu mỗi giây.</p>
+<table>
+<tr><th>Thuật toán</th><th>Dùng cho mật khẩu?</th></tr>
+<tr><td>MD5, SHA-1, SHA-256 (trần)</td><td><b>Không.</b> Quá nhanh: card đồ hoạ thử được hàng tỷ lần mỗi giây</td></tr>
+<tr><td><b>Argon2id</b></td><td>Có. OWASP khuyến nghị dùng đầu tiên</td></tr>
+<tr><td><b>bcrypt</b></td><td>Có. Rất phổ biến, đơn giản. Chỉ dùng 72 byte đầu của mật khẩu</td></tr>
+<tr><td>scrypt, PBKDF2</td><td>Chấp nhận được (PBKDF2 khi cần chuẩn FIPS)</td></tr>
+</table>
+<pre lang="go">
+import "golang.org/x/crypto/bcrypt"
+
+func HashPassword(pw string) (string, error) {
+    if len(pw) < 8 || len(pw) > 72 { // bcrypt chỉ nhận tối đa 72 byte
+        return "", &ValidationError{Field: "password", Message: "Mật khẩu từ 8 đến 72 ký tự"}
+    }
+    b, err := bcrypt.GenerateFromPassword([]byte(pw), 12) // cost 12: mỗi lần băm cỡ vài trăm ms
+    return string(b), err
+}
+
+func CheckPassword(hash, pw string) bool {
+    return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil
+}
+</pre>
+<p>Chuỗi băm bcrypt đã chứa sẵn <b>muối</b> (salt) ngẫu nhiên và cost: <code>$2a$12$R9h/cIPz0gi.URNNX3kh2O...</code>. Hai người cùng mật khẩu <code>123456</code> vẫn có hai chuỗi băm khác nhau.</p>
+<aside class="warn"><p>Đăng nhập phải trả <b>cùng một thông báo</b> cho "sai email" và "sai mật khẩu" ("Email hoặc mật khẩu không đúng"), nếu không kẻ tấn công dò được email nào đã đăng ký. Và nhớ giới hạn tần suất đăng nhập (bài 17): băm chậm không cứu được mật khẩu <code>12345678</code> nếu kẻ tấn công được thử không giới hạn.</p></aside>
+<aside class="real"><p>Nhiều vụ rò rỉ lớn bị khuếch đại vì mật khẩu được băm bằng thuật toán nhanh. Vụ LinkedIn năm 2012 là ví dụ hay được nhắc: mật khẩu băm SHA-1 không muối, sau đó phần lớn bị bẻ khoá. Ngày nay, nhiều sản phẩm chọn không tự lưu mật khẩu nữa mà cho đăng nhập bằng Google / Apple, magic link qua email, hoặc passkey.</p></aside>
+
+<h2>Phiên đăng nhập (session)</h2>
+<p>Sau khi xác thực xong, server cần "nhớ" người dùng cho các request sau. Cách truyền thống và vẫn rất tốt cho web: <b>session token ngẫu nhiên</b> trong cookie.</p>
+<fig type="seq" caption="Session: token ngẫu nhiên trong cookie, server lưu bản băm của token">
+actors: [fe] Trình duyệt, [go] API, [db] Database
+Trình duyệt -> API: POST /login (email, mật khẩu)
+API -> Database: kiểm tra mật khẩu
+note API: tạo token 32 byte ngẫu nhiên (crypto/rand)
+API -> Database: lưu sha256(token), user_id, hạn
+API --> Trình duyệt: Set-Cookie: session=token; HttpOnly; Secure; SameSite=Lax
+== các request sau ==
+Trình duyệt -> API: GET /me (trình duyệt tự gửi cookie)
+API -> Database: tìm sha256(token) còn hạn
+API --> Trình duyệt: 200 {user}
+</fig>
+<pre lang="go">
+func NewSessionToken() (token string, hash []byte, err error) {
+    b := make([]byte, 32)
+    if _, err := rand.Read(b); err != nil { // crypto/rand, KHÔNG phải math/rand
+        return "", nil, err
+    }
+    token = base64.RawURLEncoding.EncodeToString(b)
+    h := sha256.Sum256([]byte(token))
+    return token, h[:], nil // gửi token cho client, chỉ lưu hash vào database
+}
+
+func SetSessionCookie(w http.ResponseWriter, token string, ttl time.Duration) {
+    http.SetCookie(w, &http.Cookie{
+        Name:     "__Host-session", // tiền tố __Host-: bắt buộc Secure, Path=/, không Domain
+        Value:    token,
+        Path:     "/",
+        MaxAge:   int(ttl.Seconds()),
+        HttpOnly: true,                 // JavaScript không đọc được → XSS không lấy được token
+        Secure:   true,                 // chỉ gửi qua HTTPS
+        SameSite: http.SameSiteLaxMode, // hạn chế gửi kèm request từ trang khác (CSRF)
+    })
+}
+</pre>
+<p>Vì sao lưu <b>băm</b> của token? Nếu database bị lộ (bản sao lưu, log), kẻ tấn công cũng không dùng được các phiên đang hoạt động.</p>
+<ul>
+<li><b>Đăng xuất</b>: xoá dòng phiên trong database. Hiệu lực ngay.</li>
+<li><b>Đổi mật khẩu</b>: xoá mọi phiên khác của người đó.</li>
+<li><b>Hạn phiên</b>: ví dụ 30 ngày, gia hạn khi người dùng còn hoạt động.</li>
+</ul>
+<aside class="fe"><p>Lưu token trong <code>localStorage</code> rất tiện ở frontend, nhưng bất kỳ đoạn script nào chạy được trên trang (một thư viện bị chiếm quyền, một lỗi XSS) đều đọc được nó. Cookie <code>HttpOnly</code> thì JavaScript không đọc được. Với ứng dụng web cùng tên miền với API, cookie là lựa chọn an toàn hơn.</p></aside>
+
+<h3>Middleware xác thực</h3>
+<pre lang="go">
+type ctxUserKey struct{}
+
+func (a *Auth) Middleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        c, err := r.Cookie("__Host-session")
+        if err == nil {
+            if u, err := a.store.UserBySession(r.Context(), sha256Of(c.Value)); err == nil {
+                r = r.WithContext(context.WithValue(r.Context(), ctxUserKey{}, u))
+            }
+        }
+        next.ServeHTTP(w, r) // chưa đăng nhập vẫn đi tiếp: route nào cần thì tự chặn
+    })
+}
+
+func RequireUser(next http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        if _, ok := r.Context().Value(ctxUserKey{}).(User); !ok {
+            WriteJSON(w, http.StatusUnauthorized, errBody("UNAUTHENTICATED", "Vui lòng đăng nhập"))
+            return
+        }
+        next(w, r)
+    }
+}
+</pre>
+
+<h2>JWT: khi nào nên, khi nào không</h2>
+<p>JWT (JSON Web Token) là một chuỗi gồm 3 phần <code>header.payload.signature</code>. Payload chứa thông tin (user id, vai trò, hạn), chữ ký chứng minh server đã tạo ra nó. Server kiểm chữ ký là tin payload, <b>không cần tra database</b>.</p>
+<table>
+<tr><th></th><th>Session trong database</th><th>JWT</th></tr>
+<tr><td>Đăng xuất / thu hồi ngay</td><td>Dễ: xoá dòng</td><td>Khó: token vẫn hợp lệ tới khi hết hạn, trừ khi có danh sách chặn (lại phải tra database)</td></tr>
+<tr><td>Mỗi request tra database</td><td>Có (cache được bằng Redis)</td><td>Không</td></tr>
+<tr><td>Đổi quyền có hiệu lực</td><td>Ngay</td><td>Khi token cũ hết hạn</td></tr>
+<tr><td>Hợp với</td><td>Web app thông thường</td><td>Giao tiếp giữa các dịch vụ, token ngắn hạn, hệ thống nhiều bên (OAuth, OIDC)</td></tr>
+</table>
+<aside class="warn"><p>Lỗi JWT hay gặp: chấp nhận thuật toán <code>none</code> hoặc để token tự chọn thuật toán; khoá ký yếu; hạn quá dài (vài tháng); nhét dữ liệu nhạy cảm vào payload (payload chỉ được <b>mã hoá base64</b>, ai cũng đọc được, không phải mã hoá bí mật). Nếu dùng JWT: thư viện uy tín (<code>golang-jwt/jwt/v5</code>), cố định thuật toán khi kiểm, hạn ngắn (5 đến 15 phút) kèm refresh token lưu ở server.</p></aside>
+
+<h2>Đăng nhập bằng Google (OAuth 2.0 / OpenID Connect)</h2>
+<p>Ứng dụng hiện đại thường để Google / Apple xác thực, bạn khỏi lưu mật khẩu. Luồng an toàn cho web là <b>Authorization Code + PKCE</b>, chạy ở phía server:</p>
+<fig type="seq" caption="Server đổi mã lấy token trực tiếp với Google. Trình duyệt không bao giờ thấy client secret">
+actors: [fe] Trình duyệt, [go] API của bạn, [ext] Google
+Trình duyệt -> API của bạn: GET /auth/google
+note API của bạn: tạo state + code_verifier, lưu vào cookie ký
+API của bạn --> Trình duyệt: 302 tới accounts.google.com (state, code_challenge)
+Trình duyệt -> Google: người dùng chọn tài khoản, đồng ý
+Google --> Trình duyệt: 302 về /auth/callback?code=...&state=...
+Trình duyệt -> API của bạn: GET /auth/callback
+note API của bạn: so state với cookie (chống giả mạo)
+API của bạn -> Google: đổi code + code_verifier + client_secret lấy id_token
+Google --> API của bạn: id_token (email, sub)
+note API của bạn: kiểm chữ ký, aud, hạn → tìm / tạo user theo sub → tạo session
+API của bạn --> Trình duyệt: Set-Cookie session, chuyển về trang chủ
+</fig>
+<p>Package <code>golang.org/x/oauth2</code> lo phần lớn luồng này (có hỗ trợ PKCE). Định danh người dùng là trường <code>sub</code> của Google (không đổi), không phải email (người dùng có thể đổi email).</p>
+
+<h2>Phân quyền: kiểm ở mọi nơi</h2>
+<h3>Theo vai trò (RBAC)</h3>
+<pre lang="go">
+func RequireRole(role string, next http.HandlerFunc) http.HandlerFunc {
+    return RequireUser(func(w http.ResponseWriter, r *http.Request) {
+        if UserFrom(r.Context()).Role != role {
+            WriteJSON(w, http.StatusForbidden, errBody("FORBIDDEN", "Bạn không có quyền"))
+            return
+        }
+        next(w, r)
+    })
+}
+
+mux.HandleFunc("POST /v1/classes", RequireRole("teacher", h.createClass))
+</pre>
+<h3>Theo quyền sở hữu: nơi lỗ hổng hay nằm</h3>
+<p>Vai trò "giáo viên" cho phép sửa lớp, nhưng chỉ <b>lớp của mình</b>. Kiểm tra này không làm ở middleware được vì phụ thuộc dữ liệu. Cách an toàn nhất: <b>đưa người dùng hiện tại vào mọi câu truy vấn</b>.</p>
+<pre lang="go" mark="bad">
+// Kiểm vai trò rồi tin id trong URL: giáo viên A sửa được lớp của giáo viên B
+func (h *Handler) updateClass(w http.ResponseWriter, r *http.Request) {
+    id := pathID(r)
+    h.db.Exec(ctx, `UPDATE classes SET name = $1 WHERE id = $2`, name, id)
+}
+</pre>
+<pre lang="go" mark="good">
+func (h *Handler) updateClass(w http.ResponseWriter, r *http.Request) {
+    me := UserFrom(r.Context())
+    tag, err := h.db.Exec(ctx,
+        `UPDATE classes SET name = $1 WHERE id = $2 AND teacher_id = $3`, name, pathID(r), me.ID)
+    // ... tag.RowsAffected() == 0 → 404
+}
+</pre>
+<aside class="prod"><p>Mỗi quy tắc phân quyền cần một test: tạo hai người dùng, người A tạo dữ liệu, người B thử đọc / sửa / xoá dữ liệu đó qua <b>mọi</b> endpoint, phải nhận 403/404. Nhiều đội gom các test này thành một bộ riêng và chạy ở mọi lần thay đổi.</p></aside>
+<aside class="tip"><p>Một mẫu giúp không quên: hàm tầng store đều nhận người gọi làm tham số, như <code>ClassOf(ctx, teacherID, classID)</code> thay vì <code>Class(ctx, classID)</code>. Không có hàm nào lấy dữ liệu theo id trần để người viết handler vô tình dùng.</p></aside>
+
+<h2>CSRF khi dùng cookie</h2>
+<p>Trình duyệt tự gửi cookie kèm request, kể cả request do một trang web khác tạo ra (form ẩn tự submit). Đó là tấn công CSRF.</p>
+<ul>
+<li><code>SameSite=Lax</code>: cookie không đi kèm POST / PUT / DELETE xuất phát từ trang khác. Đã chặn được phần lớn.</li>
+<li>Kiểm header <code>Origin</code> (hoặc <code>Sec-Fetch-Site</code>) của mọi request thay đổi dữ liệu: phải là tên miền của bạn.</li>
+<li>Từ Go 1.25, <code>net/http</code> có sẵn <code>http.CrossOriginProtection</code> làm việc này dựa trên <code>Sec-Fetch-Site</code> và <code>Origin</code>.</li>
+<li>API chỉ nhận <code>Content-Type: application/json</code> cũng khó bị tạo từ form HTML thường.</li>
+</ul>
+
+<quiz q="Phụ huynh đăng nhập gọi <code>GET /v1/children/123/grades</code>. Middleware đã xác nhận người này có vai trò phụ huynh. Còn cần kiểm tra gì?">
+- Không cần, vai trò phụ huynh đã đủ
+- Kiểm tra bé 123 có tồn tại
++ Kiểm tra bé 123 là con của chính phụ huynh này, tốt nhất là ngay trong câu truy vấn
+? Vai trò không thay thế được quyền sở hữu. Đổi 123 thành 124 là xem được điểm con nhà khác nếu thiếu kiểm tra này: lỗi BOLA, bài 19.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Đăng ký, đăng nhập, đăng xuất</summary>
+<p>Thêm vào API ghi chú: bảng <code>users</code>, <code>sessions(token_hash, user_id, expires_at)</code>. Endpoint <code>POST /register</code>, <code>POST /login</code> (5 lần sai / 15 phút / email thì 429), <code>POST /logout</code>, <code>GET /me</code>. Ghi chú thuộc về người tạo, mọi endpoint ghi chú chỉ thấy ghi chú của mình.</p>
+<details class="sol"><summary>Danh sách kiểm tra</summary>
+<ul>
+<li>Email chuẩn hoá chữ thường, UNIQUE trong database, trùng trả 409.</li>
+<li>Mật khẩu băm bcrypt / argon2id, không bao giờ trả ra JSON hay ghi log.</li>
+<li>Sai email và sai mật khẩu cùng một thông báo, cùng status 401.</li>
+<li>Token 32 byte từ <code>crypto/rand</code>, database lưu SHA-256 của token.</li>
+<li>Cookie <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>.</li>
+<li>Đăng xuất xoá dòng session, gọi <code>/me</code> bằng cookie cũ phải nhận 401.</li>
+<li>Test: người B gọi <code>GET/PATCH/DELETE /notes/{id của A}</code> nhận 404.</li>
+</ul>
+</details>
+</details>

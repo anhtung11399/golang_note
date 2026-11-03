@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 01: Cài Go và chương trình đầu tiên · Go cho dân Frontend</title>
+<meta name="description" content="Cài đặt, go mod, go run / build / test / fmt / vet, và đối chiếu với thế giới npm.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat" aria-current="page"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="cai-dat">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#00ADD8">Chặng 1 · Ngôn ngữ Go</span><span>Bài 01</span><span>30 phút đọc + làm bài</span></div>
+    <h1>Cài Go và chương trình đầu tiên</h1>
+    <p class="lead">Cài đặt, go mod, go run / build / test / fmt / vet, và đối chiếu với thế giới npm.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Cài Go và tạo được một module</li><li>Dùng thành thạo các lệnh go cơ bản</li><li>Hiểu một chương trình Go được biên dịch và chạy thế nào</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="cai-dat"><a href="#cai-dat" class="anchor" aria-hidden="true">#</a>Cài đặt</h2>
+<p>Tải bản cài từ <a href="https://go.dev/dl/" target="_blank" rel="noopener">go.dev/dl</a> (có bản cho macOS, Windows, Linux), hoặc trên macOS dùng Homebrew:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">brew</span> install <span class="k">go</span>
+<span class="k">go</span> version        <span class="c"># in ra phiên bản, ví dụ: go version go1.2x darwin/arm64</span></code></pre></div>
+<p>Lộ trình này dùng các tính năng có từ <b>Go 1.22</b> trở lên (định tuyến mới của <code>net/http</code>, vòng lặp <code>for i := range 10</code>). Cài bản mới nhất là đủ.</p>
+<p><b>Trình soạn thảo:</b> VS Code + tiện ích <i>Go</i> (của nhóm Go tại Google). Nó cài <code>gopls</code> (giống TypeScript language server), tự định dạng và tự thêm import khi lưu file. GoLand của JetBrains cũng rất tốt nếu bạn quen WebStorm.</p>
+<aside class="tip"><p>Chưa muốn cài? Mở <a href="https://go.dev/play/" target="_blank" rel="noopener">go.dev/play</a> và dán code của các bài 02 đến 07 vào chạy thử. Từ bài 08 trở đi bạn sẽ cần máy thật.</p></aside>
+
+<h2 id="chuong-trinh-dau-tien"><a href="#chuong-trinh-dau-tien" class="anchor" aria-hidden="true">#</a>Chương trình đầu tiên</h2>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">mkdir</span> hello &amp;&amp; <span class="k">cd</span> hello
+<span class="k">go</span> mod init example.com/hello   <span class="c"># tạo go.mod, giống npm init</span></code></pre></div>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    name := <span class="s">&quot;bạn&quot;</span>
+    <span class="k">if</span> <span class="b">len</span>(os.Args) &gt; <span class="n">1</span> {
+        name = os.Args[<span class="n">1</span>]
+    }
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;Xin chào, %s!\n&quot;</span>, name)
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> run .            <span class="c"># biên dịch tạm và chạy: Xin chào, bạn!</span>
+<span class="k">go</span> run . Tùng       <span class="c"># Xin chào, Tùng!</span>
+<span class="k">go</span> build -o hello . <span class="c"># tạo file chạy tên hello</span>
+./hello Lan</code></pre></div>
+<p>Giải thích từng dòng:</p>
+<ul>
+<li><code>package main</code>: file này thuộc package tên <code>main</code>. Package <code>main</code> là đặc biệt: nó tạo ra chương trình chạy được, và phải có hàm <code>main()</code> làm điểm bắt đầu.</li>
+<li><code>import</code>: dùng package khác. <code>fmt</code> (định dạng và in chuỗi) và <code>os</code> (làm việc với hệ điều hành) là thư viện chuẩn, có sẵn.</li>
+<li><code>name := "bạn"</code>: khai báo biến và gán giá trị, kiểu được suy ra là <code>string</code> (bài 02).</li>
+<li><code>fmt.Printf</code>: giống <code>console.log</code> có định dạng. <code>%s</code> là chỗ chèn chuỗi.</li>
+</ul>
+
+<h2 id="code-go-duoc-chay-nhu-the-nao"><a href="#code-go-duoc-chay-nhu-the-nao" class="anchor" aria-hidden="true">#</a>Code Go được chạy như thế nào</h2>
+<p>JavaScript được trình duyệt hoặc Node đọc và chạy (có JIT). Go thì khác: trình biên dịch dịch toàn bộ code thành <b>mã máy</b> cho một hệ điều hành và loại CPU cụ thể, đóng gói luôn thư viện và runtime (bộ lập lịch goroutine, bộ thu gom rác) vào <b>một file duy nhất</b>.</p>
+<figure class="dg"><svg viewBox="0 0 992.4800000000002 86" style="min-width:600px;max-width:992.4800000000002px" role="img" aria-label="Từ mã nguồn tới file chạy: máy chủ không cần cài Go hay thư viện gì"><g class="nd go"><rect x="10" y="10" width="214.8" height="66" rx="10"/><text x="117.4" y="40" class="tt" text-anchor="middle">main.go + package khác</text><text x="117.4" y="58" class="ts" text-anchor="middle">mã nguồn của bạn</text></g><line x1="226.8" y1="43" x2="303.04" y2="43" class="ln" marker-end="url(#ar)"/><text x="265.92" y="34" class="tl" text-anchor="middle">go build</text><g class="nd go"><rect x="307.04" y="10" width="167.12" height="66" rx="10"/><text x="390.6" y="40" class="tt" text-anchor="middle">Trình biên dịch</text><text x="390.6" y="58" class="ts" text-anchor="middle">kiểm tra kiểu, tối ưu</text></g><line x1="476.16" y1="43" x2="552.4000000000001" y2="43" class="ln" marker-end="url(#ar)"/><text x="515.28" y="34" class="tl" text-anchor="middle">liên kết</text><g class="nd ok"><rect x="556.4000000000001" y="10" width="153.68" height="66" rx="10"/><text x="633.2400000000001" y="40" class="tt" text-anchor="middle">Một file chạy</text><text x="633.2400000000001" y="58" class="ts" text-anchor="middle">mã máy + runtime Go</text></g><line x1="712.0800000000002" y1="43" x2="839.2800000000002" y2="43" class="ln" marker-end="url(#ar)"/><text x="776.6800000000002" y="34" class="tl" text-anchor="middle">copy lên server</text><g class="nd ext"><rect x="843.2800000000002" y="10" width="139.20000000000002" height="66" rx="10"/><text x="912.8800000000002" y="40" class="tt" text-anchor="middle">Máy chủ Linux</text><text x="912.8800000000002" y="58" class="ts" text-anchor="middle">chạy ngay: ./app</text></g></svg><figcaption>Từ mã nguồn tới file chạy: máy chủ không cần cài Go hay thư viện gì</figcaption></figure>
+<p>Bạn còn có thể biên dịch cho hệ điều hành khác ngay trên máy Mac:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code>GOOS=linux GOARCH=amd64 <span class="k">go</span> build -o app-linux .   <span class="c"># file chạy cho máy chủ Linux x86</span>
+GOOS=windows GOARCH=amd64 <span class="k">go</span> build -o app.exe .</code></pre></div>
+<aside class="real"><p>Đây là một lý do các công cụ như Docker, kubectl, Terraform, Hugo được viết bằng Go: người dùng chỉ cần tải một file về là chạy, không cần cài runtime.</p></aside>
+
+<h2 id="bo-lenh-go-doi-chieu-voi-npm"><a href="#bo-lenh-go-doi-chieu-voi-npm" class="anchor" aria-hidden="true">#</a>Bộ lệnh go: đối chiếu với npm</h2>
+<table>
+<tr><th>Việc cần làm</th><th>Thế giới npm</th><th>Go</th></tr>
+<tr><td>Tạo dự án</td><td><code>npm init</code></td><td><code>go mod init example.com/app</code></td></tr>
+<tr><td>File khai báo phụ thuộc</td><td><code>package.json</code></td><td><code>go.mod</code></td></tr>
+<tr><td>File khoá phiên bản</td><td><code>package-lock.json</code></td><td><code>go.sum</code> (mã băm để kiểm tra thư viện không bị sửa)</td></tr>
+<tr><td>Cài thư viện</td><td><code>npm install zod</code></td><td><code>go get github.com/jackc/pgx/v5</code></td></tr>
+<tr><td>Dọn thư viện thừa, thêm thư viện thiếu</td><td><code>npm prune</code></td><td><code>go mod tidy</code></td></tr>
+<tr><td>Chạy khi phát triển</td><td><code>npm run dev</code></td><td><code>go run .</code></td></tr>
+<tr><td>Build</td><td><code>npm run build</code></td><td><code>go build ./...</code></td></tr>
+<tr><td>Định dạng code</td><td>Prettier</td><td><code>go fmt ./...</code> (có sẵn, không có tuỳ chọn nào để cãi nhau)</td></tr>
+<tr><td>Lint</td><td>ESLint</td><td><code>go vet ./...</code> (có sẵn), thêm <code>staticcheck</code> hoặc <code>golangci-lint</code></td></tr>
+<tr><td>Test</td><td>Jest / Vitest</td><td><code>go test ./...</code> (có sẵn)</td></tr>
+<tr><td>Nơi chứa thư viện</td><td><code>node_modules</code> trong dự án</td><td>Bộ nhớ đệm chung trên máy (<code>go env GOMODCACHE</code>), không nằm trong dự án</td></tr>
+</table>
+<p><code>./...</code> nghĩa là "package hiện tại và mọi package con". Bạn sẽ gõ nó rất nhiều.</p>
+
+<h3>go.mod trông thế nào</h3>
+<div class="code"><div class="code-h"><span>go.mod</span><button class="copy" type="button">Sao chép</button></div><pre><code>module example.com/hello
+
+go 1.23
+
+require github.com/jackc/pgx/v5 v5.7.1</code></pre></div>
+<p>Dòng <code>module</code> là tên module, cũng là tiền tố để import các package bên trong dự án. Thường đặt theo đường dẫn repo, ví dụ <code>github.com/ten-ban/sobaitap</code>. Dòng <code>go</code> là phiên bản Go tối thiểu.</p>
+
+<h2 id="trinh-bien-dich-nghiem-khac"><a href="#trinh-bien-dich-nghiem-khac" class="anchor" aria-hidden="true">#</a>Trình biên dịch nghiêm khắc</h2>
+<p>Go từ chối biên dịch nếu có <b>biến cục bộ không dùng</b> hoặc <b>import không dùng</b>. Lúc đầu thấy khó chịu, nhưng nhờ vậy code Go hiếm khi có rác.</p>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;os&quot;</span> <span class="c">// lỗi: &quot;os&quot; imported and not used</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    x := <span class="n">5</span> <span class="c">// lỗi: declared and not used: x</span>
+    fmt.<span class="f">Println</span>(<span class="s">&quot;hi&quot;</span>)
+}</code></pre></div>
+<p>Tiện ích Go của VS Code tự thêm và xoá import khi bạn lưu file, nên thực tế bạn ít khi phải tự sửa lỗi import.</p>
+<aside class="fe"><p>Giống bật <code>noUnusedLocals</code> trong <code>tsconfig</code>, nhưng không tắt được (tham số hàm không dùng thì Go vẫn cho phép). Muốn bỏ qua một giá trị, gán cho dấu gạch dưới: <code>_ = x</code>.</p></aside>
+
+<h2 id="doc-tai-lieu-va-ma-nguon"><a href="#doc-tai-lieu-va-ma-nguon" class="anchor" aria-hidden="true">#</a>Đọc tài liệu và mã nguồn</h2>
+<p>Mọi package công khai đều có tài liệu trên <a href="https://pkg.go.dev" target="_blank" rel="noopener">pkg.go.dev</a>, sinh tự động từ chú thích trong code. Ngay trong terminal:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> doc fmt.Printf           <span class="c"># xem tài liệu của một hàm</span>
+<span class="k">go</span> doc net/http.Server      <span class="c"># xem một kiểu</span></code></pre></div>
+<p>Trong VS Code, giữ <kbd>Cmd</kbd> và bấm vào tên hàm để nhảy vào mã nguồn của chính thư viện chuẩn. Code thư viện chuẩn Go rất dễ đọc: đây là cách học nhanh nhất.</p>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Bạn build file chạy trên Mac rồi copy lên máy chủ Linux, chạy thì báo lỗi định dạng file. Vì sao?</p><div class="qo"><button type="button" class="opt">Vì máy chủ chưa cài Go</button><button type="button" class="opt" data-ok>Vì file được biên dịch cho macOS. Cần build lại với GOOS=linux (và GOARCH đúng loại CPU của máy chủ)</button><button type="button" class="opt">Vì thiếu thư mục node_modules</button></div><p class="why" hidden>File chạy của Go là mã máy cho một hệ điều hành và CPU cụ thể. Máy chủ không cần cài Go, nhưng file phải được build đúng nền tảng.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Lời chào có tham số</summary>
+<p>Sửa chương trình để nhận hai tham số: tên và số lần chào. <code>go run . Lan 3</code> in ra 3 dòng "Xin chào, Lan!". Gợi ý: <code>strconv.Atoi</code> đổi chuỗi thành số và trả về lỗi nếu chuỗi không phải số.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;strconv&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">if</span> <span class="b">len</span>(os.Args) &lt; <span class="n">3</span> {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;Cách dùng: hello &lt;tên&gt; &lt;số lần&gt;&quot;</span>)
+        os.<span class="f">Exit</span>(<span class="n">1</span>)
+    }
+    name := os.Args[<span class="n">1</span>]
+    n, err := strconv.<span class="f">Atoi</span>(os.Args[<span class="n">2</span>])
+    <span class="k">if</span> err != <span class="b">nil</span> || n &lt; <span class="n">1</span> {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;Số lần phải là số nguyên dương&quot;</span>)
+        os.<span class="f">Exit</span>(<span class="n">1</span>)
+    }
+    <span class="k">for</span> i := <span class="n">0</span>; i &lt; n; i++ {
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;Xin chào, %s!\n&quot;</span>, name)
+    }
+}</code></pre></div>
+<p>Để ý cách Go trả lỗi: <code>strconv.Atoi</code> trả về hai giá trị, số và lỗi. Bạn sẽ thấy mẫu <code>x, err := ...</code> rồi <code>if err != nil</code> ở khắp nơi (bài 07).</p>
+</details>
+</details>
+<details class="ex"><summary>Build cho ba hệ điều hành</summary>
+<p>Build chương trình trên ra ba file cho macOS, Linux và Windows. So sánh kích thước với thư mục <code>node_modules</code> của một dự án React bất kỳ.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code>GOOS=darwin  GOARCH=arm64 <span class="k">go</span> build -o dist/hello-mac .
+GOOS=linux   GOARCH=amd64 <span class="k">go</span> build -o dist/hello-linux .
+GOOS=windows GOARCH=amd64 <span class="k">go</span> build -o dist/hello.exe .
+<span class="k">ls</span> -lh dist</code></pre></div>
+<p>Mỗi file chỉ vài MB và chạy độc lập. Thêm <code>-ldflags="-s -w"</code> để bỏ thông tin gỡ lỗi, file còn nhỏ hơn.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="cai-dat">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="lo-trinh.html"><small>Bài trước</small>Backend là gì: góc nhìn cho dân Frontend</a><a class="next" href="bien-kieu.html"><small>Bài tiếp theo</small>Biến, kiểu dữ liệu và zero value</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#cai-dat">Cài đặt</a><a href="#chuong-trinh-dau-tien">Chương trình đầu tiên</a><a href="#code-go-duoc-chay-nhu-the-nao">Code Go được chạy như thế nào</a><a href="#bo-lenh-go-doi-chieu-voi-npm">Bộ lệnh go: đối chiếu với npm</a><a href="#trinh-bien-dich-nghiem-khac">Trình biên dịch nghiêm khắc</a><a href="#doc-tai-lieu-va-ma-nguon">Đọc tài liệu và mã nguồn</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

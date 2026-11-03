@@ -1,0 +1,257 @@
+<h2>Driver và connection pool</h2>
+<p>Go có giao diện chung <code>database/sql</code> trong thư viện chuẩn, nhưng với PostgreSQL, thư viện được dùng nhiều nhất là <b>pgx</b> (<code>github.com/jackc/pgx/v5</code>): nhanh hơn, hỗ trợ đầy đủ kiểu dữ liệu của Postgres, có sẵn pool kết nối.</p>
+<pre lang="sh">
+go get github.com/jackc/pgx/v5
+</pre>
+<pre lang="go">
+import "github.com/jackc/pgx/v5/pgxpool"
+
+pool, err := pgxpool.New(ctx, "postgres://app:secret@localhost:5432/sobaitap?sslmode=disable")
+if err != nil {
+    return err
+}
+defer pool.Close()
+
+if err := pool.Ping(ctx); err != nil { // kiểm tra kết nối được ngay lúc khởi động
+    return fmt.Errorf("không kết nối được database: %w", err)
+}
+</pre>
+<p><b>Pool</b> là gì? Mở một kết nối tới Postgres tốn thời gian (bắt tay TCP, TLS, xác thực) và mỗi kết nối chiếm bộ nhớ phía database. Pool giữ sẵn một nhóm kết nối, mỗi truy vấn mượn một cái rồi trả lại.</p>
+<fig type="flow" caption="Hàng trăm goroutine dùng chung một số ít kết nối. Hết kết nối rảnh thì goroutine xếp hàng chờ">
+[go] 500 goroutine / request đang chạy
+-> mượn / trả
+[cache] pgxpool / tối đa N kết nối
+-> N kết nối TCP
+[db] PostgreSQL / max_connections mặc định 100
+</fig>
+<aside class="prod"><p>Kích thước pool không phải càng to càng tốt. Postgres xử lý mỗi kết nối bằng một tiến trình riêng, nên vài trăm kết nối đồng thời làm nó chậm đi. Nếu chạy 10 bản server, mỗi bản pool 20 kết nối, tổng là 200, vượt <code>max_connections</code> mặc định (100). Đặt qua URL: <code>?pool_max_conns=10</code>. Hệ thống lớn đặt <b>PgBouncer</b> ở giữa để gom kết nối.</p></aside>
+
+<h2>Truy vấn có tham số: không bao giờ ghép chuỗi</h2>
+<pre lang="go" mark="bad">
+// SQL injection: email = "x' OR '1'='1" là lấy được mọi người dùng
+q := "SELECT id, name FROM users WHERE email = '" + email + "'"
+rows, err := pool.Query(ctx, q)
+</pre>
+<pre lang="go" mark="good">
+// $1, $2... là chỗ giữ chỗ. Giá trị được gửi RIÊNG, database không bao giờ coi nó là code SQL
+row := pool.QueryRow(ctx, `SELECT id, name FROM users WHERE email = $1`, email)
+</pre>
+<aside class="warn"><p>Tham số chỉ thay được <b>giá trị</b>, không thay được tên bảng, tên cột hay <code>ASC/DESC</code>. Những phần đó nếu phải động thì chọn từ danh sách cố định trong code (whitelist, bài 12), không bao giờ lấy thẳng từ request.</p></aside>
+
+<h3>Đọc một dòng</h3>
+<pre lang="go">
+type User struct {
+    ID        int64
+    Email     string
+    Name      string
+    CreatedAt time.Time
+}
+
+func (s *Store) UserByEmail(ctx context.Context, email string) (User, error) {
+    var u User
+    err := s.db.QueryRow(ctx,
+        `SELECT id, email, name, created_at FROM users WHERE email = $1`, email,
+    ).Scan(&u.ID, &u.Email, &u.Name, &u.CreatedAt) // thứ tự Scan khớp thứ tự cột
+    if errors.Is(err, pgx.ErrNoRows) {
+        return User{}, domain.ErrNotFound
+    }
+    if err != nil {
+        return User{}, fmt.Errorf("tìm user theo email: %w", err)
+    }
+    return u, nil
+}
+</pre>
+
+<h3>Đọc nhiều dòng</h3>
+<pre lang="go">
+func (s *Store) ClassesOf(ctx context.Context, teacherID int64) ([]Class, error) {
+    rows, err := s.db.Query(ctx,
+        `SELECT id, name, capacity FROM classes WHERE teacher_id = $1 ORDER BY created_at DESC`, teacherID)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close() // trả kết nối về pool
+
+    out := []Class{} // không nil → JSON là [] chứ không phải null
+    for rows.Next() {
+        var c Class
+        if err := rows.Scan(&c.ID, &c.Name, &c.Capacity); err != nil {
+            return nil, err
+        }
+        out = append(out, c)
+    }
+    return out, rows.Err() // lỗi xảy ra giữa chừng lúc đọc (mất kết nối...)
+}
+</pre>
+<p>pgx có hàm tiện ích giúp bớt code lặp:</p>
+<pre lang="go">
+rows, _ := s.db.Query(ctx, `SELECT id, name, capacity FROM classes WHERE teacher_id = $1`, teacherID)
+classes, err := pgx.CollectRows(rows, pgx.RowToStructByName[Class]) // khớp tên cột với tên trường
+</pre>
+<aside class="warn"><p>Quên <code>rows.Close()</code> là rò kết nối: sau vài trăm request, pool cạn và mọi request treo ở bước chờ kết nối. Quên <code>rows.Err()</code> là có thể trả về danh sách thiếu mà không biết.</p></aside>
+
+<h3>Ghi dữ liệu</h3>
+<pre lang="go">
+func (s *Store) CreateClass(ctx context.Context, c Class) (Class, error) {
+    err := s.db.QueryRow(ctx,
+        `INSERT INTO classes (teacher_id, name, capacity) VALUES ($1, $2, $3)
+         RETURNING id, created_at`,
+        c.TeacherID, c.Name, c.Capacity,
+    ).Scan(&c.ID, &c.CreatedAt)
+    return c, err
+}
+
+func (s *Store) RenameClass(ctx context.Context, teacherID, classID int64, name string) error {
+    tag, err := s.db.Exec(ctx,
+        `UPDATE classes SET name = $1 WHERE id = $2 AND teacher_id = $3`, name, classID, teacherID)
+    if err != nil {
+        return err
+    }
+    if tag.RowsAffected() == 0 { // không có lớp đó, hoặc không phải lớp của giáo viên này
+        return domain.ErrNotFound
+    }
+    return nil
+}
+</pre>
+
+<h3>Đổi lỗi ràng buộc thành lỗi nghiệp vụ</h3>
+<pre lang="go">
+import "github.com/jackc/pgx/v5/pgconn"
+
+_, err := s.db.Exec(ctx, `INSERT INTO users (email, name, role) VALUES ($1, $2, $3)`, email, name, role)
+var pgErr *pgconn.PgError
+if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
+    return domain.ErrEmailTaken // → 409 "Email đã được dùng"
+}
+</pre>
+<p>Đây là cách đúng để chống trùng email: <b>không</b> SELECT kiểm tra trước rồi mới INSERT (hai request cùng lúc đều thấy "chưa có"), mà cứ INSERT và để ràng buộc UNIQUE từ chối. Mã lỗi Postgres hay gặp: <code>23505</code> trùng UNIQUE, <code>23503</code> sai khoá ngoại, <code>23514</code> sai CHECK, <code>40001</code> xung đột tuần tự hoá (bài 16).</p>
+
+<h2>Transaction: tất cả hoặc không gì cả</h2>
+<p>Nộp bài gồm hai việc: lưu bài nộp và tạo thông báo cho giáo viên. Nếu lưu xong bài mà lỗi lúc tạo thông báo thì sao? Transaction đảm bảo các câu lệnh bên trong <b>cùng thành công</b> hoặc <b>cùng bị huỷ</b>.</p>
+<pre lang="go">
+func (s *Store) Submit(ctx context.Context, sub Submission, teacherID int64) error {
+    tx, err := s.db.Begin(ctx)
+    if err != nil {
+        return err
+    }
+    defer tx.Rollback(ctx) // nếu đã Commit thì Rollback không làm gì, an toàn
+
+    if _, err := tx.Exec(ctx,
+        `INSERT INTO submissions (assignment_id, student_id) VALUES ($1, $2)
+         ON CONFLICT (assignment_id, student_id) DO UPDATE SET submitted_at = now()
+         WHERE submissions.score IS NULL`, // đã chấm thì không cho nộp lại
+        sub.AssignmentID, sub.StudentID); err != nil {
+        return err
+    }
+    if _, err := tx.Exec(ctx,
+        `INSERT INTO notifications (user_id, kind, ref_id) VALUES ($1, 'submitted', $2)`,
+        teacherID, sub.AssignmentID); err != nil {
+        return err
+    }
+    return tx.Commit(ctx)
+}
+</pre>
+<p>pgx có sẵn hàm bọc gọn hơn: <code>pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error { ... })</code> tự commit khi hàm trả nil và tự rollback khi lỗi.</p>
+<aside class="warn"><p>Không gọi API bên ngoài (gửi email, gọi cổng thanh toán) <b>bên trong</b> transaction. Transaction giữ khoá trên các dòng đã sửa. Nếu dịch vụ bên ngoài mất 10 giây, các request khác chạm vào những dòng đó cũng phải chờ 10 giây. Ghi vào database trong transaction, việc gọi ra ngoài làm sau (hoặc qua hàng đợi, bài 20).</p></aside>
+
+<h2>Migration: đổi cấu trúc database có kiểm soát</h2>
+<p>Lược đồ database thay đổi theo thời gian. Migration là các file SQL đánh số, chạy lần lượt và chỉ chạy một lần, được commit vào git cùng với code. Mọi máy (bạn, đồng nghiệp, CI, production) đều đi qua đúng cùng các bước.</p>
+<pre lang="text" file="migrations/">
+00001_init.sql
+00002_add_subjects.sql
+00003_index_assignments_due.sql
+</pre>
+<pre lang="sql" file="migrations/00002_add_subjects.sql (định dạng của goose)">
+-- +goose Up
+CREATE TABLE subjects (
+    id       bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    class_id bigint NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    name     text NOT NULL
+);
+
+-- +goose Down
+DROP TABLE subjects;
+</pre>
+<pre lang="sh">
+go install github.com/pressly/goose/v3/cmd/goose@latest
+goose -dir migrations postgres "$DATABASE_URL" up       # chạy các migration chưa chạy
+goose -dir migrations postgres "$DATABASE_URL" status   # xem đã chạy tới đâu
+</pre>
+<aside class="prod"><p>Quy tắc vàng với production đang chạy: <b>migration phải tương thích với cả code cũ lẫn code mới</b>, vì trong lúc deploy có một khoảng cả hai phiên bản cùng chạy. Muốn đổi tên cột: thêm cột mới → code ghi cả hai cột → chép dữ liệu cũ sang → code chỉ đọc cột mới → bản deploy sau mới xoá cột cũ. Không bao giờ đổi tên hay xoá cột trong một bước.</p>
+<p>Cẩn thận với bảng lớn: <code>CREATE INDEX</code> thường khoá ghi trên cả bảng trong lúc tạo. Trên production dùng <code>CREATE INDEX CONCURRENTLY</code>.</p></aside>
+
+<h2>sqlc: viết SQL, nhận code Go có kiểu</h2>
+<p>Viết tay <code>Scan</code> cho hàng chục câu truy vấn vừa chán vừa dễ sai thứ tự cột. <b>sqlc</b> đọc file SQL và lược đồ của bạn, rồi <b>sinh ra</b> code Go có kiểu đầy đủ. Bạn vẫn viết SQL thật (không phải ORM), nhưng được trình biên dịch kiểm tra.</p>
+<pre lang="sql" file="queries/classes.sql">
+-- name: ClassesOfTeacher :many
+SELECT id, name, capacity FROM classes
+WHERE teacher_id = $1
+ORDER BY created_at DESC;
+
+-- name: CreateClass :one
+INSERT INTO classes (teacher_id, name, capacity) VALUES ($1, $2, $3)
+RETURNING *;
+</pre>
+<pre lang="sh">
+sqlc generate   # sinh ra classes.sql.go
+</pre>
+<pre lang="go">
+q := db.New(pool)
+classes, err := q.ClassesOfTeacher(ctx, teacherID) // []db.ClassesOfTeacherRow, có kiểu
+c, err := q.CreateClass(ctx, db.CreateClassParams{TeacherID: 7, Name: "5A", Capacity: 35})
+</pre>
+<p>sqlc kiểm tra câu SQL với lược đồ ngay lúc sinh code: gõ sai tên cột là báo lỗi trước khi chạy.</p>
+<h3>Còn ORM thì sao?</h3>
+<p>Go có ORM (GORM, ent, Bun). GORM rất phổ biến, nhất là ở các dự án CRUD. Nhưng nhiều đội Go ưa SQL thuần + sqlc / pgx vì thấy rõ câu SQL nào được chạy, dễ tối ưu, và không bị ORM sinh câu truy vấn bất ngờ. Ở công ty, bạn sẽ dùng thứ đội đang dùng. Hiểu SQL thì dùng cái nào cũng được.</p>
+
+<quiz q="Đăng ký tài khoản: code SELECT xem email đã có chưa, chưa có thì INSERT. Bảng có UNIQUE(email). Hai request cùng email đến cùng lúc. Chuyện gì xảy ra?">
+- Cả hai tạo được tài khoản
++ Cả hai SELECT đều thấy "chưa có", một INSERT thành công, cái còn lại bị UNIQUE từ chối với lỗi 23505, nên code phải xử lý lỗi đó thành 409
+- Request thứ hai tự đợi request đầu xong rồi mới SELECT
+? Kiểm tra rồi mới làm không an toàn khi chạy song song. Ràng buộc UNIQUE mới là người gác cổng thật. Có thể bỏ luôn bước SELECT và chỉ xử lý lỗi 23505.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Repository cho bài tập</summary>
+<p>Với lược đồ bài 14, viết <code>AssignmentStore</code> dùng pgx: <code>Create</code>, <code>ListByClass(ctx, teacherID, classID, page, size)</code> trả về <code>(items, total)</code>, <code>Delete(ctx, teacherID, id)</code>. Mọi truy vấn phải kiểm tra lớp thuộc giáo viên đó ngay trong SQL.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go">
+func (s *Store) ListByClass(ctx context.Context, teacherID, classID int64, page, size int) ([]Assignment, int, error) {
+    var total int
+    err := s.db.QueryRow(ctx, `
+        SELECT count(*) FROM assignments a
+        JOIN classes c ON c.id = a.class_id
+        WHERE a.class_id = $1 AND c.teacher_id = $2`, classID, teacherID).Scan(&total)
+    if err != nil {
+        return nil, 0, err
+    }
+    rows, err := s.db.Query(ctx, `
+        SELECT a.id, a.class_id, a.title, a.due_date, a.created_at
+        FROM assignments a
+        JOIN classes c ON c.id = a.class_id
+        WHERE a.class_id = $1 AND c.teacher_id = $2
+        ORDER BY a.due_date DESC, a.id DESC
+        LIMIT $3 OFFSET $4`, classID, teacherID, size, (page-1)*size)
+    if err != nil {
+        return nil, 0, err
+    }
+    items, err := pgx.CollectRows(rows, pgx.RowToStructByPos[Assignment])
+    return items, total, err
+}
+
+func (s *Store) Delete(ctx context.Context, teacherID, id int64) error {
+    tag, err := s.db.Exec(ctx, `
+        DELETE FROM assignments a USING classes c
+        WHERE a.id = $1 AND c.id = a.class_id AND c.teacher_id = $2`, id, teacherID)
+    if err != nil {
+        return err
+    }
+    if tag.RowsAffected() == 0 {
+        return domain.ErrNotFound
+    }
+    return nil
+}
+</pre>
+<p>Để ý <code>ORDER BY a.due_date DESC, a.id DESC</code>: thêm <code>id</code> làm tiêu chí phụ để thứ tự <b>ổn định</b>. Nếu nhiều bài cùng hạn mà chỉ sắp theo hạn, Postgres có thể trả thứ tự khác nhau giữa hai lần truy vấn, và phân trang bị trùng / sót dòng.</p>
+</details>
+</details>

@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 10: Context và kiểm thử · Go cho dân Frontend</title>
+<meta name="description" content="context để huỷ / đặt thời hạn cho công việc, viết test dạng bảng, test HTTP, đo hiệu năng.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test" aria-current="page"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="context-test">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#00ADD8">Chặng 1 · Ngôn ngữ Go</span><span>Bài 10</span><span>50 phút đọc + làm bài</span></div>
+    <h1>Context và kiểm thử</h1>
+    <p class="lead">context để huỷ / đặt thời hạn cho công việc, viết test dạng bảng, test HTTP, đo hiệu năng.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Truyền context xuyên suốt một request</li><li>Viết test dạng bảng (table-driven)</li><li>Chạy test với -race và đo coverage</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="context-huy-va-han-chot-cho-ca-mot-chuoi-viec"><a href="#context-huy-va-han-chot-cho-ca-mot-chuoi-viec" class="anchor" aria-hidden="true">#</a>context: huỷ và hạn chót cho cả một chuỗi việc</h2>
+<p>Người dùng mở trang, request đi vào server, server gọi database và một API bên ngoài. Giữa chừng người dùng đóng tab. Mọi việc phía sau có nên tiếp tục không? Không: tốn tài nguyên cho một response không ai nhận.</p>
+<p><code>context.Context</code> là cách Go truyền <b>tín hiệu huỷ</b>, <b>hạn chót</b> và một ít <b>dữ liệu đi theo request</b> xuyên qua mọi tầng.</p>
+<figure class="dg"><svg viewBox="0 0 1071.6 86" style="min-width:600px;max-width:1071.6px" role="img" aria-label="Client ngắt kết nối hoặc quá hạn → ctx bị huỷ → mọi việc đang dùng ctx dừng theo"><g class="nd fe"><rect x="10" y="10" width="156" height="66" rx="10"/><text x="88" y="40" class="tt" text-anchor="middle">Client đóng tab</text><text x="88" y="58" class="ts" text-anchor="middle">hoặc quá 5 giây</text></g><line x1="168" y1="43" x2="317.04" y2="43" class="ln" marker-end="url(#ar)"/><text x="243.52" y="34" class="tl" text-anchor="middle">r.Context() bị huỷ</text><g class="nd go"><rect x="321.04" y="10" width="116" height="66" rx="10"/><text x="379.04" y="40" class="tt" text-anchor="middle">Handler</text><text x="379.04" y="58" class="ts" text-anchor="middle">ctx</text></g><line x1="439.04" y1="43" x2="573.52" y2="43" class="ln" marker-end="url(#ar)"/><text x="507.28000000000003" y="34" class="tl" text-anchor="middle">truyền ctx xuống</text><g class="nd go"><rect x="577.52" y="10" width="116" height="66" rx="10"/><text x="635.52" y="40" class="tt" text-anchor="middle">Service</text><text x="635.52" y="58" class="ts" text-anchor="middle">ctx</text></g><line x1="695.52" y1="43" x2="830" y2="43" class="ln" marker-end="url(#ar)"/><text x="763.76" y="34" class="tl" text-anchor="middle">truyền ctx xuống</text><g class="nd db"><rect x="834" y="10" width="227.60000000000002" height="66" rx="10"/><text x="947.8" y="40" class="tt" text-anchor="middle">Postgres</text><text x="947.8" y="58" class="ts" text-anchor="middle">pgx huỷ câu truy vấn đang chạy</text></g></svg><figcaption>Client ngắt kết nối hoặc quá hạn → ctx bị huỷ → mọi việc đang dùng ctx dừng theo</figcaption></figure>
+<aside class="fe"><p>Giống <code>AbortController</code>: bạn tạo <code>controller.signal</code>, truyền vào <code>fetch(url, { signal })</code>, gọi <code>controller.abort()</code> để huỷ. Trong Go, <code>ctx</code> đóng vai <code>signal</code> và được truyền vào <b>mọi</b> hàm có I/O.</p></aside>
+
+<h3>Quy ước bắt buộc</h3>
+<ul>
+<li><code>ctx context.Context</code> là <b>tham số đầu tiên</b> của mọi hàm có gọi mạng, database, hoặc chạy lâu.</li>
+<li>Không lưu ctx vào trong struct. Truyền nó qua tham số.</li>
+<li>Trong HTTP handler, lấy ctx từ <code>r.Context()</code>: nó tự bị huỷ khi client ngắt kết nối.</li>
+<li>Chỉ dùng <code>context.Background()</code> ở điểm khởi đầu: hàm <code>main</code>, test, việc nền.</li>
+</ul>
+
+<h3>Đặt thời hạn</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Service) <span class="f">Quote</span>(ctx context.Context, id <span class="t">int64</span>) (Price, <span class="t">error</span>) {
+    <span class="c">// Gọi dịch vụ tỷ giá bên ngoài, nhưng không chờ quá 2 giây</span>
+    ctx, cancel := context.<span class="f">WithTimeout</span>(ctx, <span class="n">2</span>*time.Second)
+    <span class="k">defer</span> <span class="f">cancel</span>() <span class="c">// LUÔN gọi cancel để giải phóng bộ đếm giờ, kể cả khi xong sớm</span>
+
+    rate, err := s.fx.<span class="f">Rate</span>(ctx, <span class="s">&quot;USD&quot;</span>, <span class="s">&quot;VND&quot;</span>)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">if</span> errors.<span class="f">Is</span>(err, context.DeadlineExceeded) {
+            <span class="k">return</span> Price{}, fmt.<span class="f">Errorf</span>(<span class="s">&quot;dịch vụ tỷ giá quá chậm: %w&quot;</span>, err)
+        }
+        <span class="k">return</span> Price{}, err
+    }
+    <span class="c">// ...</span>
+}</code></pre></div>
+<p>Hạn chót <b>lồng nhau</b>: nếu request gốc còn 1 giây mà bạn đặt <code>WithTimeout(ctx, 2*time.Second)</code>, ctx con vẫn hết hạn sau 1 giây. Context con không bao giờ sống lâu hơn context cha.</p>
+
+<h3>Tự kiểm tra ctx trong việc chạy lâu</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">exportCSV</span>(ctx context.Context, w io.Writer, rows []Row) <span class="t">error</span> {
+    <span class="k">for</span> i, r := <span class="k">range</span> rows {
+        <span class="k">if</span> i%<span class="n">1000</span> == <span class="n">0</span> { <span class="c">// thỉnh thoảng kiểm tra xem đã bị huỷ chưa</span>
+            <span class="k">if</span> err := ctx.<span class="f">Err</span>(); err != <span class="b">nil</span> {
+                <span class="k">return</span> err
+            }
+        }
+        <span class="f">writeRow</span>(w, r)
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}</code></pre></div>
+
+<h3>Giá trị đi theo request</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> ctxKey <span class="t">string</span> <span class="c">// kiểu riêng, tránh trùng khoá với package khác</span>
+
+<span class="k">const</span> requestIDKey ctxKey = <span class="s">&quot;request_id&quot;</span>
+
+<span class="k">func</span> <span class="f">WithRequestID</span>(ctx context.Context, id <span class="t">string</span>) context.Context {
+    <span class="k">return</span> context.<span class="f">WithValue</span>(ctx, requestIDKey, id)
+}
+
+<span class="k">func</span> <span class="f">RequestID</span>(ctx context.Context) <span class="t">string</span> {
+    id, _ := ctx.<span class="f">Value</span>(requestIDKey).(<span class="t">string</span>)
+    <span class="k">return</span> id
+}</code></pre></div>
+<aside class="warn"><p>Chỉ đặt vào context những thứ <b>thuộc về request</b>: request id, thông tin người dùng đã xác thực, trace id. Không dùng context để truyền tham số tuỳ chọn hay phụ thuộc (database, logger cấu hình): như vậy hàm có tham số ẩn, rất khó đọc và test.</p></aside>
+
+<h2 id="kiem-thu-co-san-trong-go"><a href="#kiem-thu-co-san-trong-go" class="anchor" aria-hidden="true">#</a>Kiểm thử: có sẵn trong Go</h2>
+<p>Không cần cài Jest. File test nằm cạnh file code, tên kết thúc bằng <code>_test.go</code>, hàm test bắt đầu bằng <code>Test</code>:</p>
+<div class="code"><div class="code-h"><span>grade/grade_test.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> grade
+
+<span class="k">import</span> <span class="s">&quot;testing&quot;</span>
+
+<span class="k">func</span> <span class="f">TestClassify</span>(t *testing.T) {
+    got := <span class="f">Classify</span>(<span class="n">8.5</span>)
+    <span class="k">if</span> got != <span class="s">&quot;Giỏi&quot;</span> {
+        t.<span class="f">Errorf</span>(<span class="s">&quot;Classify(8.5) = %q, muốn %q&quot;</span>, got, <span class="s">&quot;Giỏi&quot;</span>)
+    }
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> test ./...                 <span class="c"># chạy mọi test</span>
+<span class="k">go</span> test ./grade -run Classify <span class="c"># chỉ chạy test có tên khớp</span>
+<span class="k">go</span> test -v ./...              <span class="c"># in chi tiết</span>
+<span class="k">go</span> test -race -cover ./...    <span class="c"># kèm phát hiện race và độ phủ</span></code></pre></div>
+<p><code>t.Errorf</code> báo lỗi nhưng chạy tiếp, <code>t.Fatalf</code> báo lỗi và dừng test đó ngay (dùng khi các bước sau vô nghĩa nếu bước này hỏng).</p>
+
+<h3>Test dạng bảng: phong cách chuẩn của Go</h3>
+<p>Thay vì viết 10 hàm test gần giống nhau, liệt kê các trường hợp trong một bảng rồi chạy vòng lặp:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">TestClassify</span>(t *testing.T) {
+    tests := []<span class="k">struct</span> {
+        name  <span class="t">string</span>
+        score <span class="t">float64</span>
+        want  <span class="t">string</span>
+    }{
+        {<span class="s">&quot;giỏi&quot;</span>, <span class="n">8.5</span>, <span class="s">&quot;Giỏi&quot;</span>},
+        {<span class="s">&quot;vừa đủ giỏi&quot;</span>, <span class="n">8</span>, <span class="s">&quot;Giỏi&quot;</span>},
+        {<span class="s">&quot;đạt&quot;</span>, <span class="n">6</span>, <span class="s">&quot;Đạt&quot;</span>},
+        {<span class="s">&quot;biên dưới đạt&quot;</span>, <span class="n">5</span>, <span class="s">&quot;Đạt&quot;</span>},
+        {<span class="s">&quot;chưa đạt&quot;</span>, <span class="n">4.9</span>, <span class="s">&quot;Chưa đạt&quot;</span>},
+        {<span class="s">&quot;điểm 0&quot;</span>, <span class="n">0</span>, <span class="s">&quot;Chưa đạt&quot;</span>},
+    }
+    <span class="k">for</span> _, tc := <span class="k">range</span> tests {
+        t.<span class="f">Run</span>(tc.name, <span class="k">func</span>(t *testing.T) {
+            <span class="k">if</span> got := <span class="f">Classify</span>(tc.score); got != tc.want {
+                t.<span class="f">Errorf</span>(<span class="s">&quot;Classify(%v) = %q, muốn %q&quot;</span>, tc.score, got, tc.want)
+            }
+        })
+    }
+}</code></pre></div>
+<aside class="tip"><p>Mẹo chọn trường hợp test: trường hợp bình thường, <b>đúng ở biên</b> (8 và 7.99, 5 và 4.99), giá trị rỗng / 0 / âm, và dữ liệu sai. Lỗi thường nằm ở biên.</p></aside>
+
+<h3>Test HTTP handler không cần chạy server</h3>
+<p>Package <code>net/http/httptest</code> tạo request và bộ ghi response giả:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">TestHealth</span>(t *testing.T) {
+    req := httptest.<span class="f">NewRequest</span>(http.MethodGet, <span class="s">&quot;/healthz&quot;</span>, <span class="b">nil</span>)
+    rec := httptest.<span class="f">NewRecorder</span>()
+
+    <span class="f">healthHandler</span>(rec, req) <span class="c">// gọi thẳng handler</span>
+
+    <span class="k">if</span> rec.Code != http.StatusOK {
+        t.<span class="f">Fatalf</span>(<span class="s">&quot;status = %d, muốn 200&quot;</span>, rec.Code)
+    }
+    <span class="k">if</span> !strings.<span class="f">Contains</span>(rec.Body.<span class="f">String</span>(), <span class="s">`&quot;ok&quot;`</span>) {
+        t.<span class="f">Errorf</span>(<span class="s">&quot;body = %s&quot;</span>, rec.Body.<span class="f">String</span>())
+    }
+}</code></pre></div>
+
+<h3>Test có database thật</h3>
+<p>Fake (bài 06) phù hợp để test nghiệp vụ. Nhưng câu SQL thì phải test với database thật: fake không biết câu SQL của bạn sai cú pháp hay thiếu index. Hai cách phổ biến:</p>
+<ul>
+<li>Chạy Postgres bằng Docker trong CI, mỗi test tạo schema riêng hoặc bọc trong một transaction rồi rollback.</li>
+<li>Thư viện <code>testcontainers-go</code>: test tự bật container Postgres, xong tự tắt.</li>
+</ul>
+<aside class="real"><p>Nhiều đội chạy toàn bộ test API với database thật, mỗi test một database sạch. Chậm hơn fake, nhưng bắt được những lỗi chỉ database thật mới có: ràng buộc UNIQUE, khoá ngoại, trigger.</p></aside>
+
+<h3>Hàm trợ giúp và dọn dẹp</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">newTestServer</span>(t *testing.T) *Server {
+    t.<span class="f">Helper</span>() <span class="c">// lỗi báo ra đúng dòng gọi hàm này, không phải dòng bên trong</span>
+    db := <span class="f">openTestDB</span>(t)
+    t.<span class="f">Cleanup</span>(<span class="k">func</span>() { db.<span class="f">Close</span>() }) <span class="c">// chạy khi test kết thúc, giống afterEach</span>
+    <span class="k">return</span> <span class="f">NewServer</span>(db)
+}</code></pre></div>
+
+<h2 id="do-hieu-nang-benchmark"><a href="#do-hieu-nang-benchmark" class="anchor" aria-hidden="true">#</a>Đo hiệu năng (benchmark)</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">BenchmarkClassify</span>(b *testing.B) {
+    <span class="k">for</span> b.<span class="f">Loop</span>() { <span class="c">// Go 1.24+. Code cũ viết: for i := 0; i &lt; b.N; i++</span>
+        <span class="f">Classify</span>(<span class="n">7.5</span>)
+    }
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> test -bench=. -benchmem ./grade
+<span class="c"># BenchmarkClassify-8   1000000000   0.9 ns/op   0 B/op   0 allocs/op</span></code></pre></div>
+<p><code>ns/op</code> là thời gian mỗi lần gọi, <code>allocs/op</code> là số lần cấp phát bộ nhớ. Ở backend tải cao, giảm cấp phát thường giúp nhiều hơn tối ưu thuật toán, vì ít rác hơn cho bộ thu gom rác.</p>
+
+<h2 id="bao-nhieu-test-la-du"><a href="#bao-nhieu-test-la-du" class="anchor" aria-hidden="true">#</a>Bao nhiêu test là đủ?</h2>
+<table>
+<tr><th>Nên test kỹ</th><th>Ít giá trị</th></tr>
+<tr><td>Quy tắc nghiệp vụ: tính tiền, quyền truy cập, chuyển trạng thái</td><td>Getter / setter, code chỉ chuyển dữ liệu qua lại</td></tr>
+<tr><td><b>Mỗi quy tắc phân quyền</b>: người A không xem được dữ liệu người B</td><td>Kiểm tra lại thư viện chuẩn</td></tr>
+<tr><td>Câu SQL phức tạp, chạy với database thật</td><td>Mock từng câu SQL rồi kiểm tra chuỗi SQL</td></tr>
+<tr><td>Lỗi đã từng xảy ra (viết test tái hiện trước khi sửa)</td><td>Đuổi theo 100% coverage</td></tr>
+</table>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Handler gọi <code>s.store.Search(context.Background(), q)</code> thay vì truyền <code>r.Context()</code>. Hậu quả?</p><div class="qo"><button type="button" class="opt">Không sao, kết quả giống nhau</button><button type="button" class="opt" data-ok>Khi client đóng kết nối hoặc request quá hạn, câu truy vấn vẫn chạy tới cùng, phí tài nguyên database</button><button type="button" class="opt">Truy vấn sẽ bị lỗi ngay lập tức</button></div><p class="why" hidden>Context mới tạo không liên quan tới request nên không bao giờ bị huỷ. Lúc tải cao, các truy vấn "mồ côi" này chồng chất và làm database quá tải.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Test bảng cho hàm phân trang</summary>
+<p>Viết test dạng bảng cho hàm <code>page</code> ở bài 04: trang đầu, trang giữa, trang cuối thiếu phần tử, trang vượt quá, page = 0, size âm, danh sách rỗng. Chạy với <code>-cover</code> và đọc độ phủ.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">TestPage</span>(t *testing.T) {
+    items := []<span class="t">int</span>{<span class="n">1</span>, <span class="n">2</span>, <span class="n">3</span>, <span class="n">4</span>, <span class="n">5</span>}
+    tests := []<span class="k">struct</span> {
+        name       <span class="t">string</span>
+        items      []<span class="t">int</span>
+        page, size <span class="t">int</span>
+        want       []<span class="t">int</span>
+    }{
+        {<span class="s">&quot;trang đầu&quot;</span>, items, <span class="n">1</span>, <span class="n">2</span>, []<span class="t">int</span>{<span class="n">1</span>, <span class="n">2</span>}},
+        {<span class="s">&quot;trang giữa&quot;</span>, items, <span class="n">2</span>, <span class="n">2</span>, []<span class="t">int</span>{<span class="n">3</span>, <span class="n">4</span>}},
+        {<span class="s">&quot;trang cuối thiếu&quot;</span>, items, <span class="n">3</span>, <span class="n">2</span>, []<span class="t">int</span>{<span class="n">5</span>}},
+        {<span class="s">&quot;vượt quá&quot;</span>, items, <span class="n">4</span>, <span class="n">2</span>, []<span class="t">int</span>{}},
+        {<span class="s">&quot;page 0&quot;</span>, items, <span class="n">0</span>, <span class="n">2</span>, []<span class="t">int</span>{}},
+        {<span class="s">&quot;size âm&quot;</span>, items, <span class="n">1</span>, -<span class="n">1</span>, []<span class="t">int</span>{}},
+        {<span class="s">&quot;rỗng&quot;</span>, <span class="b">nil</span>, <span class="n">1</span>, <span class="n">10</span>, []<span class="t">int</span>{}},
+    }
+    <span class="k">for</span> _, tc := <span class="k">range</span> tests {
+        t.<span class="f">Run</span>(tc.name, <span class="k">func</span>(t *testing.T) {
+            got := <span class="f">page</span>(tc.items, tc.page, tc.size)
+            <span class="k">if</span> !slices.<span class="f">Equal</span>(got, tc.want) {
+                t.<span class="f">Errorf</span>(<span class="s">&quot;page(%d, %d) = %v, muốn %v&quot;</span>, tc.page, tc.size, got, tc.want)
+            }
+        })
+    }
+}</code></pre></div>
+</details>
+</details>
+<details class="ex"><summary>Hàm có hạn chót</summary>
+<p>Viết <code>slowSquare(ctx context.Context, n int) (int, error)</code> mất 1 giây để trả kết quả, nhưng dừng ngay và trả <code>ctx.Err()</code> nếu ctx bị huỷ trước. Viết test chứng minh: với timeout 100ms, hàm trả về <code>context.DeadlineExceeded</code> trong chưa tới 200ms.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">slowSquare</span>(ctx context.Context, n <span class="t">int</span>) (<span class="t">int</span>, <span class="t">error</span>) {
+    <span class="k">select</span> {
+    <span class="k">case</span> &lt;-time.<span class="f">After</span>(time.Second):
+        <span class="k">return</span> n * n, <span class="b">nil</span>
+    <span class="k">case</span> &lt;-ctx.<span class="f">Done</span>():
+        <span class="k">return</span> <span class="n">0</span>, ctx.<span class="f">Err</span>()
+    }
+}
+
+<span class="k">func</span> <span class="f">TestSlowSquareTimeout</span>(t *testing.T) {
+    ctx, cancel := context.<span class="f">WithTimeout</span>(context.<span class="f">Background</span>(), <span class="n">100</span>*time.Millisecond)
+    <span class="k">defer</span> <span class="f">cancel</span>()
+    start := time.<span class="f">Now</span>()
+    _, err := <span class="f">slowSquare</span>(ctx, <span class="n">3</span>)
+    <span class="k">if</span> !errors.<span class="f">Is</span>(err, context.DeadlineExceeded) {
+        t.<span class="f">Fatalf</span>(<span class="s">&quot;err = %v, muốn DeadlineExceeded&quot;</span>, err)
+    }
+    <span class="k">if</span> d := time.<span class="f">Since</span>(start); d &gt; <span class="n">200</span>*time.Millisecond {
+        t.<span class="f">Errorf</span>(<span class="s">&quot;mất %v, quá lâu&quot;</span>, d)
+    }
+}</code></pre></div>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="context-test">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="dong-thoi.html"><small>Bài trước</small>Goroutine, channel và đồng thời</a><a class="next" href="http.html"><small>Bài tiếp theo</small>HTTP từ gốc với net/http</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#context-huy-va-han-chot-cho-ca-mot-chuoi-viec">context: huỷ và hạn chót cho cả một chuỗi việc</a><a href="#kiem-thu-co-san-trong-go">Kiểm thử: có sẵn trong Go</a><a href="#do-hieu-nang-benchmark">Đo hiệu năng (benchmark)</a><a href="#bao-nhieu-test-la-du">Bao nhiêu test là đủ?</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

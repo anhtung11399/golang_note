@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 22: Docker, CI/CD và triển khai · Go cho dân Frontend</title>
+<meta name="description" content="Đóng gói bằng Docker nhiều giai đoạn, cấu hình 12-factor, CI chạy test, triển khai không gián đoạn, mở rộng theo chiều ngang.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai" aria-current="page"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="trien-khai">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#d97706">Chặng 5 · Vận hành hệ thống thật</span><span>Bài 22</span><span>55 phút đọc + làm bài</span></div>
+    <h1>Docker, CI/CD và triển khai</h1>
+    <p class="lead">Đóng gói bằng Docker nhiều giai đoạn, cấu hình 12-factor, CI chạy test, triển khai không gián đoạn, mở rộng theo chiều ngang.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Viết Dockerfile cho Go nhỏ và an toàn</li><li>Dựng CI chạy test + build</li><li>Hiểu các lựa chọn hosting cho backend Go</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="dong-goi-bang-docker"><a href="#dong-goi-bang-docker" class="anchor" aria-hidden="true">#</a>Đóng gói bằng Docker</h2>
+<p>Docker đóng gói chương trình cùng mọi thứ nó cần thành một <b>image</b>, chạy giống hệt nhau ở máy bạn, CI và production. Với Go, image có thể rất nhỏ vì chương trình chỉ là một file.</p>
+<div class="code"><div class="code-h"><span>Dockerfile</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c"># Giai đoạn 1: build (image có đủ công cụ Go, khá lớn)</span>
+<span class="k">FROM</span> golang:<span class="n">1.25</span> <span class="k">AS</span> build
+<span class="k">WORKDIR</span> /src
+<span class="k">COPY</span> go.mod go.sum ./
+<span class="k">RUN</span> go mod download                 <span class="c"># tách riêng bước này để Docker cache thư viện</span>
+<span class="k">COPY</span> . .
+<span class="k">RUN</span> CGO_ENABLED=<span class="n">0</span> go build -trimpath -ldflags=<span class="s">&quot;-s -w&quot;</span> -o /out/api ./cmd/api
+
+<span class="c"># Giai đoạn 2: chạy (chỉ chứa file chạy, không có shell, không có trình biên dịch)</span>
+<span class="k">FROM</span> gcr.io/distroless/static-debian12:nonroot
+<span class="k">COPY</span> --from=build /out/api /api
+<span class="k">COPY</span> migrations /migrations
+<span class="k">USER</span> nonroot:nonroot
+<span class="k">EXPOSE</span> <span class="n">8080</span>
+<span class="k">ENTRYPOINT</span> [<span class="s">&quot;/api&quot;</span>]</code></pre></div>
+<ul>
+<li><b>Nhiều giai đoạn</b> (multi-stage): công cụ build không lọt vào image chạy. Image cuối chỉ cỡ vài chục MB thay vì hơn 1GB.</li>
+<li><code>CGO_ENABLED=0</code>: build file chạy tĩnh hoàn toàn, không phụ thuộc thư viện C của hệ điều hành, chạy được trên image tối giản.</li>
+<li><b>distroless</b> (của Google): không có shell, không có trình quản lý gói. Kẻ tấn công lọt vào container cũng không có công cụ gì để dùng. Có thể dùng <code>scratch</code> (rỗng hoàn toàn) nhưng khi đó phải tự chép chứng chỉ CA để gọi HTTPS.</li>
+<li><code>nonroot</code>: không chạy bằng quyền root.</li>
+</ul>
+<aside class="fe"><p>Giống build frontend: giai đoạn đầu cài <code>node_modules</code> và chạy <code>vite build</code>, giai đoạn sau chỉ chép thư mục <code>dist</code> vào nginx. Khác biệt: với Go, thứ được chép sang là một file chạy duy nhất.</p></aside>
+
+<h3>Môi trường phát triển với Docker Compose</h3>
+<div class="code"><div class="code-h"><span>compose.yaml</span><button class="copy" type="button">Sao chép</button></div><pre><code>services:
+  db:
+    image: postgres:<span class="n">17</span>
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: sobaitap
+    ports: [<span class="s">&quot;5432:5432&quot;</span>]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: [<span class="s">&quot;CMD-SHELL&quot;</span>, <span class="s">&quot;pg_isready -U postgres&quot;</span>]
+      interval: <span class="n">2s</span>
+  redis:
+    image: redis:<span class="n">7</span>
+    ports: [<span class="s">&quot;6379:6379&quot;</span>]
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgres://postgres:dev@db:<span class="n">5432</span>/sobaitap?sslmode=disable
+      REDIS_URL: redis://redis:<span class="n">6379</span>
+      SESSION_KEY: dev-only-key-at-least-<span class="n">32</span>-characters!!
+    ports: [<span class="s">&quot;8080:8080&quot;</span>]
+    depends_on:
+      db: { condition: service_healthy }
+volumes:
+  pgdata:</code></pre></div>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">docker</span> compose up -d db redis   <span class="c"># chỉ chạy database, còn API chạy bằng go run để sửa code nhanh</span>
+<span class="k">docker</span> compose up --build       <span class="c"># chạy cả hệ thống giống production</span></code></pre></div>
+
+<h2 id="ci-moi-thay-doi-deu-duoc-kiem-tra-tu-dong"><a href="#ci-moi-thay-doi-deu-duoc-kiem-tra-tu-dong" class="anchor" aria-hidden="true">#</a>CI: mọi thay đổi đều được kiểm tra tự động</h2>
+<div class="code"><div class="code-h"><span>.github/workflows/ci.yml</span><button class="copy" type="button">Sao chép</button></div><pre><code>name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:<span class="n">17</span>
+        env: { POSTGRES_PASSWORD: test }
+        ports: [<span class="s">&quot;5432:5432&quot;</span>]
+        options: --health-cmd <span class="s">&quot;pg_isready -U postgres&quot;</span> --health-interval <span class="n">2s</span>
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - run: go vet ./...
+      - run: go test -race -cover ./...
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test@localhost:<span class="n">5432</span>/postgres?sslmode=disable
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - run: docker build -t sobaitap-api .</code></pre></div>
+<aside class="prod"><p>Bảo vệ nhánh <code>main</code>: chỉ gộp được khi CI xanh và có người review. Deploy production chỉ đi từ <code>main</code>, không bao giờ từ máy cá nhân của một ai đó.</p></aside>
+
+<h2 id="chay-o-dau"><a href="#chay-o-dau" class="anchor" aria-hidden="true">#</a>Chạy ở đâu</h2>
+<table>
+<tr><th>Lựa chọn</th><th>Cách chạy</th><th>Hợp với</th></tr>
+<tr><td><b>VPS</b> (DigitalOcean, Vultr, Hetzner, máy chủ Viettel / VNPT / FPT...)</td><td>Docker Compose hoặc systemd + Caddy / Nginx làm HTTPS</td><td>Dự án nhỏ, muốn rẻ và hiểu từng thứ. Tự lo cập nhật, sao lưu, bảo mật máy</td></tr>
+<tr><td><b>Google Cloud Run</b>, AWS App Runner</td><td>Đưa image lên, nền tảng tự chạy và tự mở rộng (cả về 0)</td><td>Hầu hết API vừa và nhỏ. Rất ít việc vận hành</td></tr>
+<tr><td><b>Fly.io</b>, Render, Railway</td><td>Tương tự, kèm database có quản lý</td><td>Dự án cá nhân, startup giai đoạn đầu</td></tr>
+<tr><td>Cloudflare Containers</td><td>Chạy container cạnh Workers trên mạng của Cloudflare</td><td>Đã dùng hệ sinh thái Cloudflare</td></tr>
+<tr><td><b>Kubernetes</b> (GKE, EKS, AKS, tự dựng)</td><td>Tự quản lý cụm, nhiều dịch vụ</td><td>Công ty có nhiều dịch vụ và có người chuyên vận hành</td></tr>
+</table>
+<p>Database: với production, ưu tiên <b>dịch vụ có quản lý</b> (Cloud SQL, RDS, Neon, Supabase...): tự sao lưu, tự vá lỗi, có bản sao. Tự chạy Postgres thì bạn phải tự lo tất cả những việc đó.</p>
+<aside class="warn"><p><b>Sao lưu database và thử khôi phục.</b> Bản sao lưu chưa từng được khôi phục thử thì chưa chắc dùng được. Năm 2017, GitLab mất khoảng 6 giờ dữ liệu production sau khi một kỹ sư xoá nhầm thư mục dữ liệu trên máy chủ database. Trong bài viết công khai sau sự cố, họ cho biết nhiều cơ chế sao lưu đã không hoạt động như mong đợi.</p></aside>
+
+<h2 id="deploy-khong-gian-doan"><a href="#deploy-khong-gian-doan" class="anchor" aria-hidden="true">#</a>Deploy không gián đoạn</h2>
+<figure class="dg"><svg viewBox="0 0 896.8000000000001 558" style="min-width:600px;max-width:896.8000000000001px" role="img" aria-label="Một quy trình deploy an toàn"><g class="nd ext"><rect x="10" y="10" width="298.08000000000004" height="66" rx="10"/><text x="159.04000000000002" y="40" class="tt" text-anchor="middle">Gộp vào main</text><text x="159.04000000000002" y="58" class="ts" text-anchor="middle">CI xanh</text></g><line x1="159.04000000000002" y1="80" x2="159.04000000000002" y2="124" class="ln" marker-end="url(#ar)"/><text x="173.04000000000002" y="107" class="tl" text-anchor="start">build image, gắn tag theo commit</text><g class="nd go"><rect x="10" y="128" width="298.08000000000004" height="66" rx="10"/><text x="159.04000000000002" y="166" class="tt" text-anchor="middle">Image sobaitap-api:9f3c1a2</text></g><line x1="159.04000000000002" y1="198" x2="159.04000000000002" y2="242" class="ln" marker-end="url(#ar)"/><text x="173.04000000000002" y="225" class="tl" text-anchor="start">chạy migration (phải tương thích với code cũ, bài 15)</text><g class="nd db"><rect x="10" y="246" width="298.08000000000004" height="66" rx="10"/><text x="159.04000000000002" y="284" class="tt" text-anchor="middle">Database đã có lược đồ mới</text></g><line x1="159.04000000000002" y1="316" x2="159.04000000000002" y2="360" class="ln" marker-end="url(#ar)"/><text x="173.04000000000002" y="343" class="tl" text-anchor="start">rolling update: bật bản mới, chờ /readyz, tắt dần bản cũ (SIGTERM, bài 13)</text><g class="nd ok"><rect x="10" y="364" width="298.08000000000004" height="66" rx="10"/><text x="159.04000000000002" y="394" class="tt" text-anchor="middle">Bản mới phục vụ 100%</text><text x="159.04000000000002" y="412" class="ts" text-anchor="middle">theo dõi tỉ lệ lỗi, p99</text></g><line x1="159.04000000000002" y1="434" x2="159.04000000000002" y2="478" class="ln" marker-end="url(#ar)"/><text x="173.04000000000002" y="461" class="tl" text-anchor="start">có vấn đề: quay lại image trước (rollback) trong vài phút</text><g class="nd warn"><rect x="10" y="482" width="298.08000000000004" height="66" rx="10"/><text x="159.04000000000002" y="512" class="tt" text-anchor="middle">Rollback</text><text x="159.04000000000002" y="530" class="ts" text-anchor="middle">vì vậy migration không được phá code cũ</text></g></svg><figcaption>Một quy trình deploy an toàn</figcaption></figure>
+<ul>
+<li><b>Server không giữ trạng thái</b> (stateless): phiên đăng nhập ở database / Redis, file ở dịch vụ lưu trữ, không lưu gì trên ổ đĩa của server. Nhờ vậy chạy 1 hay 20 bản đều như nhau, và tắt bất kỳ bản nào cũng không mất gì.</li>
+<li><b>Mở rộng theo chiều ngang</b>: tải tăng thì thêm bản server sau load balancer. Nút cổ chai tiếp theo thường là database, không phải Go.</li>
+<li><b>Feature flag</b>: deploy code mới nhưng tắt tính năng, bật dần cho một phần người dùng. Tách việc "deploy" khỏi việc "phát hành".</li>
+</ul>
+
+<h2 id="biet-dang-chay-phien-ban-nao"><a href="#biet-dang-chay-phien-ban-nao" class="anchor" aria-hidden="true">#</a>Biết đang chạy phiên bản nào</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;runtime/debug&quot;</span>
+
+<span class="k">func</span> <span class="f">version</span>() <span class="t">string</span> {
+    <span class="k">if</span> info, ok := debug.<span class="f">ReadBuildInfo</span>(); ok {
+        <span class="k">for</span> _, s := <span class="k">range</span> info.Settings {
+            <span class="k">if</span> s.Key == <span class="s">&quot;vcs.revision&quot;</span> { <span class="c">// go build tự nhúng commit git (khi build trong repo git)</span>
+                <span class="k">return</span> s.Value[:<span class="b">min</span>(<span class="n">7</span>, <span class="b">len</span>(s.Value))]
+            }
+        }
+    }
+    <span class="k">return</span> <span class="s">&quot;dev&quot;</span>
+}
+
+<span class="c">// Ghi vào log lúc khởi động và trả ở /version: biết ngay lỗi xuất hiện từ bản nào</span></code></pre></div>
+
+<h2 id="checklist-cau-hinh-production"><a href="#checklist-cau-hinh-production" class="anchor" aria-hidden="true">#</a>Checklist cấu hình production</h2>
+<ul>
+<li>HTTPS ở mọi nơi. Nền tảng thường lo sẵn, VPS thì Caddy tự lấy chứng chỉ Let's Encrypt.</li>
+<li>Biến môi trường production không có cờ dev / debug. Bí mật lấy từ trình quản lý bí mật.</li>
+<li>Server có timeout, có graceful shutdown, có <code>/livez</code>, <code>/readyz</code>.</li>
+<li>Log JSON ra stdout, có nơi thu gom và tìm kiếm.</li>
+<li>Metrics + cảnh báo cho tỉ lệ lỗi và độ trễ.</li>
+<li>Database có sao lưu tự động, đã thử khôi phục. Pool kết nối không vượt giới hạn của database.</li>
+<li>Giới hạn tài nguyên container (CPU, RAM). Từ Go 1.25, runtime tự đọc giới hạn CPU của container (cgroup) để đặt <code>GOMAXPROCS</code>. Có thể đặt <code>GOMEMLIMIT</code> để GC làm việc chăm hơn khi gần chạm giới hạn RAM.</li>
+</ul>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Bạn lưu file người dùng upload vào thư mục <code>./uploads</code> trên server, rồi tăng lên 3 bản server sau load balancer. Chuyện gì xảy ra?</p><div class="qo"><button type="button" class="opt">Không sao, load balancer tự đồng bộ thư mục</button><button type="button" class="opt" data-ok>File nằm trên máy nào thì chỉ máy đó có. Request vào máy khác sẽ không thấy file, và file mất khi container được thay mới</button><button type="button" class="opt">Docker tự chia sẻ thư mục giữa các máy</button></div><p class="why" hidden>Server phải stateless. File để ở dịch vụ lưu trữ đối tượng dùng chung (S3, R2, GCS), database chỉ lưu đường dẫn.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Đóng gói và chạy API ghi chú</summary>
+<p>Viết Dockerfile nhiều giai đoạn cho API ghi chú (đã có đăng nhập và Postgres từ các bài trước), Compose file cho API + Postgres + Redis, và workflow GitHub Actions chạy vet, test với Postgres, govulncheck, build image. So sánh kích thước image cuối với image <code>golang</code>.</p>
+<details class="sol"><summary>Kết quả mong đợi</summary>
+<ul>
+<li><code>docker images</code>: image API cỡ vài chục MB, image <code>golang</code> hơn 800MB.</li>
+<li><code>docker compose up --build</code> từ máy sạch chạy được cả hệ thống, không cần cài Go.</li>
+<li>Thử <code>docker compose stop api</code> khi đang có request chậm: request vẫn xong rồi container mới dừng.</li>
+<li>Đẩy một commit làm test hỏng: CI đỏ.</li>
+</ul>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="trien-khai">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="quan-sat.html"><small>Bài trước</small>Theo dõi hệ thống: log, metrics, tracing</a><a class="next" href="he-thong-that.html"><small>Bài tiếp theo</small>Các hệ thống thật hoạt động ra sao</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#dong-goi-bang-docker">Đóng gói bằng Docker</a><a href="#ci-moi-thay-doi-deu-duoc-kiem-tra-tu-dong">CI: mọi thay đổi đều được kiểm tra tự động</a><a href="#chay-o-dau">Chạy ở đâu</a><a href="#deploy-khong-gian-doan">Deploy không gián đoạn</a><a href="#biet-dang-chay-phien-ban-nao">Biết đang chạy phiên bản nào</a><a href="#checklist-cau-hinh-production">Checklist cấu hình production</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<h2>OWASP API Security Top 10</h2>
+<p>OWASP là tổ chức phi lợi nhuận về bảo mật ứng dụng. Danh sách <b>API Security Top 10 (bản 2023)</b> tổng hợp những lỗ hổng API gặp nhiều nhất ngoài thực tế:</p>
+<table>
+<tr><th>#</th><th>Tên</th><th>Nói đơn giản</th></tr>
+<tr><td>API1</td><td>Broken Object Level Authorization (BOLA)</td><td>Đổi id trong URL là xem / sửa được dữ liệu người khác</td></tr>
+<tr><td>API2</td><td>Broken Authentication</td><td>Đăng nhập, phiên, token làm sai</td></tr>
+<tr><td>API3</td><td>Broken Object Property Level Authorization</td><td>Trả về trường không được xem, hoặc cho sửa trường không được sửa</td></tr>
+<tr><td>API4</td><td>Unrestricted Resource Consumption</td><td>Không giới hạn kích thước, số lượng, tần suất</td></tr>
+<tr><td>API5</td><td>Broken Function Level Authorization</td><td>Người thường gọi được endpoint của quản trị</td></tr>
+<tr><td>API6</td><td>Unrestricted Access to Sensitive Business Flows</td><td>Bot lạm dụng luồng nghiệp vụ: gom vé, spam mã giảm giá</td></tr>
+<tr><td>API7</td><td>Server Side Request Forgery (SSRF)</td><td>Lừa server gọi tới địa chỉ nội bộ</td></tr>
+<tr><td>API8</td><td>Security Misconfiguration</td><td>CORS mở toang, lộ thông tin lỗi, thiếu header bảo mật</td></tr>
+<tr><td>API9</td><td>Improper Inventory Management</td><td>API cũ, bản thử nghiệm bị bỏ quên vẫn chạy</td></tr>
+<tr><td>API10</td><td>Unsafe Consumption of APIs</td><td>Tin tưởng mù quáng dữ liệu từ API bên thứ ba</td></tr>
+</table>
+<p>Phần dưới đi qua từng lỗi với code Go, theo thứ tự hay gặp nhất.</p>
+
+<h2>API1: BOLA, lỗi số một</h2>
+<pre lang="go" mark="bad">
+// GET /v1/submissions/{id}: đã đăng nhập là xem được MỌI bài nộp
+func (h *Handler) getSubmission(w http.ResponseWriter, r *http.Request) {
+    sub, err := h.store.Submission(r.Context(), pathID(r))
+    // ...
+}
+</pre>
+<pre lang="go" mark="good">
+func (h *Handler) getSubmission(w http.ResponseWriter, r *http.Request) {
+    me := UserFrom(r.Context())
+    // Store chỉ trả bài nộp mà người gọi có quyền xem: học sinh nộp bài đó, hoặc giáo viên của lớp
+    sub, err := h.store.SubmissionVisibleTo(r.Context(), me.ID, pathID(r))
+    if errors.Is(err, domain.ErrNotFound) {
+        WriteError(w, r, err) // 404: không phân biệt "không có" với "không phải của bạn"
+        return
+    }
+    // ...
+}
+</pre>
+<pre lang="sql">
+SELECT s.* FROM submissions s
+JOIN assignments a ON a.id = s.assignment_id
+JOIN classes c ON c.id = a.class_id
+WHERE s.id = $2
+  AND (s.student_id = $1 OR c.teacher_id = $1);
+</pre>
+<aside class="real"><p>BOLA (còn gọi là IDOR) là nguyên nhân của rất nhiều vụ lộ dữ liệu lớn qua API: đổi số trong URL là xem được đơn hàng, hồ sơ, hoá đơn của người khác. Vụ rò rỉ dữ liệu khách hàng của nhà mạng Úc Optus năm 2022 được báo chí mô tả là xuất phát từ một API không yêu cầu xác thực và có định danh khách hàng tăng dần. Lỗi này không cần kỹ thuật cao: chỉ cần một vòng lặp đổi id.</p></aside>
+
+<h2>API3: lộ trường và gán trường bừa</h2>
+<h3>Trả thừa dữ liệu</h3>
+<pre lang="go" mark="bad">
+type User struct {
+    ID           int64  `json:"id"`
+    Name         string `json:"name"`
+    Email        string `json:"email"`
+    PasswordHash string `json:"passwordHash"` // lộ!
+    IsAdmin      bool   `json:"isAdmin"`
+}
+WriteJSON(w, 200, user) // trả nguyên struct database ra ngoài
+</pre>
+<pre lang="go" mark="good">
+// Struct riêng cho response (DTO): chỉ những trường người xem được phép thấy
+type PublicUserDTO struct {
+    ID   int64  `json:"id"`
+    Name string `json:"name"`
+}
+WriteJSON(w, 200, PublicUserDTO{ID: u.ID, Name: u.Name})
+</pre>
+<aside class="fe"><p>"Frontend không hiển thị trường đó" không phải là bảo vệ. Mở tab Network là thấy toàn bộ JSON. Cái gì không được xem thì không được có trong response.</p></aside>
+<h3>Gán trường bừa (mass assignment)</h3>
+<pre lang="go" mark="bad">
+// PATCH /v1/me với body {"name":"Lan","isAdmin":true}
+var u User
+json.NewDecoder(r.Body).Decode(&u) // đọc thẳng vào struct có trường IsAdmin
+store.UpdateUser(ctx, u)          // người dùng tự phong mình làm admin
+</pre>
+<pre lang="go" mark="good">
+type UpdateMeReq struct { // chỉ những trường người dùng được tự sửa
+    Name *string `json:"name"`
+}
+</pre>
+<p>Quy tắc: <b>struct đọc request, struct database và struct response là ba kiểu khác nhau.</b> Hơi dài dòng, nhưng không bao giờ lộ nhầm hay cho sửa nhầm một trường mới thêm vào database.</p>
+
+<h2>API4: giới hạn mọi thứ</h2>
+<table>
+<tr><th>Tài nguyên</th><th>Giới hạn</th></tr>
+<tr><td>Kích thước body</td><td><code>http.MaxBytesReader</code> (bài 11)</td></tr>
+<tr><td>File upload</td><td>Kích thước mỗi file, số file mỗi lần, số file mỗi ngày mỗi người</td></tr>
+<tr><td>Phân trang</td><td><code>size</code> tối đa 100</td></tr>
+<tr><td>Độ dài chuỗi</td><td>Mọi trường chữ có độ dài tối đa (khớp với form frontend)</td></tr>
+<tr><td>Tần suất</td><td>Đăng nhập, gửi OTP / email, tạo dữ liệu, gọi tính năng AI tốn tiền</td></tr>
+<tr><td>Thời gian</td><td>Timeout server, timeout truy vấn database, timeout gọi API ngoài</td></tr>
+<tr><td>Số lượng</td><td>Số lớp mỗi giáo viên, số học sinh mỗi lớp, số phần tử trong một lần gửi hàng loạt</td></tr>
+</table>
+<aside class="real"><p>Tính năng gọi AI, gửi SMS, gửi email là những chỗ bị lạm dụng tốn tiền nhất: mỗi lần gọi là một khoản phí. Kẻ xấu gửi hàng vạn yêu cầu OTP tới các số điện thoại trả phí cao (kiểu gian lận gọi là SMS pumping) đã khiến nhiều công ty nhận hoá đơn rất lớn. Mỗi tính năng tốn tiền cần giới hạn theo người dùng <b>và</b> giới hạn tổng.</p></aside>
+
+<h2>API5: endpoint quản trị</h2>
+<pre lang="go">
+admin := http.NewServeMux()
+admin.HandleFunc("GET /users", h.adminListUsers)
+admin.HandleFunc("POST /users/{id}/ban", h.adminBan)
+
+// Bọc CẢ nhóm trong một middleware kiểm quyền, thay vì nhớ kiểm ở từng handler
+mux.Handle("/admin/", http.StripPrefix("/admin", RequireAdmin(admin)))
+</pre>
+<p>Cách an toàn hơn nữa: tách trang quản trị thành <b>ứng dụng riêng</b>, tên miền riêng, hệ thống đăng nhập riêng (có xác thực hai lớp), thậm chí chỉ truy cập được qua VPN. Lỗi ở API công khai khi đó không chạm tới chức năng quản trị.</p>
+
+<h2>SQL injection và các loại injection khác</h2>
+<p>Đã gặp ở bài 15: luôn dùng tham số <code>$1</code>. Những chỗ vẫn hay sót:</p>
+<ul>
+<li>Tên cột sắp xếp, chiều sắp xếp lấy từ query string → dùng danh sách cho phép.</li>
+<li><code>LIKE</code> với dữ liệu người dùng: tham số vẫn an toàn, nhưng ký tự <code>%</code> và <code>_</code> trong từ khoá sẽ là ký tự đại diện. Thoát chúng nếu muốn tìm đúng chữ.</li>
+<li>Chạy lệnh hệ thống: không bao giờ <code>exec.Command("sh", "-c", "convert " + filename)</code>. Truyền tham số riêng: <code>exec.Command("convert", filename, out)</code>.</li>
+<li>Đường dẫn file từ người dùng: <code>../../etc/passwd</code>. Từ Go 1.24 có <code>os.Root</code> để giới hạn thao tác file trong một thư mục.</li>
+</ul>
+
+<h2>API7: SSRF</h2>
+<p>Tính năng "nhập URL ảnh đại diện", "nhập URL webhook", "xem trước link": server tải URL do người dùng đưa. Kẻ tấn công đưa <code>http://169.254.169.254/latest/meta-data/</code> (địa chỉ dịch vụ metadata trên AWS, nơi có thể chứa thông tin đăng nhập tạm của máy chủ) hoặc <code>http://localhost:6379</code>.</p>
+<pre lang="go">
+// Chặn ở tầng kết nối: kiểm IP THẬT sau khi phân giải DNS (chống đổi DNS giữa lúc kiểm và lúc gọi)
+dialer := &net.Dialer{
+    Timeout: 5 * time.Second,
+    Control: func(network, address string, _ syscall.RawConn) error {
+        host, _, err := net.SplitHostPort(address)
+        if err != nil {
+            return err
+        }
+        ip, err := netip.ParseAddr(host)
+        if err != nil {
+            return err
+        }
+        if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() || ip.IsMulticast() {
+            return fmt.Errorf("địa chỉ bị chặn: %s", ip)
+        }
+        return nil
+    },
+}
+safeClient := &http.Client{
+    Timeout:   10 * time.Second,
+    Transport: &http.Transport{DialContext: dialer.DialContext},
+}
+</pre>
+<aside class="real"><p>Vụ Capital One năm 2019 (thông tin của khoảng 100 triệu khách hàng bị lộ) liên quan tới SSRF: kẻ tấn công khiến một máy chủ gọi tới dịch vụ metadata của AWS và lấy được thông tin đăng nhập tạm. Sau đó AWS đẩy mạnh IMDSv2, phiên bản yêu cầu token, để khó khai thác kiểu này hơn.</p></aside>
+
+<h2>API8: cấu hình sai</h2>
+<h3>CORS</h3>
+<p>CORS là cơ chế trình duyệt hỏi server "trang ở tên miền X có được đọc response của bạn không". Nó bảo vệ <b>người dùng</b> khỏi trang độc, không bảo vệ API khỏi curl.</p>
+<pre lang="go" mark="bad">
+// Phản chiếu mọi Origin + cho gửi cookie: trang web bất kỳ đọc được dữ liệu của người dùng đang đăng nhập
+w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+w.Header().Set("Access-Control-Allow-Credentials", "true")
+</pre>
+<pre lang="go" mark="good">
+var allowed = map[string]bool{"https://sobaitap.vn": true, "https://admin.sobaitap.vn": true}
+
+if o := r.Header.Get("Origin"); allowed[o] {
+    w.Header().Set("Access-Control-Allow-Origin", o)
+    w.Header().Set("Access-Control-Allow-Credentials", "true")
+    w.Header().Add("Vary", "Origin") // để cache không trả nhầm header cho Origin khác
+}
+</pre>
+<aside class="fe"><p>Bạn chắc đã từng gặp lỗi CORS ở frontend và cách "sửa nhanh" là bật <code>*</code> ở backend. Giờ bạn ở phía bên kia: chỉ liệt kê đúng tên miền của mình. Nếu frontend và API cùng tên miền (API ở <code>/api</code>), bạn không cần CORS.</p></aside>
+<h3>Header bảo mật và thông tin lỗi</h3>
+<pre lang="go">
+func SecurityHeaders(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        h := w.Header()
+        h.Set("X-Content-Type-Options", "nosniff")
+        h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+        h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        h.Set("X-Frame-Options", "DENY")
+        next.ServeHTTP(w, r)
+    })
+}
+</pre>
+<ul>
+<li>Không trả stack trace, câu SQL, chuỗi lỗi nội bộ cho client (bài 07).</li>
+<li>Tắt các endpoint gỡ lỗi (<code>/debug/pprof</code>) trên cổng công khai, đặt chúng ở cổng nội bộ.</li>
+<li>Không để bản dev (<code>DEV_FAKE_LOGIN=1</code>, dữ liệu mẫu) chạy được trên production. Kiểm tra lúc khởi động và từ chối chạy.</li>
+</ul>
+
+<h2>Bí mật (secrets)</h2>
+<ul>
+<li>Không commit khoá API, mật khẩu database, khoá ký vào git, kể cả repo riêng tư. Lỡ commit thì coi như đã lộ: <b>đổi khoá</b>, xoá khỏi lịch sử git không đủ.</li>
+<li>Đưa vào qua biến môi trường hoặc trình quản lý bí mật (AWS Secrets Manager, GCP Secret Manager, Vault, secrets của nền tảng deploy).</li>
+<li>Bật tính năng quét bí mật của GitHub (secret scanning, push protection) cho repo.</li>
+<li>So sánh token, chữ ký bằng <code>subtle.ConstantTimeCompare</code> hoặc <code>hmac.Equal</code> để không lộ thông tin qua thời gian so sánh.</li>
+</ul>
+
+<h2>Upload file</h2>
+<ul>
+<li>Giới hạn kích thước <b>trước khi</b> đọc hết vào bộ nhớ.</li>
+<li>Không tin phần mở rộng hay <code>Content-Type</code> client gửi. Đọc vài byte đầu: <code>http.DetectContentType</code>.</li>
+<li>Tên file lưu trữ do server tạo (id ngẫu nhiên), không dùng tên người dùng đặt.</li>
+<li>Lưu ở dịch vụ lưu trữ đối tượng (S3, R2, GCS), phục vụ file qua tên miền khác với ứng dụng, hoặc kèm <code>Content-Disposition: attachment</code>, để file HTML / SVG độc không chạy được trong tên miền của bạn.</li>
+<li>Kiểm quyền khi tải file về, giống mọi tài nguyên khác (BOLA với file là cực kỳ phổ biến).</li>
+</ul>
+
+<h2>Công cụ tự động</h2>
+<pre lang="sh">
+govulncheck ./...                 # thư viện có lỗ hổng mà code bạn thật sự gọi tới
+go vet ./...                      # lỗi thường gặp
+go install github.com/securego/gosec/v2/cmd/gosec@latest
+gosec ./...                       # quét mẫu code không an toàn: SQL ghép chuỗi, crypto yếu, thiếu timeout...
+</pre>
+<p>Công cụ chỉ bắt được lỗi có mẫu. BOLA, lộ trường, lỗi nghiệp vụ thì phải bắt bằng review code và test phân quyền.</p>
+
+<quiz q="Tính năng "nhập URL logo trường học, server tải về và lưu lại". Kiểm tra nào quan trọng nhất?">
+- URL phải kết thúc bằng .png hoặc .jpg
++ Chặn kết nối tới địa chỉ nội bộ / loopback / link-local (kiểm sau khi phân giải DNS), giới hạn kích thước và thời gian tải
+- URL phải bắt đầu bằng https
+? Đuôi file và https không ngăn được http://169.254.169.254/x.png hay https://ten-mien-tro-ve-127.0.0.1/logo.png. Kiểm IP thật ở tầng kết nối mới chặn được SSRF.
+</quiz>
+
+<h2>Checklist trước khi lên production</h2>
+<details class="ex"><summary>Tự rà API của bạn theo danh sách này</summary>
+<ul>
+<li>Mọi endpoint (trừ vài endpoint công khai có chủ đích) yêu cầu đăng nhập.</li>
+<li>Mọi truy vấn theo id có điều kiện quyền sở hữu, và có test người B truy cập dữ liệu người A.</li>
+<li>Struct request / database / response tách riêng. Không trả hash mật khẩu, token, email của người khác.</li>
+<li>Body, file, chuỗi, phân trang, tần suất đều có giới hạn.</li>
+<li>Truy vấn SQL chỉ dùng tham số, tên cột động chọn từ danh sách cho phép.</li>
+<li>Cookie <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite</code>. Kiểm <code>Origin</code> cho request thay đổi dữ liệu. CORS chỉ mở cho tên miền của mình.</li>
+<li><code>http.Server</code> và <code>http.Client</code> có timeout. Gọi URL do người dùng nhập thì có chặn SSRF.</li>
+<li>Lỗi 500 không lộ chi tiết. Log không chứa mật khẩu, token.</li>
+<li>Bí mật không nằm trong git. <code>govulncheck</code>, <code>gosec</code> chạy trong CI.</li>
+<li>Endpoint quản trị tách riêng, có xác thực hai lớp.</li>
+</ul>
+</details>

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 18: Xác thực và phân quyền · Go cho dân Frontend</title>
+<meta name="description" content="Băm mật khẩu, session và JWT, cookie an toàn, đăng nhập bằng Google (OAuth), phân quyền theo vai trò và chủ sở hữu.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc" aria-current="page"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="xac-thuc">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#dc2626">Chặng 4 · Bảo mật</span><span>Bài 18</span><span>60 phút đọc + làm bài</span></div>
+    <h1>Xác thực và phân quyền</h1>
+    <p class="lead">Băm mật khẩu, session và JWT, cookie an toàn, đăng nhập bằng Google (OAuth), phân quyền theo vai trò và chủ sở hữu.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Lưu mật khẩu đúng chuẩn</li><li>Chọn session hay JWT có lý do</li><li>Kiểm quyền ở mọi endpoint</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="hai-cau-hoi-khac-nhau"><a href="#hai-cau-hoi-khac-nhau" class="anchor" aria-hidden="true">#</a>Hai câu hỏi khác nhau</h2>
+<table>
+<tr><th></th><th>Xác thực (authentication)</th><th>Phân quyền (authorization)</th></tr>
+<tr><td>Câu hỏi</td><td><b>Bạn là ai?</b></td><td><b>Bạn được làm gì?</b></td></tr>
+<tr><td>Ví dụ</td><td>Đăng nhập bằng mật khẩu, Google, mã OTP</td><td>Giáo viên chỉ sửa được lớp của mình, phụ huynh chỉ xem được con mình</td></tr>
+<tr><td>Thất bại thì</td><td>401</td><td>403 hoặc 404</td></tr>
+<tr><td>Làm ở đâu</td><td>Một chỗ (middleware)</td><td><b>Ở mọi endpoint, mọi truy vấn</b></td></tr>
+</table>
+<p>Phần lớn sự cố rò rỉ dữ liệu qua API không phải do đăng nhập yếu, mà do <b>quên kiểm quyền</b> ở một endpoint nào đó. Bài này đi qua cả hai, phân quyền được nhấn mạnh hơn.</p>
+
+<h2 id="luu-mat-khau-bam-cham-co-muoi"><a href="#luu-mat-khau-bam-cham-co-muoi" class="anchor" aria-hidden="true">#</a>Lưu mật khẩu: băm chậm, có muối</h2>
+<p>Không bao giờ lưu mật khẩu, kể cả đã mã hoá (mã hoá thì giải mã được). Lưu <b>giá trị băm</b> bằng thuật toán chuyên cho mật khẩu: cố tình <b>chậm</b> và tốn bộ nhớ, để kẻ trộm database không thể thử hàng tỷ mật khẩu mỗi giây.</p>
+<table>
+<tr><th>Thuật toán</th><th>Dùng cho mật khẩu?</th></tr>
+<tr><td>MD5, SHA-1, SHA-256 (trần)</td><td><b>Không.</b> Quá nhanh: card đồ hoạ thử được hàng tỷ lần mỗi giây</td></tr>
+<tr><td><b>Argon2id</b></td><td>Có. OWASP khuyến nghị dùng đầu tiên</td></tr>
+<tr><td><b>bcrypt</b></td><td>Có. Rất phổ biến, đơn giản. Chỉ dùng 72 byte đầu của mật khẩu</td></tr>
+<tr><td>scrypt, PBKDF2</td><td>Chấp nhận được (PBKDF2 khi cần chuẩn FIPS)</td></tr>
+</table>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;golang.org/x/crypto/bcrypt&quot;</span>
+
+<span class="k">func</span> <span class="f">HashPassword</span>(pw <span class="t">string</span>) (<span class="t">string</span>, <span class="t">error</span>) {
+    <span class="k">if</span> <span class="b">len</span>(pw) &lt; <span class="n">8</span> || <span class="b">len</span>(pw) &gt; <span class="n">72</span> { <span class="c">// bcrypt chỉ nhận tối đa 72 byte</span>
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, &amp;ValidationError{Field: <span class="s">&quot;password&quot;</span>, Message: <span class="s">&quot;Mật khẩu từ 8 đến 72 ký tự&quot;</span>}
+    }
+    b, err := bcrypt.<span class="f">GenerateFromPassword</span>([]<span class="t">byte</span>(pw), <span class="n">12</span>) <span class="c">// cost 12: mỗi lần băm cỡ vài trăm ms</span>
+    <span class="k">return</span> <span class="t">string</span>(b), err
+}
+
+<span class="k">func</span> <span class="f">CheckPassword</span>(hash, pw <span class="t">string</span>) <span class="t">bool</span> {
+    <span class="k">return</span> bcrypt.<span class="f">CompareHashAndPassword</span>([]<span class="t">byte</span>(hash), []<span class="t">byte</span>(pw)) == <span class="b">nil</span>
+}</code></pre></div>
+<p>Chuỗi băm bcrypt đã chứa sẵn <b>muối</b> (salt) ngẫu nhiên và cost: <code>$2a$12$R9h/cIPz0gi.URNNX3kh2O...</code>. Hai người cùng mật khẩu <code>123456</code> vẫn có hai chuỗi băm khác nhau.</p>
+<aside class="warn"><p>Đăng nhập phải trả <b>cùng một thông báo</b> cho "sai email" và "sai mật khẩu" ("Email hoặc mật khẩu không đúng"), nếu không kẻ tấn công dò được email nào đã đăng ký. Và nhớ giới hạn tần suất đăng nhập (bài 17): băm chậm không cứu được mật khẩu <code>12345678</code> nếu kẻ tấn công được thử không giới hạn.</p></aside>
+<aside class="real"><p>Nhiều vụ rò rỉ lớn bị khuếch đại vì mật khẩu được băm bằng thuật toán nhanh. Vụ LinkedIn năm 2012 là ví dụ hay được nhắc: mật khẩu băm SHA-1 không muối, sau đó phần lớn bị bẻ khoá. Ngày nay, nhiều sản phẩm chọn không tự lưu mật khẩu nữa mà cho đăng nhập bằng Google / Apple, magic link qua email, hoặc passkey.</p></aside>
+
+<h2 id="phien-dang-nhap-session"><a href="#phien-dang-nhap-session" class="anchor" aria-hidden="true">#</a>Phiên đăng nhập (session)</h2>
+<p>Sau khi xác thực xong, server cần "nhớ" người dùng cho các request sau. Cách truyền thống và vẫn rất tốt cho web: <b>session token ngẫu nhiên</b> trong cookie.</p>
+<figure class="dg"><svg viewBox="0 0 502.4 554" style="min-width:502.4px;max-width:502.4px" role="img" aria-label="Session: token ngẫu nhiên trong cookie, server lưu bản băm của token"><line x1="81.2" y1="66" x2="81.2" y2="544" class="lf"/><g class="nd fe"><rect x="20" y="10" width="122.4" height="54" rx="10"/><text x="81.2" y="42" class="tt" text-anchor="middle">Trình duyệt</text></g><line x1="251.2" y1="66" x2="251.2" y2="544" class="lf"/><g class="nd go"><rect x="190" y="10" width="122.4" height="54" rx="10"/><text x="251.2" y="42" class="tt" text-anchor="middle">API</text></g><line x1="421.2" y1="66" x2="421.2" y2="544" class="lf"/><g class="nd db"><rect x="360" y="10" width="122.4" height="54" rx="10"/><text x="421.2" y="42" class="tt" text-anchor="middle">Database</text></g><line x1="81.2" y1="106" x2="247.2" y2="106" class="ln" marker-end="url(#ar)"/><text x="166.2" y="83" class="tl" text-anchor="middle">POST /login (email,</text><text x="166.2" y="99" class="tl" text-anchor="middle">mật khẩu)</text><line x1="251.2" y1="148" x2="417.2" y2="148" class="ln" marker-end="url(#ar)"/><text x="336.2" y="141" class="tl" text-anchor="middle">kiểm tra mật khẩu</text><rect x="86.31999999999996" y="178" width="329.76000000000005" height="28" rx="6" class="nt"/><text x="251.2" y="196" class="tn" text-anchor="middle">tạo token 32 byte ngẫu nhiên (crypto/rand)</text><line x1="251.2" y1="248" x2="417.2" y2="248" class="ln" marker-end="url(#ar)"/><text x="336.2" y="225" class="tl" text-anchor="middle">lưu sha256(token),</text><text x="336.2" y="241" class="tl" text-anchor="middle">user_id, hạn</text><line x1="251.2" y1="306" x2="85.2" y2="306" class="ln ds" marker-end="url(#ar)"/><text x="166.2" y="251" class="tl" text-anchor="middle">Set-Cookie:</text><text x="166.2" y="267" class="tl" text-anchor="middle">session=token;</text><text x="166.2" y="283" class="tl" text-anchor="middle">HttpOnly; Secure;</text><text x="166.2" y="299" class="tl" text-anchor="middle">SameSite=Lax</text><line x1="10" y1="354" x2="492.4" y2="354" class="dv"/><rect x="190.79999999999998" y="342" width="120.80000000000001" height="22" rx="11" class="dvb"/><text x="251.2" y="358" class="ts" text-anchor="middle">các request sau</text><line x1="81.2" y1="402" x2="247.2" y2="402" class="ln" marker-end="url(#ar)"/><text x="166.2" y="379" class="tl" text-anchor="middle">GET /me (trình duyệt</text><text x="166.2" y="395" class="tl" text-anchor="middle">tự gửi cookie)</text><line x1="251.2" y1="460" x2="417.2" y2="460" class="ln" marker-end="url(#ar)"/><text x="336.2" y="437" class="tl" text-anchor="middle">tìm sha256(token) còn</text><text x="336.2" y="453" class="tl" text-anchor="middle">hạn</text><line x1="251.2" y1="502" x2="85.2" y2="502" class="ln ds" marker-end="url(#ar)"/><text x="166.2" y="495" class="tl" text-anchor="middle">200 {user}</text></svg><figcaption>Session: token ngẫu nhiên trong cookie, server lưu bản băm của token</figcaption></figure>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">NewSessionToken</span>() (token <span class="t">string</span>, hash []<span class="t">byte</span>, err <span class="t">error</span>) {
+    b := <span class="b">make</span>([]<span class="t">byte</span>, <span class="n">32</span>)
+    <span class="k">if</span> _, err := rand.<span class="f">Read</span>(b); err != <span class="b">nil</span> { <span class="c">// crypto/rand, KHÔNG phải math/rand</span>
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, <span class="b">nil</span>, err
+    }
+    token = base64.RawURLEncoding.<span class="f">EncodeToString</span>(b)
+    h := sha256.<span class="f">Sum256</span>([]<span class="t">byte</span>(token))
+    <span class="k">return</span> token, h[:], <span class="b">nil</span> <span class="c">// gửi token cho client, chỉ lưu hash vào database</span>
+}
+
+<span class="k">func</span> <span class="f">SetSessionCookie</span>(w http.ResponseWriter, token <span class="t">string</span>, ttl time.Duration) {
+    http.<span class="f">SetCookie</span>(w, &amp;http.Cookie{
+        Name:     <span class="s">&quot;__Host-session&quot;</span>, <span class="c">// tiền tố __Host-: bắt buộc Secure, Path=/, không Domain</span>
+        Value:    token,
+        Path:     <span class="s">&quot;/&quot;</span>,
+        MaxAge:   <span class="t">int</span>(ttl.<span class="f">Seconds</span>()),
+        HttpOnly: <span class="b">true</span>,                 <span class="c">// JavaScript không đọc được → XSS không lấy được token</span>
+        Secure:   <span class="b">true</span>,                 <span class="c">// chỉ gửi qua HTTPS</span>
+        SameSite: http.SameSiteLaxMode, <span class="c">// hạn chế gửi kèm request từ trang khác (CSRF)</span>
+    })
+}</code></pre></div>
+<p>Vì sao lưu <b>băm</b> của token? Nếu database bị lộ (bản sao lưu, log), kẻ tấn công cũng không dùng được các phiên đang hoạt động.</p>
+<ul>
+<li><b>Đăng xuất</b>: xoá dòng phiên trong database. Hiệu lực ngay.</li>
+<li><b>Đổi mật khẩu</b>: xoá mọi phiên khác của người đó.</li>
+<li><b>Hạn phiên</b>: ví dụ 30 ngày, gia hạn khi người dùng còn hoạt động.</li>
+</ul>
+<aside class="fe"><p>Lưu token trong <code>localStorage</code> rất tiện ở frontend, nhưng bất kỳ đoạn script nào chạy được trên trang (một thư viện bị chiếm quyền, một lỗi XSS) đều đọc được nó. Cookie <code>HttpOnly</code> thì JavaScript không đọc được. Với ứng dụng web cùng tên miền với API, cookie là lựa chọn an toàn hơn.</p></aside>
+
+<h3>Middleware xác thực</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> ctxUserKey <span class="k">struct</span>{}
+
+<span class="k">func</span> (a *Auth) <span class="f">Middleware</span>(next http.Handler) http.Handler {
+    <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        c, err := r.<span class="f">Cookie</span>(<span class="s">&quot;__Host-session&quot;</span>)
+        <span class="k">if</span> err == <span class="b">nil</span> {
+            <span class="k">if</span> u, err := a.store.<span class="f">UserBySession</span>(r.<span class="f">Context</span>(), <span class="f">sha256Of</span>(c.Value)); err == <span class="b">nil</span> {
+                r = r.<span class="f">WithContext</span>(context.<span class="f">WithValue</span>(r.<span class="f">Context</span>(), ctxUserKey{}, u))
+            }
+        }
+        next.<span class="f">ServeHTTP</span>(w, r) <span class="c">// chưa đăng nhập vẫn đi tiếp: route nào cần thì tự chặn</span>
+    })
+}
+
+<span class="k">func</span> <span class="f">RequireUser</span>(next http.HandlerFunc) http.HandlerFunc {
+    <span class="k">return</span> <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        <span class="k">if</span> _, ok := r.<span class="f">Context</span>().<span class="f">Value</span>(ctxUserKey{}).(User); !ok {
+            <span class="f">WriteJSON</span>(w, http.StatusUnauthorized, <span class="f">errBody</span>(<span class="s">&quot;UNAUTHENTICATED&quot;</span>, <span class="s">&quot;Vui lòng đăng nhập&quot;</span>))
+            <span class="k">return</span>
+        }
+        <span class="f">next</span>(w, r)
+    }
+}</code></pre></div>
+
+<h2 id="jwt-khi-nao-nen-khi-nao-khong"><a href="#jwt-khi-nao-nen-khi-nao-khong" class="anchor" aria-hidden="true">#</a>JWT: khi nào nên, khi nào không</h2>
+<p>JWT (JSON Web Token) là một chuỗi gồm 3 phần <code>header.payload.signature</code>. Payload chứa thông tin (user id, vai trò, hạn), chữ ký chứng minh server đã tạo ra nó. Server kiểm chữ ký là tin payload, <b>không cần tra database</b>.</p>
+<table>
+<tr><th></th><th>Session trong database</th><th>JWT</th></tr>
+<tr><td>Đăng xuất / thu hồi ngay</td><td>Dễ: xoá dòng</td><td>Khó: token vẫn hợp lệ tới khi hết hạn, trừ khi có danh sách chặn (lại phải tra database)</td></tr>
+<tr><td>Mỗi request tra database</td><td>Có (cache được bằng Redis)</td><td>Không</td></tr>
+<tr><td>Đổi quyền có hiệu lực</td><td>Ngay</td><td>Khi token cũ hết hạn</td></tr>
+<tr><td>Hợp với</td><td>Web app thông thường</td><td>Giao tiếp giữa các dịch vụ, token ngắn hạn, hệ thống nhiều bên (OAuth, OIDC)</td></tr>
+</table>
+<aside class="warn"><p>Lỗi JWT hay gặp: chấp nhận thuật toán <code>none</code> hoặc để token tự chọn thuật toán; khoá ký yếu; hạn quá dài (vài tháng); nhét dữ liệu nhạy cảm vào payload (payload chỉ được <b>mã hoá base64</b>, ai cũng đọc được, không phải mã hoá bí mật). Nếu dùng JWT: thư viện uy tín (<code>golang-jwt/jwt/v5</code>), cố định thuật toán khi kiểm, hạn ngắn (5 đến 15 phút) kèm refresh token lưu ở server.</p></aside>
+
+<h2 id="dang-nhap-bang-google-oauth-2-0-openid-connect"><a href="#dang-nhap-bang-google-oauth-2-0-openid-connect" class="anchor" aria-hidden="true">#</a>Đăng nhập bằng Google (OAuth 2.0 / OpenID Connect)</h2>
+<p>Ứng dụng hiện đại thường để Google / Apple xác thực, bạn khỏi lưu mật khẩu. Luồng an toàn cho web là <b>Authorization Code + PKCE</b>, chạy ở phía server:</p>
+<figure class="dg"><svg viewBox="0 0 502.4 610" style="min-width:502.4px;max-width:502.4px" role="img" aria-label="Server đổi mã lấy token trực tiếp với Google. Trình duyệt không bao giờ thấy client secret"><line x1="81.2" y1="66" x2="81.2" y2="600" class="lf"/><g class="nd fe"><rect x="20" y="10" width="122.4" height="54" rx="10"/><text x="81.2" y="42" class="tt" text-anchor="middle">Trình duyệt</text></g><line x1="251.2" y1="66" x2="251.2" y2="600" class="lf"/><g class="nd go"><rect x="190" y="10" width="122.4" height="54" rx="10"/><text x="251.2" y="42" class="tt" text-anchor="middle">API của bạn</text></g><line x1="421.2" y1="66" x2="421.2" y2="600" class="lf"/><g class="nd ext"><rect x="360" y="10" width="122.4" height="54" rx="10"/><text x="421.2" y="42" class="tt" text-anchor="middle">Google</text></g><line x1="81.2" y1="90" x2="247.2" y2="90" class="ln" marker-end="url(#ar)"/><text x="166.2" y="83" class="tl" text-anchor="middle">GET /auth/google</text><rect x="79.03999999999996" y="120" width="344.32000000000005" height="28" rx="6" class="nt"/><text x="251.2" y="138" class="tn" text-anchor="middle">tạo state + code_verifier, lưu vào cookie ký</text><line x1="251.2" y1="190" x2="85.2" y2="190" class="ln ds" marker-end="url(#ar)"/><text x="166.2" y="135" class="tl" text-anchor="middle">302 tới</text><text x="166.2" y="151" class="tl" text-anchor="middle">accounts.google.com</text><text x="166.2" y="167" class="tl" text-anchor="middle">(state,</text><text x="166.2" y="183" class="tl" text-anchor="middle">code_challenge)</text><line x1="81.2" y1="232" x2="417.2" y2="232" class="ln" marker-end="url(#ar)"/><text x="251.2" y="225" class="tl" text-anchor="middle">người dùng chọn tài khoản, đồng ý</text><line x1="421.2" y1="274" x2="85.2" y2="274" class="ln ds" marker-end="url(#ar)"/><text x="251.2" y="267" class="tl" text-anchor="middle">302 về /auth/callback?code=...&amp;state=...</text><line x1="81.2" y1="316" x2="247.2" y2="316" class="ln" marker-end="url(#ar)"/><text x="166.2" y="309" class="tl" text-anchor="middle">GET /auth/callback</text><rect x="111.79999999999998" y="346" width="278.8" height="28" rx="6" class="nt"/><text x="251.2" y="364" class="tn" text-anchor="middle">so state với cookie (chống giả mạo)</text><line x1="251.2" y1="416" x2="417.2" y2="416" class="ln" marker-end="url(#ar)"/><text x="336.2" y="361" class="tl" text-anchor="middle">đổi code +</text><text x="336.2" y="377" class="tl" text-anchor="middle">code_verifier +</text><text x="336.2" y="393" class="tl" text-anchor="middle">client_secret lấy</text><text x="336.2" y="409" class="tl" text-anchor="middle">id_token</text><line x1="421.2" y1="458" x2="255.2" y2="458" class="ln ds" marker-end="url(#ar)"/><text x="336.2" y="451" class="tl" text-anchor="middle">id_token (email, sub)</text><rect x="17.159999999999968" y="488" width="468.08000000000004" height="28" rx="6" class="nt"/><text x="251.2" y="506" class="tn" text-anchor="middle">kiểm chữ ký, aud, hạn → tìm / tạo user theo sub → tạo session</text><line x1="251.2" y1="558" x2="85.2" y2="558" class="ln ds" marker-end="url(#ar)"/><text x="166.2" y="535" class="tl" text-anchor="middle">Set-Cookie session,</text><text x="166.2" y="551" class="tl" text-anchor="middle">chuyển về trang chủ</text></svg><figcaption>Server đổi mã lấy token trực tiếp với Google. Trình duyệt không bao giờ thấy client secret</figcaption></figure>
+<p>Package <code>golang.org/x/oauth2</code> lo phần lớn luồng này (có hỗ trợ PKCE). Định danh người dùng là trường <code>sub</code> của Google (không đổi), không phải email (người dùng có thể đổi email).</p>
+
+<h2 id="phan-quyen-kiem-o-moi-noi"><a href="#phan-quyen-kiem-o-moi-noi" class="anchor" aria-hidden="true">#</a>Phân quyền: kiểm ở mọi nơi</h2>
+<h3>Theo vai trò (RBAC)</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">RequireRole</span>(role <span class="t">string</span>, next http.HandlerFunc) http.HandlerFunc {
+    <span class="k">return</span> <span class="f">RequireUser</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        <span class="k">if</span> <span class="f">UserFrom</span>(r.<span class="f">Context</span>()).Role != role {
+            <span class="f">WriteJSON</span>(w, http.StatusForbidden, <span class="f">errBody</span>(<span class="s">&quot;FORBIDDEN&quot;</span>, <span class="s">&quot;Bạn không có quyền&quot;</span>))
+            <span class="k">return</span>
+        }
+        <span class="f">next</span>(w, r)
+    })
+}
+
+mux.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /v1/classes&quot;</span>, <span class="f">RequireRole</span>(<span class="s">&quot;teacher&quot;</span>, h.createClass))</code></pre></div>
+<h3>Theo quyền sở hữu: nơi lỗ hổng hay nằm</h3>
+<p>Vai trò "giáo viên" cho phép sửa lớp, nhưng chỉ <b>lớp của mình</b>. Kiểm tra này không làm ở middleware được vì phụ thuộc dữ liệu. Cách an toàn nhất: <b>đưa người dùng hiện tại vào mọi câu truy vấn</b>.</p>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Kiểm vai trò rồi tin id trong URL: giáo viên A sửa được lớp của giáo viên B</span>
+<span class="k">func</span> (h *Handler) <span class="f">updateClass</span>(w http.ResponseWriter, r *http.Request) {
+    id := <span class="f">pathID</span>(r)
+    h.db.<span class="f">Exec</span>(ctx, <span class="s">`UPDATE classes SET name = $1 WHERE id = $2`</span>, name, id)
+}</code></pre></div>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *Handler) <span class="f">updateClass</span>(w http.ResponseWriter, r *http.Request) {
+    me := <span class="f">UserFrom</span>(r.<span class="f">Context</span>())
+    tag, err := h.db.<span class="f">Exec</span>(ctx,
+        <span class="s">`UPDATE classes SET name = $1 WHERE id = $2 AND teacher_id = $3`</span>, name, <span class="f">pathID</span>(r), me.ID)
+    <span class="c">// ... tag.RowsAffected() == 0 → 404</span>
+}</code></pre></div>
+<aside class="prod"><p>Mỗi quy tắc phân quyền cần một test: tạo hai người dùng, người A tạo dữ liệu, người B thử đọc / sửa / xoá dữ liệu đó qua <b>mọi</b> endpoint, phải nhận 403/404. Nhiều đội gom các test này thành một bộ riêng và chạy ở mọi lần thay đổi.</p></aside>
+<aside class="tip"><p>Một mẫu giúp không quên: hàm tầng store đều nhận người gọi làm tham số, như <code>ClassOf(ctx, teacherID, classID)</code> thay vì <code>Class(ctx, classID)</code>. Không có hàm nào lấy dữ liệu theo id trần để người viết handler vô tình dùng.</p></aside>
+
+<h2 id="csrf-khi-dung-cookie"><a href="#csrf-khi-dung-cookie" class="anchor" aria-hidden="true">#</a>CSRF khi dùng cookie</h2>
+<p>Trình duyệt tự gửi cookie kèm request, kể cả request do một trang web khác tạo ra (form ẩn tự submit). Đó là tấn công CSRF.</p>
+<ul>
+<li><code>SameSite=Lax</code>: cookie không đi kèm POST / PUT / DELETE xuất phát từ trang khác. Đã chặn được phần lớn.</li>
+<li>Kiểm header <code>Origin</code> (hoặc <code>Sec-Fetch-Site</code>) của mọi request thay đổi dữ liệu: phải là tên miền của bạn.</li>
+<li>Từ Go 1.25, <code>net/http</code> có sẵn <code>http.CrossOriginProtection</code> làm việc này dựa trên <code>Sec-Fetch-Site</code> và <code>Origin</code>.</li>
+<li>API chỉ nhận <code>Content-Type: application/json</code> cũng khó bị tạo từ form HTML thường.</li>
+</ul>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Phụ huynh đăng nhập gọi <code>GET /v1/children/123/grades</code>. Middleware đã xác nhận người này có vai trò phụ huynh. Còn cần kiểm tra gì?</p><div class="qo"><button type="button" class="opt">Không cần, vai trò phụ huynh đã đủ</button><button type="button" class="opt">Kiểm tra bé 123 có tồn tại</button><button type="button" class="opt" data-ok>Kiểm tra bé 123 là con của chính phụ huynh này, tốt nhất là ngay trong câu truy vấn</button></div><p class="why" hidden>Vai trò không thay thế được quyền sở hữu. Đổi 123 thành 124 là xem được điểm con nhà khác nếu thiếu kiểm tra này: lỗi BOLA, bài 19.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Đăng ký, đăng nhập, đăng xuất</summary>
+<p>Thêm vào API ghi chú: bảng <code>users</code>, <code>sessions(token_hash, user_id, expires_at)</code>. Endpoint <code>POST /register</code>, <code>POST /login</code> (5 lần sai / 15 phút / email thì 429), <code>POST /logout</code>, <code>GET /me</code>. Ghi chú thuộc về người tạo, mọi endpoint ghi chú chỉ thấy ghi chú của mình.</p>
+<details class="sol"><summary>Danh sách kiểm tra</summary>
+<ul>
+<li>Email chuẩn hoá chữ thường, UNIQUE trong database, trùng trả 409.</li>
+<li>Mật khẩu băm bcrypt / argon2id, không bao giờ trả ra JSON hay ghi log.</li>
+<li>Sai email và sai mật khẩu cùng một thông báo, cùng status 401.</li>
+<li>Token 32 byte từ <code>crypto/rand</code>, database lưu SHA-256 của token.</li>
+<li>Cookie <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>.</li>
+<li>Đăng xuất xoá dòng session, gọi <code>/me</code> bằng cookie cũ phải nhận 401.</li>
+<li>Test: người B gọi <code>GET/PATCH/DELETE /notes/{id của A}</code> nhận 404.</li>
+</ul>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="xac-thuc">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="cache.html"><small>Bài trước</small>Cache và Redis</a><a class="next" href="bao-mat-api.html"><small>Bài tiếp theo</small>Bảo mật API: các lỗ hổng hay gặp nhất</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#hai-cau-hoi-khac-nhau">Hai câu hỏi khác nhau</a><a href="#luu-mat-khau-bam-cham-co-muoi">Lưu mật khẩu: băm chậm, có muối</a><a href="#phien-dang-nhap-session">Phiên đăng nhập (session)</a><a href="#jwt-khi-nao-nen-khi-nao-khong">JWT: khi nào nên, khi nào không</a><a href="#dang-nhap-bang-google-oauth-2-0-openid-connect">Đăng nhập bằng Google (OAuth 2.0 / OpenID Connect)</a><a href="#phan-quyen-kiem-o-moi-noi">Phân quyền: kiểm ở mọi nơi</a><a href="#csrf-khi-dung-cookie">CSRF khi dùng cookie</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

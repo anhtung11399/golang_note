@@ -1,0 +1,147 @@
+<h2>Frontend và backend: cùng một sản phẩm, hai phía</h2>
+<p>Bạn đã làm frontend 4 năm, nên thật ra bạn đã "dùng" backend hằng ngày: mỗi lần gọi <code>fetch('/api/orders')</code> là bạn đang nói chuyện với một chương trình chạy trên máy chủ. Lộ trình này dạy bạn viết chính chương trình đó.</p>
+<p>Khác biệt lớn nhất không nằm ở ngôn ngữ mà ở <b>trách nhiệm</b>:</p>
+<table>
+<tr><th>Chủ đề</th><th>Frontend (bạn đã quen)</th><th>Backend (bạn sẽ học)</th></tr>
+<tr><td>Chạy ở đâu</td><td>Trên máy của từng người dùng</td><td>Trên máy chủ của bạn, phục vụ <b>mọi</b> người dùng cùng lúc</td></tr>
+<tr><td>State</td><td>State của một người (store, signal, useState)</td><td>State chung của tất cả mọi người (database), sống nhiều năm</td></tr>
+<tr><td>Niềm tin</td><td>Tin dữ liệu từ API</td><td><b>Không tin bất cứ thứ gì</b> từ client: ai cũng có thể sửa request</td></tr>
+<tr><td>Lỗi</td><td>Một người thấy màn hình lỗi</td><td>Một lỗi có thể làm sai dữ liệu của hàng nghìn người, hoặc sập cho tất cả</td></tr>
+<tr><td>Đồng thời</td><td>Một luồng, event loop</td><td>Hàng nghìn request chạy song song, tranh nhau cùng một dòng dữ liệu</td></tr>
+<tr><td>Hiệu năng</td><td>Bundle size, render, LCP</td><td>Độ trễ mỗi request, số request mỗi giây, số câu truy vấn, chi phí máy chủ</td></tr>
+<tr><td>Triển khai</td><td>Đẩy file tĩnh lên CDN</td><td>Chạy tiến trình liên tục, thay bản mới mà không làm rơi request, đổi cấu trúc database</td></tr>
+</table>
+
+<aside class="fe"><p>Hãy nghĩ backend như một <b>component dùng chung cho cả thế giới</b>: props là request, state là database, và "re-render" là response. Chỉ khác là component này không bao giờ được tắt, và mọi người đều có thể gửi props bậy vào.</p></aside>
+
+<h2>Một request đi qua những đâu</h2>
+<p>Khi người dùng bấm "Đặt hàng" trên một trang thương mại điện tử, request thường đi qua chừng này lớp:</p>
+<fig type="flow" dir="down" caption="Đường đi điển hình của một request trong hệ thống thật">
+[fe] Trình duyệt / app / fetch('/api/orders')
+-> DNS: shop.vn là IP nào?
+[ext] CDN / WAF (ví dụ Cloudflare) / chặn tấn công, cache file tĩnh, TLS
+-> HTTPS
+[ext] Load balancer / chia đều cho nhiều máy
+-> HTTP nội bộ
+[go] Go API server (nhiều bản chạy song song) / kiểm tra đăng nhập, quyền, dữ liệu, nghiệp vụ
+-> SQL / lệnh Redis / đẩy việc vào hàng đợi
+[db] PostgreSQL · Redis · Hàng đợi / lưu đơn, cache, việc chạy nền
+</fig>
+<p>Và đây là những gì diễn ra theo thời gian, trong khoảng vài chục mili giây:</p>
+<fig type="seq" caption="Đặt hàng: frontend chỉ thấy một lần fetch, backend làm cả chuỗi việc">
+actors: [fe] Trình duyệt, [go] Go API, [cache] Redis, [db] Postgres, [q] Hàng đợi
+Trình duyệt -> Go API: POST /api/orders (cookie phiên)
+Go API -> Redis: phiên này của ai?
+Redis --> Go API: user 42
+note Go API: kiểm tra dữ liệu, giá lấy từ DB, không lấy từ client
+Go API -> Postgres: BEGIN, trừ kho, tạo đơn, COMMIT
+Postgres --> Go API: đơn #9001
+Go API -> Hàng đợi: "gửi email xác nhận đơn 9001"
+Go API --> Trình duyệt: 201 Created {id: 9001}
+note Hàng đợi: worker gửi email sau, request không phải chờ
+</fig>
+<p>Mỗi ô trong sơ đồ này là một bài trong lộ trình: HTTP (bài 11), xác thực (18), SQL và giao dịch (14 đến 16), cache (17), hàng đợi (20).</p>
+
+<h2>Backend chịu trách nhiệm những gì</h2>
+<ol>
+<li><b>Nguồn sự thật (source of truth).</b> Frontend hiển thị, backend quyết định. Số dư, giá tiền, quyền truy cập, trạng thái đơn hàng chỉ đúng khi backend nói nó đúng.</li>
+<li><b>Bảo mật.</b> Mọi kiểm tra ở frontend (ẩn nút, disable form) chỉ là trải nghiệm người dùng. Người dùng mở DevTools hoặc dùng <code>curl</code> là vượt qua được. Kiểm tra thật nằm ở backend.</li>
+<li><b>Toàn vẹn dữ liệu.</b> Hai người cùng mua món hàng cuối cùng: chỉ một người được mua. Tiền đã trừ thì đơn phải được tạo. Đây là việc của transaction và ràng buộc trong database.</li>
+<li><b>Hiệu năng và chi phí.</b> Một truy vấn chậm 200ms chạy 1 triệu lần mỗi ngày là hơn 55 giờ máy chủ.</li>
+<li><b>Độ tin cậy.</b> Máy chủ sẽ chết, mạng sẽ chập chờn, dịch vụ bên thứ ba sẽ trả lỗi. Backend tốt vẫn chạy đúng khi những thứ đó xảy ra.</li>
+<li><b>Quan sát được.</b> Khi có lỗi lúc 2 giờ sáng, log và số liệu phải cho bạn biết chuyện gì đã xảy ra.</li>
+</ol>
+
+<h3>Quy tắc số một: không tin client</h3>
+<p>Một lỗi kinh điển của người mới làm backend: lấy giá tiền từ request.</p>
+<pre lang="json" file="Request gửi lên (người dùng sửa được bằng DevTools)">
+{ "productId": 7, "quantity": 1, "price": 1000 }
+</pre>
+<pre lang="go" mark="bad">
+// Tin luôn giá từ client: người dùng sửa price = 1000 là mua iPhone giá 1.000đ
+total := req.Price * req.Quantity
+</pre>
+<pre lang="go" mark="good">
+// Giá luôn lấy từ database. Client chỉ được nói "tôi muốn mua món nào, bao nhiêu cái".
+product, err := repo.GetProduct(ctx, req.ProductID)
+if err != nil {
+    return err
+}
+total := product.Price * int64(req.Quantity)
+</pre>
+<aside class="real"><p>Lỗi kiểu này xảy ra thật: nhiều chương trình săn lỗi (bug bounty) của các sàn thương mại điện tử đã trả thưởng cho các báo cáo "sửa giá / sửa số lượng âm trong request". Bài 19 sẽ đi qua cả danh sách lỗi hay gặp nhất.</p></aside>
+
+<h2>Vì sao chọn Go</h2>
+<p>Go được Google tạo ra (công bố năm 2009, bản 1.0 năm 2012) để viết các dịch vụ mạng lớn. Nó cố tình đơn giản: ít từ khoá, một cách định dạng code duy nhất, không có class và kế thừa.</p>
+<table>
+<tr><th>Điểm mạnh</th><th>Ý nghĩa với bạn</th></tr>
+<tr><td>Biên dịch ra <b>một file chạy duy nhất</b></td><td>Không cần <code>node_modules</code> trên máy chủ. Copy một file lên là chạy. Docker image có thể chỉ vài chục MB.</td></tr>
+<tr><td><b>Goroutine</b> rẻ</td><td>Mỗi request chạy trên một goroutine riêng. Hàng chục nghìn kết nối đồng thời là chuyện bình thường.</td></tr>
+<tr><td>Kiểu tĩnh, biên dịch nhanh</td><td>Giống TypeScript nhưng kiểu được kiểm tra thật lúc biên dịch, không bị <code>any</code> lọt qua.</td></tr>
+<tr><td>Thư viện chuẩn mạnh</td><td>HTTP server, JSON, mã hoá, test, đo hiệu năng đều có sẵn, không cần cài framework.</td></tr>
+<tr><td>Dễ đọc code người khác</td><td><code>gofmt</code> định dạng mọi code giống nhau. Vào công ty mới, đọc code cũ rất nhanh.</td></tr>
+</table>
+<p><b>Những phần mềm nổi tiếng viết bằng Go:</b> Docker, Kubernetes, Terraform, Prometheus, Grafana (phần backend), etcd, CockroachDB, Caddy, Hugo. <b>Những công ty dùng Go nhiều cho backend:</b> Google, Uber, Cloudflare, Twitch, Dropbox, và ở Đông Nam Á có Grab.</p>
+
+<h3>Go so với Node.js</h3>
+<table>
+<tr><th></th><th>Node.js (TypeScript)</th><th>Go</th></tr>
+<tr><td>Mô hình đồng thời</td><td>Một luồng + event loop, <code>async/await</code></td><td>Nhiều goroutine chạy song song trên mọi nhân CPU, code viết tuần tự như bình thường</td></tr>
+<tr><td>Việc nặng CPU</td><td>Chặn event loop, cần worker threads</td><td>Không chặn request khác</td></tr>
+<tr><td>Kiểu dữ liệu</td><td>Kiểm tra lúc build, mất khi chạy</td><td>Kiểm tra lúc biên dịch và giữ khi chạy</td></tr>
+<tr><td>Triển khai</td><td>Cần Node runtime + node_modules</td><td>Một file nhị phân</td></tr>
+<tr><td>Hệ sinh thái</td><td>Cực lớn (npm)</td><td>Nhỏ hơn, nhưng thư viện chuẩn làm được rất nhiều</td></tr>
+<tr><td>Dùng chung code với FE</td><td>Được</td><td>Không</td></tr>
+</table>
+<aside class="warn"><p>Go không phải lựa chọn tốt nhất cho mọi thứ. Học máy và phân tích dữ liệu thì Python mạnh hơn nhiều. Hệ thống cần độ trễ cực thấp và ổn định tuyệt đối (không chấp nhận bộ thu gom rác) thì người ta chọn Rust hoặc C++. Bài 23 có câu chuyện Discord chuyển một dịch vụ từ Go sang Rust vì lý do này.</p></aside>
+
+<h2>Những thay đổi trong cách nghĩ</h2>
+<p>Đây là những thứ dân frontend chuyển sang backend hay vấp nhất. Bạn không cần nhớ ngay, nhưng sẽ gặp lại chúng xuyên suốt lộ trình:</p>
+<ul>
+<li><b>"Chạy trên máy tôi được" không còn đủ.</b> Hai request đến cùng lúc, mạng mất giữa chừng, người dùng bấm nút hai lần: code phải đúng trong mọi trường hợp đó.</li>
+<li><b>Dữ liệu sống lâu hơn code.</b> Bạn có thể viết lại frontend trong một tuần. Dữ liệu 5 năm trong database thì phải chuyển đổi cẩn thận từng cột (migration).</li>
+<li><b>Mọi thứ đều có giới hạn.</b> Upload tối đa bao nhiêu MB? Một trang trả bao nhiêu dòng? Một người được gọi API bao nhiêu lần mỗi phút? Không đặt giới hạn là chờ bị sập.</li>
+<li><b>Lỗi là chuyện bình thường.</b> Go buộc bạn xử lý lỗi ở mọi bước (bài 7). Lúc đầu thấy dài dòng, sau sẽ thấy đó là lý do hệ thống Go ít bất ngờ.</li>
+<li><b>Đo, đừng đoán.</b> Chậm ở đâu thì xem log, metrics, kế hoạch truy vấn. Đừng tối ưu theo cảm giác.</li>
+</ul>
+
+<h2>Lộ trình này dạy gì</h2>
+<fig type="stack" caption="Bảy chặng, mỗi chặng xây trên chặng trước">
+Chặng 0 · Khởi động :: bạn đang ở đây
+[go] Chặng 1 · Ngôn ngữ Go :: cú pháp, struct, interface, lỗi, goroutine, test
+[fe] Chặng 2 · Xây API :: HTTP, REST, middleware, cấu trúc dự án
+[db] Chặng 3 · Dữ liệu :: SQL, Postgres, index, transaction, Redis
+[warn] Chặng 4 · Bảo mật :: đăng nhập, phân quyền, OWASP API Top 10
+[cache] Chặng 5 · Vận hành :: hàng đợi, webhook, giám sát, Docker, hệ thống lớn
+[ok] Chặng 6 · Dự án cuối :: API "Sổ bài tập" hoàn chỉnh
+</fig>
+<p>Mỗi bài có cấu trúc giống nhau: giải thích kèm so sánh với frontend, sơ đồ, code mẫu, hộp <b>Ngoài thực tế</b> kể chuyện ở các hệ thống thật, hộp <b>Chuẩn production</b> nói người ta làm thế nào ở công ty, câu hỏi nhanh và bài tập có lời giải.</p>
+
+<quiz q="Người dùng gửi request đổi mật khẩu cho tài khoản <code>userId: 99</code>, trong khi họ đang đăng nhập bằng tài khoản 42. Frontend đã ẩn ô nhập userId. Backend nên làm gì?">
+- Không cần làm gì, vì frontend đã ẩn ô nhập
+- Kiểm tra userId có tồn tại trong database không
++ Bỏ qua userId trong request, lấy người dùng từ phiên đăng nhập (42), hoặc từ chối nếu hai giá trị khác nhau
+? Mọi thứ trong request đều có thể bị sửa. Danh tính người dùng chỉ được lấy từ phiên đăng nhập mà backend tự xác minh. Đây là lỗi BOLA, đứng số 1 trong OWASP API Top 10 (bài 19).
+</quiz>
+
+<quiz q="Vì sao Go phù hợp với dịch vụ có hàng chục nghìn kết nối đồng thời?">
+- Vì Go chạy một luồng duy nhất giống Node.js
++ Vì mỗi kết nối có thể chạy trên một goroutine rất nhẹ, và các goroutine chạy song song trên mọi nhân CPU
+- Vì Go không có bộ thu gom rác
+? Goroutine khởi đầu với stack chỉ vài KB và được bộ lập lịch của Go phân phối lên các luồng hệ điều hành. Go vẫn có bộ thu gom rác (GC), chỉ là nó được tối ưu cho độ trễ thấp.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Vẽ đường đi của một tính năng bạn từng làm</summary>
+<p>Chọn một màn hình bạn từng làm ở frontend (ví dụ trang danh sách đơn hàng có phân trang và bộ lọc). Viết ra giấy:</p>
+<ol><li>Những request nào được gửi đi, method gì, URL gì.</li><li>Với mỗi request, backend phải kiểm tra những gì trước khi trả dữ liệu.</li><li>Dữ liệu đó có thể nằm ở những bảng nào trong database.</li></ol>
+<details class="sol"><summary>Gợi ý đáp án</summary>
+<p>Ví dụ <code>GET /api/orders?status=paid&amp;page=2</code>. Backend phải: xác định người gọi là ai (phiên đăng nhập), chỉ lấy đơn của chính người đó (không để xem đơn người khác), kiểm tra <code>status</code> có thuộc danh sách hợp lệ, giới hạn <code>page</code> và số dòng mỗi trang, rồi truy vấn bảng <code>orders</code> (có thể JOIN <code>order_items</code>, <code>products</code>). Bạn sẽ tự viết đúng endpoint này ở bài 12 và 15.</p>
+</details>
+</details>
+<details class="ex"><summary>Thử "tấn công" một trang của chính bạn</summary>
+<p>Mở một dự án frontend bạn đang làm. Trong DevTools, tab Network, chuột phải một request → <i>Copy as cURL</i>. Dán vào terminal, sửa một tham số (id của bản ghi, số lượng, vai trò) rồi gửi lại. Backend có chặn không?</p>
+<details class="sol"><summary>Bạn vừa học được gì</summary>
+<p>Đây là cách người kiểm thử bảo mật làm hằng ngày. Từ giờ, mỗi endpoint bạn viết hãy tự hỏi: "nếu ai đó gửi request này bằng curl với tham số bậy thì sao?"</p>
+</details>
+</details>

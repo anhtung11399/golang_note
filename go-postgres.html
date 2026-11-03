@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 15: Go làm việc với PostgreSQL · Go cho dân Frontend</title>
+<meta name="description" content="pgx và connection pool, truy vấn có tham số, migration, sqlc sinh code, giao dịch (transaction).">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres" aria-current="page"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="go-postgres">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#059669">Chặng 3 · Dữ liệu</span><span>Bài 15</span><span>60 phút đọc + làm bài</span></div>
+    <h1>Go làm việc với PostgreSQL</h1>
+    <p class="lead">pgx và connection pool, truy vấn có tham số, migration, sqlc sinh code, giao dịch (transaction).</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Kết nối Postgres qua pool</li><li>Viết repository an toàn với SQL injection</li><li>Dùng transaction cho thao tác nhiều bước</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="driver-va-connection-pool"><a href="#driver-va-connection-pool" class="anchor" aria-hidden="true">#</a>Driver và connection pool</h2>
+<p>Go có giao diện chung <code>database/sql</code> trong thư viện chuẩn, nhưng với PostgreSQL, thư viện được dùng nhiều nhất là <b>pgx</b> (<code>github.com/jackc/pgx/v5</code>): nhanh hơn, hỗ trợ đầy đủ kiểu dữ liệu của Postgres, có sẵn pool kết nối.</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> get github.com/jackc/pgx/v5</code></pre></div>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;github.com/jackc/pgx/v5/pgxpool&quot;</span>
+
+pool, err := pgxpool.<span class="f">New</span>(ctx, <span class="s">&quot;postgres://app:secret@localhost:5432/sobaitap?sslmode=disable&quot;</span>)
+<span class="k">if</span> err != <span class="b">nil</span> {
+    <span class="k">return</span> err
+}
+<span class="k">defer</span> pool.<span class="f">Close</span>()
+
+<span class="k">if</span> err := pool.<span class="f">Ping</span>(ctx); err != <span class="b">nil</span> { <span class="c">// kiểm tra kết nối được ngay lúc khởi động</span>
+    <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;không kết nối được database: %w&quot;</span>, err)
+}</code></pre></div>
+<p><b>Pool</b> là gì? Mở một kết nối tới Postgres tốn thời gian (bắt tay TCP, TLS, xác thực) và mỗi kết nối chiếm bộ nhớ phía database. Pool giữ sẵn một nhóm kết nối, mỗi truy vấn mượn một cái rồi trả lại.</p>
+<figure class="dg"><svg viewBox="0 0 723.3600000000001 86" style="min-width:600px;max-width:723.3600000000001px" role="img" aria-label="Hàng trăm goroutine dùng chung một số ít kết nối. Hết kết nối rảnh thì goroutine xếp hàng chờ"><g class="nd go"><rect x="10" y="10" width="140.24" height="66" rx="10"/><text x="80.12" y="40" class="tt" text-anchor="middle">500 goroutine</text><text x="80.12" y="58" class="ts" text-anchor="middle">request đang chạy</text></g><line x1="152.24" y1="43" x2="243.04000000000002" y2="43" class="ln" marker-end="url(#ar)"/><text x="198.64000000000001" y="34" class="tl" text-anchor="middle">mượn / trả</text><g class="nd cache"><rect x="247.04000000000002" y="10" width="133.52" height="66" rx="10"/><text x="313.8" y="40" class="tt" text-anchor="middle">pgxpool</text><text x="313.8" y="58" class="ts" text-anchor="middle">tối đa N kết nối</text></g><line x1="382.56000000000006" y1="43" x2="495.20000000000005" y2="43" class="ln" marker-end="url(#ar)"/><text x="439.88000000000005" y="34" class="tl" text-anchor="middle">N kết nối TCP</text><g class="nd db"><rect x="499.20000000000005" y="10" width="214.16000000000003" height="66" rx="10"/><text x="606.2800000000001" y="40" class="tt" text-anchor="middle">PostgreSQL</text><text x="606.2800000000001" y="58" class="ts" text-anchor="middle">max_connections mặc định 100</text></g></svg><figcaption>Hàng trăm goroutine dùng chung một số ít kết nối. Hết kết nối rảnh thì goroutine xếp hàng chờ</figcaption></figure>
+<aside class="prod"><p>Kích thước pool không phải càng to càng tốt. Postgres xử lý mỗi kết nối bằng một tiến trình riêng, nên vài trăm kết nối đồng thời làm nó chậm đi. Nếu chạy 10 bản server, mỗi bản pool 20 kết nối, tổng là 200, vượt <code>max_connections</code> mặc định (100). Đặt qua URL: <code>?pool_max_conns=10</code>. Hệ thống lớn đặt <b>PgBouncer</b> ở giữa để gom kết nối.</p></aside>
+
+<h2 id="truy-van-co-tham-so-khong-bao-gio-ghep-chuoi"><a href="#truy-van-co-tham-so-khong-bao-gio-ghep-chuoi" class="anchor" aria-hidden="true">#</a>Truy vấn có tham số: không bao giờ ghép chuỗi</h2>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// SQL injection: email = &quot;x' OR '1'='1&quot; là lấy được mọi người dùng</span>
+q := <span class="s">&quot;SELECT id, name FROM users WHERE email = '&quot;</span> + email + <span class="s">&quot;'&quot;</span>
+rows, err := pool.<span class="f">Query</span>(ctx, q)</code></pre></div>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// $1, $2... là chỗ giữ chỗ. Giá trị được gửi RIÊNG, database không bao giờ coi nó là code SQL</span>
+row := pool.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT id, name FROM users WHERE email = $1`</span>, email)</code></pre></div>
+<aside class="warn"><p>Tham số chỉ thay được <b>giá trị</b>, không thay được tên bảng, tên cột hay <code>ASC/DESC</code>. Những phần đó nếu phải động thì chọn từ danh sách cố định trong code (whitelist, bài 12), không bao giờ lấy thẳng từ request.</p></aside>
+
+<h3>Đọc một dòng</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> User <span class="k">struct</span> {
+    ID        <span class="t">int64</span>
+    Email     <span class="t">string</span>
+    Name      <span class="t">string</span>
+    CreatedAt time.Time
+}
+
+<span class="k">func</span> (s *Store) <span class="f">UserByEmail</span>(ctx context.Context, email <span class="t">string</span>) (User, <span class="t">error</span>) {
+    <span class="k">var</span> u User
+    err := s.db.<span class="f">QueryRow</span>(ctx,
+        <span class="s">`SELECT id, email, name, created_at FROM users WHERE email = $1`</span>, email,
+    ).<span class="f">Scan</span>(&amp;u.ID, &amp;u.Email, &amp;u.Name, &amp;u.CreatedAt) <span class="c">// thứ tự Scan khớp thứ tự cột</span>
+    <span class="k">if</span> errors.<span class="f">Is</span>(err, pgx.ErrNoRows) {
+        <span class="k">return</span> User{}, domain.ErrNotFound
+    }
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> User{}, fmt.<span class="f">Errorf</span>(<span class="s">&quot;tìm user theo email: %w&quot;</span>, err)
+    }
+    <span class="k">return</span> u, <span class="b">nil</span>
+}</code></pre></div>
+
+<h3>Đọc nhiều dòng</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Store) <span class="f">ClassesOf</span>(ctx context.Context, teacherID <span class="t">int64</span>) ([]Class, <span class="t">error</span>) {
+    rows, err := s.db.<span class="f">Query</span>(ctx,
+        <span class="s">`SELECT id, name, capacity FROM classes WHERE teacher_id = $1 ORDER BY created_at DESC`</span>, teacherID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="b">nil</span>, err
+    }
+    <span class="k">defer</span> rows.<span class="f">Close</span>() <span class="c">// trả kết nối về pool</span>
+
+    out := []Class{} <span class="c">// không nil → JSON là [] chứ không phải null</span>
+    <span class="k">for</span> rows.<span class="f">Next</span>() {
+        <span class="k">var</span> c Class
+        <span class="k">if</span> err := rows.<span class="f">Scan</span>(&amp;c.ID, &amp;c.Name, &amp;c.Capacity); err != <span class="b">nil</span> {
+            <span class="k">return</span> <span class="b">nil</span>, err
+        }
+        out = <span class="b">append</span>(out, c)
+    }
+    <span class="k">return</span> out, rows.<span class="f">Err</span>() <span class="c">// lỗi xảy ra giữa chừng lúc đọc (mất kết nối...)</span>
+}</code></pre></div>
+<p>pgx có hàm tiện ích giúp bớt code lặp:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>rows, _ := s.db.<span class="f">Query</span>(ctx, <span class="s">`SELECT id, name, capacity FROM classes WHERE teacher_id = $1`</span>, teacherID)
+classes, err := pgx.<span class="f">CollectRows</span>(rows, pgx.RowToStructByName[Class]) <span class="c">// khớp tên cột với tên trường</span></code></pre></div>
+<aside class="warn"><p>Quên <code>rows.Close()</code> là rò kết nối: sau vài trăm request, pool cạn và mọi request treo ở bước chờ kết nối. Quên <code>rows.Err()</code> là có thể trả về danh sách thiếu mà không biết.</p></aside>
+
+<h3>Ghi dữ liệu</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Store) <span class="f">CreateClass</span>(ctx context.Context, c Class) (Class, <span class="t">error</span>) {
+    err := s.db.<span class="f">QueryRow</span>(ctx,
+        <span class="s">`INSERT INTO classes (teacher_id, name, capacity) VALUES ($1, $2, $3)
+         RETURNING id, created_at`</span>,
+        c.TeacherID, c.Name, c.Capacity,
+    ).<span class="f">Scan</span>(&amp;c.ID, &amp;c.CreatedAt)
+    <span class="k">return</span> c, err
+}
+
+<span class="k">func</span> (s *Store) <span class="f">RenameClass</span>(ctx context.Context, teacherID, classID <span class="t">int64</span>, name <span class="t">string</span>) <span class="t">error</span> {
+    tag, err := s.db.<span class="f">Exec</span>(ctx,
+        <span class="s">`UPDATE classes SET name = $1 WHERE id = $2 AND teacher_id = $3`</span>, name, classID, teacherID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    <span class="k">if</span> tag.<span class="f">RowsAffected</span>() == <span class="n">0</span> { <span class="c">// không có lớp đó, hoặc không phải lớp của giáo viên này</span>
+        <span class="k">return</span> domain.ErrNotFound
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}</code></pre></div>
+
+<h3>Đổi lỗi ràng buộc thành lỗi nghiệp vụ</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;github.com/jackc/pgx/v5/pgconn&quot;</span>
+
+_, err := s.db.<span class="f">Exec</span>(ctx, <span class="s">`INSERT INTO users (email, name, role) VALUES ($1, $2, $3)`</span>, email, name, role)
+<span class="k">var</span> pgErr *pgconn.PgError
+<span class="k">if</span> errors.<span class="f">As</span>(err, &amp;pgErr) &amp;&amp; pgErr.Code == <span class="s">&quot;23505&quot;</span> { <span class="c">// unique_violation</span>
+    <span class="k">return</span> domain.ErrEmailTaken <span class="c">// → 409 &quot;Email đã được dùng&quot;</span>
+}</code></pre></div>
+<p>Đây là cách đúng để chống trùng email: <b>không</b> SELECT kiểm tra trước rồi mới INSERT (hai request cùng lúc đều thấy "chưa có"), mà cứ INSERT và để ràng buộc UNIQUE từ chối. Mã lỗi Postgres hay gặp: <code>23505</code> trùng UNIQUE, <code>23503</code> sai khoá ngoại, <code>23514</code> sai CHECK, <code>40001</code> xung đột tuần tự hoá (bài 16).</p>
+
+<h2 id="transaction-tat-ca-hoac-khong-gi-ca"><a href="#transaction-tat-ca-hoac-khong-gi-ca" class="anchor" aria-hidden="true">#</a>Transaction: tất cả hoặc không gì cả</h2>
+<p>Nộp bài gồm hai việc: lưu bài nộp và tạo thông báo cho giáo viên. Nếu lưu xong bài mà lỗi lúc tạo thông báo thì sao? Transaction đảm bảo các câu lệnh bên trong <b>cùng thành công</b> hoặc <b>cùng bị huỷ</b>.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Store) <span class="f">Submit</span>(ctx context.Context, sub Submission, teacherID <span class="t">int64</span>) <span class="t">error</span> {
+    tx, err := s.db.<span class="f">Begin</span>(ctx)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    <span class="k">defer</span> tx.<span class="f">Rollback</span>(ctx) <span class="c">// nếu đã Commit thì Rollback không làm gì, an toàn</span>
+
+    <span class="k">if</span> _, err := tx.<span class="f">Exec</span>(ctx,
+        <span class="s">`INSERT INTO submissions (assignment_id, student_id) VALUES ($1, $2)
+         ON CONFLICT (assignment_id, student_id) DO UPDATE SET submitted_at = now()
+         WHERE submissions.score IS NULL`</span>, <span class="c">// đã chấm thì không cho nộp lại</span>
+        sub.AssignmentID, sub.StudentID); err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    <span class="k">if</span> _, err := tx.<span class="f">Exec</span>(ctx,
+        <span class="s">`INSERT INTO notifications (user_id, kind, ref_id) VALUES ($1, 'submitted', $2)`</span>,
+        teacherID, sub.AssignmentID); err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    <span class="k">return</span> tx.<span class="f">Commit</span>(ctx)
+}</code></pre></div>
+<p>pgx có sẵn hàm bọc gọn hơn: <code>pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error { ... })</code> tự commit khi hàm trả nil và tự rollback khi lỗi.</p>
+<aside class="warn"><p>Không gọi API bên ngoài (gửi email, gọi cổng thanh toán) <b>bên trong</b> transaction. Transaction giữ khoá trên các dòng đã sửa. Nếu dịch vụ bên ngoài mất 10 giây, các request khác chạm vào những dòng đó cũng phải chờ 10 giây. Ghi vào database trong transaction, việc gọi ra ngoài làm sau (hoặc qua hàng đợi, bài 20).</p></aside>
+
+<h2 id="migration-doi-cau-truc-database-co-kiem-soat"><a href="#migration-doi-cau-truc-database-co-kiem-soat" class="anchor" aria-hidden="true">#</a>Migration: đổi cấu trúc database có kiểm soát</h2>
+<p>Lược đồ database thay đổi theo thời gian. Migration là các file SQL đánh số, chạy lần lượt và chỉ chạy một lần, được commit vào git cùng với code. Mọi máy (bạn, đồng nghiệp, CI, production) đều đi qua đúng cùng các bước.</p>
+<div class="code"><div class="code-h"><span>migrations/</span><button class="copy" type="button">Sao chép</button></div><pre><code>00001_init.sql
+00002_add_subjects.sql
+00003_index_assignments_due.sql</code></pre></div>
+<div class="code"><div class="code-h"><span>migrations/00002_add_subjects.sql (định dạng của goose)</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- +goose Up</span>
+<span class="k">CREATE</span> <span class="k">TABLE</span> subjects (
+    id       <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    class_id <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> classes(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    name     <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>
+);
+
+<span class="c">-- +goose Down</span>
+<span class="k">DROP</span> <span class="k">TABLE</span> subjects;</code></pre></div>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> install github.com/pressly/goose/v3/cmd/goose@latest
+goose -dir migrations postgres <span class="s">&quot;$DATABASE_URL&quot;</span> up       <span class="c"># chạy các migration chưa chạy</span>
+goose -dir migrations postgres <span class="s">&quot;$DATABASE_URL&quot;</span> status   <span class="c"># xem đã chạy tới đâu</span></code></pre></div>
+<aside class="prod"><p>Quy tắc vàng với production đang chạy: <b>migration phải tương thích với cả code cũ lẫn code mới</b>, vì trong lúc deploy có một khoảng cả hai phiên bản cùng chạy. Muốn đổi tên cột: thêm cột mới → code ghi cả hai cột → chép dữ liệu cũ sang → code chỉ đọc cột mới → bản deploy sau mới xoá cột cũ. Không bao giờ đổi tên hay xoá cột trong một bước.</p>
+<p>Cẩn thận với bảng lớn: <code>CREATE INDEX</code> thường khoá ghi trên cả bảng trong lúc tạo. Trên production dùng <code>CREATE INDEX CONCURRENTLY</code>.</p></aside>
+
+<h2 id="sqlc-viet-sql-nhan-code-go-co-kieu"><a href="#sqlc-viet-sql-nhan-code-go-co-kieu" class="anchor" aria-hidden="true">#</a>sqlc: viết SQL, nhận code Go có kiểu</h2>
+<p>Viết tay <code>Scan</code> cho hàng chục câu truy vấn vừa chán vừa dễ sai thứ tự cột. <b>sqlc</b> đọc file SQL và lược đồ của bạn, rồi <b>sinh ra</b> code Go có kiểu đầy đủ. Bạn vẫn viết SQL thật (không phải ORM), nhưng được trình biên dịch kiểm tra.</p>
+<div class="code"><div class="code-h"><span>queries/classes.sql</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- name: ClassesOfTeacher :many</span>
+<span class="k">SELECT</span> id, name, capacity <span class="k">FROM</span> classes
+<span class="k">WHERE</span> teacher_id = $<span class="n">1</span>
+<span class="k">ORDER</span> <span class="k">BY</span> created_at <span class="k">DESC</span>;
+
+<span class="c">-- name: CreateClass :one</span>
+<span class="k">INSERT</span> <span class="k">INTO</span> classes (teacher_id, name, capacity) <span class="k">VALUES</span> ($<span class="n">1</span>, $<span class="n">2</span>, $<span class="n">3</span>)
+<span class="k">RETURNING</span> *;</code></pre></div>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code>sqlc generate   <span class="c"># sinh ra classes.sql.go</span></code></pre></div>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>q := db.<span class="f">New</span>(pool)
+classes, err := q.<span class="f">ClassesOfTeacher</span>(ctx, teacherID) <span class="c">// []db.ClassesOfTeacherRow, có kiểu</span>
+c, err := q.<span class="f">CreateClass</span>(ctx, db.CreateClassParams{TeacherID: <span class="n">7</span>, Name: <span class="s">&quot;5A&quot;</span>, Capacity: <span class="n">35</span>})</code></pre></div>
+<p>sqlc kiểm tra câu SQL với lược đồ ngay lúc sinh code: gõ sai tên cột là báo lỗi trước khi chạy.</p>
+<h3>Còn ORM thì sao?</h3>
+<p>Go có ORM (GORM, ent, Bun). GORM rất phổ biến, nhất là ở các dự án CRUD. Nhưng nhiều đội Go ưa SQL thuần + sqlc / pgx vì thấy rõ câu SQL nào được chạy, dễ tối ưu, và không bị ORM sinh câu truy vấn bất ngờ. Ở công ty, bạn sẽ dùng thứ đội đang dùng. Hiểu SQL thì dùng cái nào cũng được.</p>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Đăng ký tài khoản: code SELECT xem email đã có chưa, chưa có thì INSERT. Bảng có UNIQUE(email). Hai request cùng email đến cùng lúc. Chuyện gì xảy ra?</p><div class="qo"><button type="button" class="opt">Cả hai tạo được tài khoản</button><button type="button" class="opt" data-ok>Cả hai SELECT đều thấy "chưa có", một INSERT thành công, cái còn lại bị UNIQUE từ chối với lỗi 23505, nên code phải xử lý lỗi đó thành 409</button><button type="button" class="opt">Request thứ hai tự đợi request đầu xong rồi mới SELECT</button></div><p class="why" hidden>Kiểm tra rồi mới làm không an toàn khi chạy song song. Ràng buộc UNIQUE mới là người gác cổng thật. Có thể bỏ luôn bước SELECT và chỉ xử lý lỗi 23505.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Repository cho bài tập</summary>
+<p>Với lược đồ bài 14, viết <code>AssignmentStore</code> dùng pgx: <code>Create</code>, <code>ListByClass(ctx, teacherID, classID, page, size)</code> trả về <code>(items, total)</code>, <code>Delete(ctx, teacherID, id)</code>. Mọi truy vấn phải kiểm tra lớp thuộc giáo viên đó ngay trong SQL.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Store) <span class="f">ListByClass</span>(ctx context.Context, teacherID, classID <span class="t">int64</span>, page, size <span class="t">int</span>) ([]Assignment, <span class="t">int</span>, <span class="t">error</span>) {
+    <span class="k">var</span> total <span class="t">int</span>
+    err := s.db.<span class="f">QueryRow</span>(ctx, <span class="s">`
+        SELECT count(*) FROM assignments a
+        JOIN classes c ON c.id = a.class_id
+        WHERE a.class_id = $1 AND c.teacher_id = $2`</span>, classID, teacherID).<span class="f">Scan</span>(&amp;total)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="b">nil</span>, <span class="n">0</span>, err
+    }
+    rows, err := s.db.<span class="f">Query</span>(ctx, <span class="s">`
+        SELECT a.id, a.class_id, a.title, a.due_date, a.created_at
+        FROM assignments a
+        JOIN classes c ON c.id = a.class_id
+        WHERE a.class_id = $1 AND c.teacher_id = $2
+        ORDER BY a.due_date DESC, a.id DESC
+        LIMIT $3 OFFSET $4`</span>, classID, teacherID, size, (page-<span class="n">1</span>)*size)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="b">nil</span>, <span class="n">0</span>, err
+    }
+    items, err := pgx.<span class="f">CollectRows</span>(rows, pgx.RowToStructByPos[Assignment])
+    <span class="k">return</span> items, total, err
+}
+
+<span class="k">func</span> (s *Store) <span class="f">Delete</span>(ctx context.Context, teacherID, id <span class="t">int64</span>) <span class="t">error</span> {
+    tag, err := s.db.<span class="f">Exec</span>(ctx, <span class="s">`
+        DELETE FROM assignments a USING classes c
+        WHERE a.id = $1 AND c.id = a.class_id AND c.teacher_id = $2`</span>, id, teacherID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    <span class="k">if</span> tag.<span class="f">RowsAffected</span>() == <span class="n">0</span> {
+        <span class="k">return</span> domain.ErrNotFound
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}</code></pre></div>
+<p>Để ý <code>ORDER BY a.due_date DESC, a.id DESC</code>: thêm <code>id</code> làm tiêu chí phụ để thứ tự <b>ổn định</b>. Nếu nhiều bài cùng hạn mà chỉ sắp theo hạn, Postgres có thể trả thứ tự khác nhau giữa hai lần truy vấn, và phân trang bị trùng / sót dòng.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="go-postgres">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="sql.html"><small>Bài trước</small>SQL và thiết kế cơ sở dữ liệu</a><a class="next" href="toi-uu-query.html"><small>Bài tiếp theo</small>Index, tối ưu truy vấn và tranh chấp dữ liệu</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#driver-va-connection-pool">Driver và connection pool</a><a href="#truy-van-co-tham-so-khong-bao-gio-ghep-chuoi">Truy vấn có tham số: không bao giờ ghép chuỗi</a><a href="#transaction-tat-ca-hoac-khong-gi-ca">Transaction: tất cả hoặc không gì cả</a><a href="#migration-doi-cau-truc-database-co-kiem-soat">Migration: đổi cấu trúc database có kiểm soát</a><a href="#sqlc-viet-sql-nhan-code-go-co-kieu">sqlc: viết SQL, nhận code Go có kiểu</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 21: Theo dõi hệ thống: log, metrics, tracing · Go cho dân Frontend</title>
+<meta name="description" content="Ba trụ cột quan sát hệ thống, health check, Prometheus, OpenTelemetry, pprof, SLO và cảnh báo.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat" aria-current="page"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="quan-sat">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#d97706">Chặng 5 · Vận hành hệ thống thật</span><span>Bài 21</span><span>45 phút đọc + làm bài</span></div>
+    <h1>Theo dõi hệ thống: log, metrics, tracing</h1>
+    <p class="lead">Ba trụ cột quan sát hệ thống, health check, Prometheus, OpenTelemetry, pprof, SLO và cảnh báo.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Biết hệ thống đang khoẻ hay ốm</li><li>Lần ra request chậm ở đâu</li><li>Đặt cảnh báo có ý nghĩa</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="ba-tru-cot-quan-sat"><a href="#ba-tru-cot-quan-sat" class="anchor" aria-hidden="true">#</a>Ba trụ cột quan sát</h2>
+<p>Ở frontend, khi có lỗi bạn mở DevTools trên chính máy mình. Trên production không có DevTools: server chạy ở đâu đó, phục vụ hàng nghìn người, và lỗi xảy ra lúc bạn đang ngủ. Bạn chỉ biết chuyện gì xảy ra qua những gì hệ thống <b>tự ghi lại</b>.</p>
+<table>
+<tr><th></th><th>Logs</th><th>Metrics</th><th>Traces</th></tr>
+<tr><td>Là gì</td><td>Bản ghi từng sự kiện</td><td>Con số tổng hợp theo thời gian</td><td>Hành trình của một request qua các thành phần</td></tr>
+<tr><td>Trả lời</td><td>Chuyện gì đã xảy ra với request X?</td><td>Hệ thống đang khoẻ không? Có xu hướng gì?</td><td>Request chậm này chậm ở đâu?</td></tr>
+<tr><td>Ví dụ</td><td><code>{"msg":"gửi email lỗi","user_id":7}</code></td><td>Số request mỗi giây, tỉ lệ lỗi, độ trễ p99</td><td>API 320ms = database 280ms + Redis 2ms + ...</td></tr>
+<tr><td>Công cụ</td><td>Loki, Elasticsearch, Cloud Logging, Datadog</td><td>Prometheus + Grafana</td><td>OpenTelemetry + Jaeger / Tempo</td></tr>
+</table>
+<aside class="fe"><p>Bạn có thể đã dùng Sentry hoặc Datadog RUM ở frontend để bắt lỗi JavaScript của người dùng thật. Backend dùng cùng ý tưởng, chỉ là dữ liệu đến từ server. Sentry cũng có SDK cho Go.</p></aside>
+
+<h2 id="logs-da-hoc-o-bai-13"><a href="#logs-da-hoc-o-bai-13" class="anchor" aria-hidden="true">#</a>Logs: đã học ở bài 13</h2>
+<ul>
+<li>Log có cấu trúc (JSON), mỗi dòng có <code>request_id</code>, <code>user_id</code> khi có.</li>
+<li>Mức log: <code>ERROR</code> cho thứ cần người xem, <code>WARN</code> cho bất thường tự phục hồi được, <code>INFO</code> cho sự kiện nghiệp vụ quan trọng, <code>DEBUG</code> tắt trên production.</li>
+<li>Ghi log ra stdout, để nền tảng thu gom. Không tự ghi vào file trên server.</li>
+<li>Không log dữ liệu nhạy cảm.</li>
+</ul>
+
+<h2 id="metrics-voi-prometheus"><a href="#metrics-voi-prometheus" class="anchor" aria-hidden="true">#</a>Metrics với Prometheus</h2>
+<p>Prometheus (ra đời ở SoundCloud, nay là dự án của CNCF) định kỳ gọi endpoint <code>/metrics</code> của server để lấy các con số, lưu theo thời gian. Grafana vẽ biểu đồ từ đó.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> (
+    <span class="s">&quot;github.com/prometheus/client_golang/prometheus&quot;</span>
+    <span class="s">&quot;github.com/prometheus/client_golang/prometheus/promauto&quot;</span>
+    <span class="s">&quot;github.com/prometheus/client_golang/prometheus/promhttp&quot;</span>
+)
+
+<span class="k">var</span> (
+    httpRequests = promauto.<span class="f">NewCounterVec</span>(prometheus.CounterOpts{
+        Name: <span class="s">&quot;http_requests_total&quot;</span>,
+        Help: <span class="s">&quot;Số request HTTP&quot;</span>,
+    }, []<span class="t">string</span>{<span class="s">&quot;method&quot;</span>, <span class="s">&quot;route&quot;</span>, <span class="s">&quot;status&quot;</span>})
+
+    httpDuration = promauto.<span class="f">NewHistogramVec</span>(prometheus.HistogramOpts{
+        Name:    <span class="s">&quot;http_request_duration_seconds&quot;</span>,
+        Help:    <span class="s">&quot;Thời gian xử lý request&quot;</span>,
+        Buckets: prometheus.DefBuckets,
+    }, []<span class="t">string</span>{<span class="s">&quot;method&quot;</span>, <span class="s">&quot;route&quot;</span>})
+)
+
+<span class="c">// Trong middleware Logger (bài 13), sau next.ServeHTTP:</span>
+route := r.Pattern <span class="c">// Go 1.23+: mẫu route đã khớp, ví dụ &quot;GET /classes/{id}&quot;</span>
+httpRequests.<span class="f">WithLabelValues</span>(r.Method, route, strconv.<span class="f">Itoa</span>(rec.status)).<span class="f">Inc</span>()
+httpDuration.<span class="f">WithLabelValues</span>(r.Method, route).<span class="f">Observe</span>(time.<span class="f">Since</span>(start).<span class="f">Seconds</span>())
+
+<span class="c">// Mở /metrics ở cổng NỘI BỘ, không công khai</span>
+internal := http.<span class="f">NewServeMux</span>()
+internal.<span class="f">Handle</span>(<span class="s">&quot;GET /metrics&quot;</span>, promhttp.<span class="f">Handler</span>())
+<span class="k">go</span> http.<span class="f">ListenAndServe</span>(<span class="s">&quot;127.0.0.1:9090&quot;</span>, internal)</code></pre></div>
+<aside class="warn"><p>Nhãn (label) của metric phải có <b>số giá trị hữu hạn</b>. Dùng mẫu route <code>/classes/{id}</code>, không dùng đường dẫn thật <code>/classes/12345</code>, không dùng user id. Mỗi tổ hợp nhãn là một chuỗi số liệu riêng, nhãn vô hạn sẽ làm Prometheus hết bộ nhớ.</p></aside>
+
+<h3>Đo cái gì: phương pháp RED</h3>
+<p>Với mỗi dịch vụ, theo dõi ba con số:</p>
+<ul>
+<li><b>R</b>ate: số request mỗi giây.</li>
+<li><b>E</b>rrors: tỉ lệ request lỗi (5xx).</li>
+<li><b>D</b>uration: thời gian xử lý, xem theo <b>phân vị</b> (p50, p95, p99), không xem trung bình.</li>
+</ul>
+<p>Vì sao không dùng trung bình? 99 request mất 10ms và 1 request mất 5 giây có trung bình 60ms, trông ổn. Nhưng p99 là 5 giây: cứ 100 người thì 1 người chờ 5 giây. Người dùng nhiều thao tác nhất (giáo viên chấm bài cả lớp) gần như chắc chắn gặp request chậm đó.</p>
+<p>Với tài nguyên (CPU, bộ nhớ, pool kết nối database, hàng đợi), dùng phương pháp <b>USE</b>: Utilization (đang dùng bao nhiêu phần trăm), Saturation (bao nhiêu thứ đang phải xếp hàng chờ), Errors.</p>
+
+<h2 id="traces-request-cham-o-dau"><a href="#traces-request-cham-o-dau" class="anchor" aria-hidden="true">#</a>Traces: request chậm ở đâu</h2>
+<figure class="dg"><svg viewBox="0 0 840 368" style="min-width:600px;max-width:840px" role="img" aria-label="Một trace gồm nhiều span lồng nhau, cùng mang một trace id"><line x1="80" y1="66" x2="80" y2="358" class="lf"/><g class="nd fe"><rect x="20" y="10" width="120" height="54" rx="10"/><text x="80" y="42" class="tt" text-anchor="middle">Client</text></g><line x1="250" y1="66" x2="250" y2="358" class="lf"/><g class="nd go"><rect x="190" y="10" width="120" height="54" rx="10"/><text x="250" y="42" class="tt" text-anchor="middle">API</text></g><line x1="420" y1="66" x2="420" y2="358" class="lf"/><g class="nd cache"><rect x="360" y="10" width="120" height="54" rx="10"/><text x="420" y="42" class="tt" text-anchor="middle">Redis</text></g><line x1="590" y1="66" x2="590" y2="358" class="lf"/><g class="nd db"><rect x="530" y="10" width="120" height="54" rx="10"/><text x="590" y="42" class="tt" text-anchor="middle">Postgres</text></g><line x1="760" y1="66" x2="760" y2="358" class="lf"/><g class="nd ext"><rect x="700" y="10" width="120" height="54" rx="10"/><text x="760" y="42" class="tt" text-anchor="middle">Dịch vụ AI</text></g><line x1="80" y1="106" x2="246" y2="106" class="ln" marker-end="url(#ar)"/><text x="165" y="83" class="tl" text-anchor="middle">GET /reports/42</text><text x="165" y="99" class="tl" text-anchor="middle">(trace id: abc)</text><line x1="250" y1="148" x2="416" y2="148" class="ln" marker-end="url(#ar)"/><text x="335" y="141" class="tl" text-anchor="middle">span &quot;cache get&quot; 1ms</text><line x1="250" y1="190" x2="586" y2="190" class="ln" marker-end="url(#ar)"/><text x="420" y="183" class="tl" text-anchor="middle">span &quot;query scores&quot; 35ms</text><line x1="250" y1="232" x2="756" y2="232" class="ln" marker-end="url(#ar)"/><text x="505" y="225" class="tl" text-anchor="middle">span &quot;generate summary&quot; 2.400ms</text><rect x="10" y="262" width="489.9200000000001" height="28" rx="6" class="nt"/><text x="254.96000000000004" y="280" class="tn" text-anchor="middle">nhìn trace là thấy ngay: chậm vì dịch vụ AI, không phải database</text><line x1="250" y1="316" x2="84" y2="316" class="ln ds" marker-end="url(#ar)"/><text x="165" y="309" class="tl" text-anchor="middle">tổng 2.450ms</text></svg><figcaption>Một trace gồm nhiều span lồng nhau, cùng mang một trace id</figcaption></figure>
+<p><b>OpenTelemetry</b> là chuẩn mở (cũng thuộc CNCF) để tạo và gửi trace, metrics, logs, được hầu hết các nhà cung cấp hỗ trợ. Trong Go, các thư viện bọc sẵn cho <code>net/http</code>, pgx, go-redis tự tạo span. Trace id được truyền giữa các dịch vụ qua header chuẩn <code>traceparent</code> (W3C Trace Context), và qua <code>ctx</code> bên trong một dịch vụ: thêm một lý do để truyền ctx đi mọi nơi.</p>
+
+<h2 id="health-check"><a href="#health-check" class="anchor" aria-hidden="true">#</a>Health check</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Liveness: tiến trình còn sống không? Không kiểm database (database chết thì khởi động lại server cũng vô ích)</span>
+mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /livez&quot;</span>, <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+    w.<span class="f">WriteHeader</span>(http.StatusOK)
+})
+
+<span class="c">// Readiness: sẵn sàng nhận request chưa? Kiểm những thứ bắt buộc phải có</span>
+mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /readyz&quot;</span>, <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+    ctx, cancel := context.<span class="f">WithTimeout</span>(r.<span class="f">Context</span>(), time.Second)
+    <span class="k">defer</span> <span class="f">cancel</span>()
+    <span class="k">if</span> err := db.<span class="f">Ping</span>(ctx); err != <span class="b">nil</span> {
+        http.<span class="f">Error</span>(w, <span class="s">&quot;database&quot;</span>, http.StatusServiceUnavailable)
+        <span class="k">return</span>
+    }
+    w.<span class="f">WriteHeader</span>(http.StatusOK)
+})</code></pre></div>
+<p>Load balancer và Kubernetes gọi các endpoint này: bản nào không "ready" thì không nhận request mới, bản nào không "live" thì bị khởi động lại. Lúc graceful shutdown (bài 13), cho <code>/readyz</code> trả 503 trước để load balancer ngừng gửi request mới tới.</p>
+
+<h2 id="pprof-xem-ben-trong-chuong-trinh-dang-chay"><a href="#pprof-xem-ben-trong-chuong-trinh-dang-chay" class="anchor" aria-hidden="true">#</a>pprof: xem bên trong chương trình đang chạy</h2>
+<p>Go có sẵn công cụ profiling cực mạnh. Bật nó ở cổng nội bộ:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> _ <span class="s">&quot;net/http/pprof&quot;</span> <span class="c">// đăng ký /debug/pprof/* vào http.DefaultServeMux</span>
+
+<span class="k">go</span> http.<span class="f">ListenAndServe</span>(<span class="s">&quot;127.0.0.1:6060&quot;</span>, <span class="b">nil</span>) <span class="c">// chỉ nghe ở localhost</span></code></pre></div>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> tool pprof -http=:<span class="n">8000</span> http://localhost:<span class="n">6060</span>/debug/pprof/profile?seconds=<span class="n">30</span>  <span class="c"># CPU: hàm nào tốn nhiều nhất</span>
+<span class="k">go</span> tool pprof -http=:<span class="n">8000</span> http://localhost:<span class="n">6060</span>/debug/pprof/heap                <span class="c"># bộ nhớ: ai cấp phát nhiều</span>
+<span class="k">curl</span> <span class="s">&quot;http://localhost:6060/debug/pprof/goroutine?debug=1&quot;</span>                        <span class="c"># đang có bao nhiêu goroutine, kẹt ở đâu</span></code></pre></div>
+<p>Lệnh đầu mở giao diện web có biểu đồ <i>flame graph</i>: hàm nào càng rộng càng tốn thời gian. Số goroutine tăng mãi theo thời gian là dấu hiệu rò rỉ goroutine (bài 09).</p>
+<aside class="warn"><p>Không bao giờ để <code>/debug/pprof</code> mở ra Internet: nó lộ thông tin bên trong và có thể bị dùng để làm chậm server. Chỉ nghe ở <code>127.0.0.1</code> hoặc cổng nội bộ, truy cập qua SSH / VPN.</p></aside>
+
+<h2 id="slo-va-canh-bao"><a href="#slo-va-canh-bao" class="anchor" aria-hidden="true">#</a>SLO và cảnh báo</h2>
+<p>Hệ thống không cần "không bao giờ lỗi", mà cần <b>đủ tốt</b> theo một mục tiêu rõ ràng. Cách làm phổ biến từ sách <i>Site Reliability Engineering</i> của Google:</p>
+<ul>
+<li><b>SLI</b> (chỉ số): tỉ lệ request thành công và nhanh hơn 300ms.</li>
+<li><b>SLO</b> (mục tiêu): 99,5% request trong 30 ngày đạt chỉ số trên.</li>
+<li><b>Error budget</b>: 0,5% còn lại là "ngân sách lỗi". Còn ngân sách thì cứ deploy tính năng mới, sắp hết thì tập trung sửa độ ổn định.</li>
+</ul>
+<p>99,9% nghe rất cao nhưng vẫn là khoảng 43 phút sự cố mỗi tháng. Mỗi số 9 thêm vào đắt hơn rất nhiều.</p>
+<aside class="prod"><p>Đặt cảnh báo theo <b>triệu chứng người dùng thấy</b> (tỉ lệ lỗi tăng, p99 tăng, hàng đợi ứ đọng quá 10 phút), không theo nguyên nhân (CPU 80%). CPU 80% mà người dùng không bị ảnh hưởng thì không đáng đánh thức ai lúc 3 giờ sáng. Mỗi cảnh báo phải dẫn tới một hành động cụ thể, nếu không mọi người sẽ quen bỏ qua cảnh báo.</p></aside>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Độ trễ trung bình của API là 80ms, p99 là 4 giây. Kết luận nào đúng?</p><div class="qo"><button type="button" class="opt">Hệ thống nhanh, không cần làm gì</button><button type="button" class="opt" data-ok>Khoảng 1% request mất tới 4 giây. Người dùng gọi nhiều request sẽ thường xuyên gặp chậm, cần dùng trace để tìm nguyên nhân</button><button type="button" class="opt">p99 không quan trọng vì chỉ là 1%</button></div><p class="why" hidden>Một trang gọi 10 API thì xác suất ít nhất một API rơi vào nhóm 1% chậm nhất là khoảng 10%. Đuôi phân phối mới là thứ người dùng cảm nhận.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Thêm khả năng quan sát cho API ghi chú</summary>
+<p>Thêm vào API: <code>/livez</code>, <code>/readyz</code> (ping database), metrics RED ở <code>127.0.0.1:9090/metrics</code>, pprof ở <code>127.0.0.1:6060</code>. Chạy Prometheus + Grafana bằng Docker Compose, vẽ biểu đồ số request mỗi giây theo route và p95 thời gian xử lý. Dùng công cụ tạo tải như <code>hey</code> hoặc <code>k6</code> để có số liệu, chỉ chạy trên máy của bạn.</p>
+<details class="sol"><summary>Truy vấn PromQL gợi ý</summary>
+<div class="code"><div class="code-h"><span>PromQL</span><button class="copy" type="button">Sao chép</button></div><pre><code># request mỗi giây theo route
+sum by (route) (rate(http_requests_total[1m]))
+
+# tỉ lệ lỗi 5xx
+sum(rate(http_requests_total{status=~&quot;5..&quot;}[5m])) / sum(rate(http_requests_total[5m]))
+
+# p95 thời gian xử lý
+histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))</code></pre></div>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="quan-sat">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="bat-dong-bo.html"><small>Bài trước</small>Hàng đợi, việc chạy nền và webhook</a><a class="next" href="trien-khai.html"><small>Bài tiếp theo</small>Docker, CI/CD và triển khai</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#ba-tru-cot-quan-sat">Ba trụ cột quan sát</a><a href="#logs-da-hoc-o-bai-13">Logs: đã học ở bài 13</a><a href="#metrics-voi-prometheus">Metrics với Prometheus</a><a href="#traces-request-cham-o-dau">Traces: request chậm ở đâu</a><a href="#health-check">Health check</a><a href="#pprof-xem-ben-trong-chuong-trinh-dang-chay">pprof: xem bên trong chương trình đang chạy</a><a href="#slo-va-canh-bao">SLO và cảnh báo</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

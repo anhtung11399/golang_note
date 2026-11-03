@@ -1,0 +1,196 @@
+<h2>Không bắt người dùng chờ việc không cần chờ</h2>
+<p>Giáo viên giao bài cho lớp 40 em. Hệ thống cần gửi thông báo cho 40 phụ huynh, mỗi thông báo gọi dịch vụ push mất khoảng 200ms. Làm trong request là 8 giây chờ, và nếu dịch vụ push lỗi giữa chừng thì sao?</p>
+<p>Cách làm đúng: request chỉ <b>lưu bài tập và ghi lại việc cần làm</b>, trả về ngay. Một tiến trình khác (<b>worker</b>) lấy việc ra và làm dần, lỗi thì thử lại.</p>
+<fig type="flow" caption="Request nhanh và chắc chắn. Việc chậm, có thể lỗi, được làm ở nền và có thử lại">
+[fe] Giáo viên / POST /assignments
+->
+[go] API / lưu bài + ghi việc
+-> 201 sau 30ms
+[q] Hàng đợi / "thông báo bài 9001"
+-> lấy việc
+[go] Worker / gửi 40 push, lỗi thì thử lại
+->
+[ext] Dịch vụ push / FCM, APNs, Web Push
+</fig>
+<p>Những việc nên đưa ra nền: gửi email / SMS / push, xử lý ảnh / video, tạo báo cáo, gọi AI, đồng bộ với hệ thống khác, xuất file lớn, dọn dữ liệu định kỳ.</p>
+
+<h2>Chọn hàng đợi</h2>
+<table>
+<tr><th>Lựa chọn</th><th>Hợp với</th></tr>
+<tr><td><b>Bảng trong Postgres</b> (tự làm, hoặc thư viện River cho Go)</td><td>Hệ thống vừa và nhỏ. Không thêm hạ tầng. Ghi việc <b>trong cùng transaction</b> với dữ liệu nghiệp vụ</td></tr>
+<tr><td>Redis (thư viện Asynq cho Go)</td><td>Nhiều việc nhỏ, cần nhanh, đã có Redis</td></tr>
+<tr><td>RabbitMQ, NATS, Amazon SQS, Google Pub/Sub, Cloudflare Queues</td><td>Hàng đợi chuyên dụng, nhiều dịch vụ trao đổi với nhau</td></tr>
+<tr><td>Kafka</td><td>Dòng sự kiện lượng rất lớn, nhiều bên cùng đọc, cần đọc lại lịch sử</td></tr>
+</table>
+<aside class="tip"><p>Đừng thêm Kafka cho một ứng dụng 1.000 người dùng. Một bảng <code>jobs</code> trong Postgres xử lý được hàng trăm việc mỗi giây và đơn giản hơn nhiều. Khi nào đo được là nó không đủ, mới chuyển.</p></aside>
+
+<h3>Hàng đợi bằng Postgres</h3>
+<pre lang="sql">
+CREATE TABLE jobs (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    kind        text NOT NULL,
+    payload     jsonb NOT NULL,
+    run_at      timestamptz NOT NULL DEFAULT now(),
+    attempts    int NOT NULL DEFAULT 0,
+    last_error  text,
+    status      text NOT NULL DEFAULT 'pending'   -- pending | done | dead
+);
+CREATE INDEX jobs_ready ON jobs (run_at) WHERE status = 'pending';
+</pre>
+<pre lang="go">
+// Worker lấy một việc. SKIP LOCKED: nhiều worker chạy song song không giành cùng một việc
+func (w *Worker) claim(ctx context.Context, tx pgx.Tx) (Job, error) {
+    var j Job
+    err := tx.QueryRow(ctx, `
+        SELECT id, kind, payload, attempts FROM jobs
+        WHERE status = 'pending' AND run_at <= now()
+        ORDER BY run_at
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED`).Scan(&j.ID, &j.Kind, &j.Payload, &j.Attempts)
+    return j, err
+}
+
+func (w *Worker) runOnce(ctx context.Context) error {
+    return pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
+        j, err := w.claim(ctx, tx)
+        if err != nil {
+            return err // pgx.ErrNoRows: không có việc, vòng ngoài sẽ ngủ một chút
+        }
+        if err := w.handle(ctx, j); err != nil {
+            delay := time.Duration(1<<min(j.Attempts, 10)) * time.Second // 1s, 2s, 4s... tối đa ~17 phút
+            status := "pending"
+            if j.Attempts+1 >= 8 {
+                status = "dead" // quá số lần thử: để người xem xét
+            }
+            _, err2 := tx.Exec(ctx, `UPDATE jobs SET attempts = attempts + 1, last_error = $2,
+                run_at = now() + make_interval(secs => $3), status = $4 WHERE id = $1`,
+                j.ID, err.Error(), delay.Seconds(), status)
+            return err2
+        }
+        _, err = tx.Exec(ctx, `UPDATE jobs SET status = 'done' WHERE id = $1`, j.ID)
+        return err
+    })
+}
+</pre>
+<aside class="warn"><p>Ví dụ trên giữ transaction mở suốt lúc <code>handle</code> chạy, đơn giản nhưng chỉ hợp với việc ngắn. Việc chạy lâu (vài phút) thì nên đổi trạng thái sang <code>running</code> kèm thời điểm hết hạn, commit, xử lý ngoài transaction, rồi cập nhật kết quả. Worker chết giữa chừng thì việc tự quay lại hàng đợi khi hết hạn. Thư viện như River làm sẵn những việc này.</p></aside>
+
+<h2>Giao ít nhất một lần → việc phải chạy lại được</h2>
+<p>Hầu hết hàng đợi chỉ hứa giao <b>ít nhất một lần</b> (at-least-once). Worker gửi email xong, chưa kịp đánh dấu "done" thì bị tắt, lần sau việc được chạy lại, phụ huynh nhận hai email. Không có cách nào hoàn hảo để tránh hoàn toàn điều này ở phía hàng đợi, nên việc phải được thiết kế <b>idempotent</b>: chạy hai lần cũng như một lần.</p>
+<ul>
+<li>Ghi lại đã làm: <code>INSERT INTO sent_notifications (job_id, user_id) ... ON CONFLICT DO NOTHING</code>, chỉ gửi khi chèn được dòng mới.</li>
+<li>Thao tác đặt giá trị thay vì cộng dồn: <code>SET status = 'paid'</code> thay vì <code>SET balance = balance + 100</code>.</li>
+<li>Truyền khoá idempotency cho dịch vụ bên ngoài nếu nó hỗ trợ (các cổng thanh toán thường có).</li>
+</ul>
+
+<h2>Outbox: ghi dữ liệu và gửi sự kiện, không mất cái nào</h2>
+<p>Vấn đề kinh điển: lưu đơn hàng vào database rồi gửi sự kiện "đơn mới" lên Kafka / RabbitMQ. Nếu lưu xong mà gửi lỗi, hệ thống khác không bao giờ biết có đơn. Nếu gửi trước rồi lưu lỗi, hệ thống khác xử lý một đơn không tồn tại.</p>
+<fig type="seq" caption="Outbox: sự kiện được ghi CÙNG transaction với dữ liệu, một tiến trình khác chuyển nó đi sau">
+actors: [go] API, [db] Postgres, [go] Relay, [q] Hàng đợi
+API -> Postgres: BEGIN; INSERT orders; INSERT outbox(event); COMMIT
+note Postgres: hoặc có cả hai, hoặc không có gì
+Relay -> Postgres: đọc outbox chưa gửi
+Relay -> Hàng đợi: publish "order.created"
+Relay -> Postgres: đánh dấu đã gửi
+</fig>
+<p>Nếu hàng đợi của bạn chính là bảng <code>jobs</code> trong Postgres, bạn có outbox miễn phí: chèn việc trong cùng transaction với dữ liệu.</p>
+
+<h2>Nhận webhook (ví dụ: ngân hàng báo có tiền vào)</h2>
+<p>Webhook là khi hệ thống khác gọi <b>vào</b> API của bạn để báo một sự kiện: cổng thanh toán báo giao dịch thành công, GitHub báo có commit mới. Endpoint webhook công khai trên Internet, nên ai cũng gọi được. Bốn quy tắc:</p>
+<ol>
+<li><b>Xác minh chữ ký.</b> Bên gửi ký nội dung bằng khoá bí mật chung (thường là HMAC-SHA256) và gửi chữ ký trong header. Không có hoặc sai chữ ký → từ chối.</li>
+<li><b>Chống lặp.</b> Bên gửi sẽ gửi lại khi không nhận được 2xx. Lưu id sự kiện với UNIQUE, gặp lại thì trả 200 và bỏ qua.</li>
+<li><b>Trả lời nhanh.</b> Ghi nhận rồi trả 2xx, xử lý nặng đưa ra hàng đợi. Bên gửi thường có timeout vài giây.</li>
+<li><b>Không tin nội dung.</b> Kiểm số tiền, mã đơn, tài khoản nhận khớp với dữ liệu của bạn. Có thể gọi ngược API của bên gửi để xác nhận.</li>
+</ol>
+<pre lang="go">
+func (h *Handler) paymentWebhook(w http.ResponseWriter, r *http.Request) {
+    body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
+    if err != nil {
+        http.Error(w, "body quá lớn", http.StatusRequestEntityTooLarge)
+        return
+    }
+    // 1. Chữ ký tính trên đúng các byte nhận được, TRƯỚC khi parse JSON
+    mac := hmac.New(sha256.New, h.webhookSecret)
+    mac.Write(body)
+    want := hex.EncodeToString(mac.Sum(nil))
+    if !hmac.Equal([]byte(want), []byte(r.Header.Get("X-Signature"))) { // so sánh thời gian hằng
+        http.Error(w, "sai chữ ký", http.StatusUnauthorized)
+        return
+    }
+    var ev struct {
+        ID     string `json:"id"`
+        Amount int64  `json:"amount"`
+        Code   string `json:"orderCode"`
+    }
+    if err := json.Unmarshal(body, &ev); err != nil {
+        http.Error(w, "JSON sai", http.StatusBadRequest)
+        return
+    }
+    // 2 + 3. Ghi sự kiện (UNIQUE id) và tạo việc xử lý trong cùng transaction
+    err = pgx.BeginFunc(r.Context(), h.db, func(tx pgx.Tx) error {
+        tag, err := tx.Exec(r.Context(),
+            `INSERT INTO webhook_events (id, body) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`, ev.ID, body)
+        if err != nil || tag.RowsAffected() == 0 {
+            return err // đã nhận rồi: không làm gì thêm
+        }
+        _, err = tx.Exec(r.Context(),
+            `INSERT INTO jobs (kind, payload) VALUES ('payment.received', $1)`, body)
+        return err
+    })
+    if err != nil {
+        http.Error(w, "lỗi", http.StatusInternalServerError) // 5xx → bên gửi sẽ gửi lại, an toàn nhờ UNIQUE
+        return
+    }
+    w.WriteHeader(http.StatusOK)
+}
+</pre>
+<aside class="real"><p>Stripe, GitHub, Shopify đều ký webhook bằng HMAC-SHA256 và khuyên kiểm thêm <b>thời điểm</b> trong chữ ký (từ chối sự kiện cũ hơn vài phút) để chống phát lại. Các dịch vụ báo giao dịch ngân hàng ở Việt Nam cũng làm theo kiểu này: cấu hình một URL nhận, kèm khoá bí mật hoặc API key để xác minh.</p></aside>
+
+<h2>Idempotency key cho API của bạn</h2>
+<p>Quay lại bài 12: client gửi <code>Idempotency-Key</code> cho thao tác tạo thanh toán.</p>
+<pre lang="sql">
+CREATE TABLE idempotency_keys (
+    user_id     bigint NOT NULL,
+    key         text NOT NULL,
+    request_hash bytea NOT NULL,      -- cùng khoá mà khác nội dung → báo lỗi
+    status_code int,                  -- NULL = đang xử lý
+    response    jsonb,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, key)
+);
+</pre>
+<ol>
+<li><code>INSERT ... ON CONFLICT DO NOTHING</code>. Chèn được → mình là request đầu tiên, xử lý tiếp.</li>
+<li>Không chèn được → đọc dòng cũ. Có <code>response</code> → trả lại đúng response đó. Chưa có (request đầu đang chạy) → trả 409 "đang xử lý, thử lại sau".</li>
+<li>Xử lý xong, lưu status và response vào dòng đó (tốt nhất trong cùng transaction với dữ liệu nghiệp vụ).</li>
+<li>Dọn các khoá cũ hơn 24 giờ bằng việc định kỳ.</li>
+</ol>
+
+<h2>Việc định kỳ (cron)</h2>
+<p>Gửi nhắc bài tập lúc 19 giờ, dọn dữ liệu cũ mỗi đêm, tạo báo cáo tuần. Khi chạy 3 bản server, cả 3 cùng có cron và việc chạy 3 lần. Cách xử lý:</p>
+<ul>
+<li>Dùng cron của nền tảng (Kubernetes CronJob, Cloud Scheduler) gọi <b>một</b> lần.</li>
+<li>Hoặc mỗi bản cùng chạy nhưng giành một khoá trước: <code>SELECT pg_try_advisory_lock(42)</code> trong Postgres, chỉ bản giành được mới làm.</li>
+<li>Và vẫn làm việc định kỳ idempotent: "gửi nhắc cho bài chưa được nhắc hôm nay" thay vì "gửi nhắc".</li>
+</ul>
+
+<quiz q="Webhook thanh toán được bên gửi gửi lại 3 lần vì lần đầu API của bạn trả 500 sau khi đã cộng tiền. Thiết kế nào đảm bảo chỉ cộng tiền một lần?">
+- Trả 200 cho mọi webhook để bên gửi không gửi lại
++ Lưu id sự kiện với UNIQUE và cộng tiền trong cùng transaction với việc lưu id, gặp id đã có thì bỏ qua
+- Ghi log và kiểm tra bằng tay mỗi sáng
+? Trả 200 cả khi lỗi thì mất sự kiện thật. Ràng buộc UNIQUE trên id sự kiện + transaction biến việc xử lý thành idempotent, nên gửi lại bao nhiêu lần cũng an toàn.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Worker gửi thông báo</summary>
+<p>Khi giáo viên giao bài, tạo một việc <code>notify.assignment</code> trong cùng transaction với bài tập. Viết worker (chương trình riêng <code>cmd/worker</code>) lấy việc bằng <code>SKIP LOCKED</code>, gửi thông báo cho từng phụ huynh (giả lập bằng log, cho lỗi ngẫu nhiên 20%), thử lại có backoff, không gửi trùng cho một phụ huynh dù việc chạy lại, dừng an toàn khi nhận SIGTERM.</p>
+<details class="sol"><summary>Tiêu chí tự kiểm tra</summary>
+<ul>
+<li>Bảng <code>notifications_sent(job_id, user_id)</code> có khoá chính kép: gửi cho ai thì chèn dòng đó, chèn không được nghĩa là đã gửi.</li>
+<li>Chạy 3 worker cùng lúc: không việc nào bị xử lý hai lần cùng lúc.</li>
+<li>Tắt worker bằng Ctrl+C giữa chừng rồi bật lại: việc dở dang được làm tiếp, không ai nhận trùng.</li>
+<li>Việc lỗi 8 lần chuyển sang <code>dead</code> và có <code>last_error</code> để đọc.</li>
+<li>Vòng lặp chính: <code>for ctx.Err() == nil { if no job { sleep 1s } }</code>, không quay liên tục làm nóng CPU khi hàng đợi rỗng.</li>
+</ul>
+</details>
+</details>

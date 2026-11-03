@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 04: Array, slice và map · Go cho dân Frontend</title>
+<meta name="description" content="Slice hoạt động bên trong ra sao, vì sao append có thể làm bạn mất dữ liệu, và map dùng thế nào cho đúng.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map" aria-current="page"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="slice-map">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#00ADD8">Chặng 1 · Ngôn ngữ Go</span><span>Bài 04</span><span>45 phút đọc + làm bài</span></div>
+    <h1>Array, slice và map</h1>
+    <p class="lead">Slice hoạt động bên trong ra sao, vì sao append có thể làm bạn mất dữ liệu, và map dùng thế nào cho đúng.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Hiểu slice = (con trỏ, len, cap)</li><li>Tránh lỗi chia sẻ mảng nền khi append</li><li>Dùng map an toàn (nil map, thứ tự duyệt)</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="array-do-dai-co-dinh-it-khi-dung-truc-tiep"><a href="#array-do-dai-co-dinh-it-khi-dung-truc-tiep" class="anchor" aria-hidden="true">#</a>Array: độ dài cố định, ít khi dùng trực tiếp</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> days [<span class="n">7</span>]<span class="t">string</span>           <span class="c">// mảng 7 chuỗi, độ dài là một phần của kiểu</span>
+scores := [<span class="n">3</span>]<span class="t">int</span>{<span class="n">8</span>, <span class="n">9</span>, <span class="n">10</span>}
+fmt.<span class="f">Println</span>(<span class="b">len</span>(scores))     <span class="c">// 3</span></code></pre></div>
+<p><code>[3]int</code> và <code>[4]int</code> là hai kiểu khác nhau. Gán mảng cho biến khác là <b>sao chép toàn bộ</b>. Vì cứng nhắc như vậy, code hằng ngày gần như chỉ dùng <b>slice</b>.</p>
+
+<h2 id="slice-mang-ban-se-dung-hang-ngay"><a href="#slice-mang-ban-se-dung-hang-ngay" class="anchor" aria-hidden="true">#</a>Slice: "mảng" bạn sẽ dùng hằng ngày</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>names := []<span class="t">string</span>{<span class="s">&quot;An&quot;</span>, <span class="s">&quot;Bình&quot;</span>}   <span class="c">// không ghi độ dài trong [] → slice</span>
+names = <span class="b">append</span>(names, <span class="s">&quot;Chi&quot;</span>)      <span class="c">// thêm phần tử: PHẢI gán lại kết quả</span>
+fmt.<span class="f">Println</span>(<span class="b">len</span>(names))           <span class="c">// 3</span>
+
+nums := <span class="b">make</span>([]<span class="t">int</span>, <span class="n">0</span>, <span class="n">100</span>)       <span class="c">// slice rỗng, chuẩn bị sẵn chỗ cho 100 phần tử</span>
+sub := names[<span class="n">1</span>:<span class="n">3</span>]                 <span class="c">// cắt: phần tử 1 và 2 → [&quot;Bình&quot;, &quot;Chi&quot;]</span></code></pre></div>
+<table>
+<tr><th>JavaScript</th><th>Go</th></tr>
+<tr><td><code>const a = []</code></td><td><code>var a []int</code> (nil, dùng được ngay) hoặc <code>a := []int{}</code></td></tr>
+<tr><td><code>a.push(x)</code></td><td><code>a = append(a, x)</code></td></tr>
+<tr><td><code>a.length</code></td><td><code>len(a)</code></td></tr>
+<tr><td><code>a.slice(1, 3)</code></td><td><code>a[1:3]</code> (nhưng <b>dùng chung</b> bộ nhớ, xem dưới)</td></tr>
+<tr><td><code>a.includes(x)</code></td><td><code>slices.Contains(a, x)</code></td></tr>
+<tr><td><code>[...a]</code> (sao chép)</td><td><code>slices.Clone(a)</code></td></tr>
+<tr><td><code>a.sort((x, y) =&gt; x - y)</code></td><td><code>slices.Sort(a)</code> hoặc <code>slices.SortFunc(a, cmp)</code></td></tr>
+</table>
+
+<h2 id="ben-trong-mot-slice"><a href="#ben-trong-mot-slice" class="anchor" aria-hidden="true">#</a>Bên trong một slice</h2>
+<p>Hiểu phần này là tránh được một loại lỗi rất khó tìm. Một slice thực chất là một struct nhỏ gồm 3 trường: <b>con trỏ</b> tới một mảng nền, <b>len</b> (số phần tử đang dùng) và <b>cap</b> (sức chứa của mảng nền tính từ vị trí con trỏ).</p>
+<figure class="dg">
+<svg viewBox="0 0 640 250" style="min-width:520px;max-width:640px" role="img" aria-label="Slice header trỏ vào mảng nền">
+  <g class="nd go"><rect x="20" y="20" width="200" height="110" rx="10"/></g>
+  <text x="120" y="44" class="tt" text-anchor="middle" style="fill:var(--fg);font-weight:700;font-size:15px">s := a[1:3]</text>
+  <text x="40" y="72" class="tl">ptr ●</text>
+  <text x="40" y="96" class="tl">len = 2</text>
+  <text x="40" y="120" class="tl">cap = 4</text>
+  <path d="M86 67 C 160 67, 170 170, 186 182" class="ln" marker-end="url(#ar)"/>
+  <g class="nd"><rect x="110" y="185" width="76" height="44" rx="6"/></g>
+  <g class="nd db"><rect x="186" y="185" width="76" height="44" rx="6"/></g>
+  <g class="nd db"><rect x="262" y="185" width="76" height="44" rx="6"/></g>
+  <g class="nd ext"><rect x="338" y="185" width="76" height="44" rx="6"/></g>
+  <g class="nd ext"><rect x="414" y="185" width="76" height="44" rx="6"/></g>
+  <text x="148" y="212" class="tl" text-anchor="middle">"A"</text>
+  <text x="224" y="212" class="tl" text-anchor="middle">"B"</text>
+  <text x="300" y="212" class="tl" text-anchor="middle">"C"</text>
+  <text x="376" y="212" class="tl" text-anchor="middle">"D"</text>
+  <text x="452" y="212" class="tl" text-anchor="middle">"E"</text>
+  <text x="148" y="246" class="ts" text-anchor="middle">a[0]</text>
+  <text x="262" y="176" class="ts" text-anchor="middle">len: s[0], s[1]</text>
+  <text x="414" y="176" class="ts" text-anchor="middle">còn chỗ trong cap</text>
+  <text x="300" y="246" class="ts" text-anchor="middle">mảng nền dùng chung với a</text>
+  <text x="400" y="60" class="tl" style="font-weight:700">a := []string{"A","B","C","D","E"}</text>
+  <text x="400" y="84" class="ts">len(a) = 5, cap(a) = 5</text>
+  <text x="400" y="108" class="ts">s[0] = "X" sẽ làm a[1] thành "X"</text>
+</svg>
+<figcaption>Slice không chứa dữ liệu. Nó chỉ là một "cửa sổ" nhìn vào một mảng nền</figcaption>
+</figure>
+
+<h3>Cạm bẫy 1: hai slice dùng chung bộ nhớ</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>a := []<span class="t">string</span>{<span class="s">&quot;A&quot;</span>, <span class="s">&quot;B&quot;</span>, <span class="s">&quot;C&quot;</span>, <span class="s">&quot;D&quot;</span>, <span class="s">&quot;E&quot;</span>}
+s := a[<span class="n">1</span>:<span class="n">3</span>]       <span class="c">// [&quot;B&quot;, &quot;C&quot;]</span>
+s[<span class="n">0</span>] = <span class="s">&quot;X&quot;</span>
+fmt.<span class="f">Println</span>(a)    <span class="c">// [A X C D E]  ← a cũng bị sửa!</span></code></pre></div>
+
+<h3>Cạm bẫy 2: append ghi đè dữ liệu của slice khác</h3>
+<p>Khi còn chỗ trong <code>cap</code>, <code>append</code> ghi thẳng vào mảng nền. Khi hết chỗ, nó cấp mảng mới lớn hơn (thường gấp đôi khi slice còn nhỏ), sao chép sang và trả về slice trỏ vào mảng mới. Vì vậy bạn không đoán được kết quả của append có dùng chung bộ nhớ với slice cũ hay không.</p>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code>a := []<span class="t">string</span>{<span class="s">&quot;A&quot;</span>, <span class="s">&quot;B&quot;</span>, <span class="s">&quot;C&quot;</span>, <span class="s">&quot;D&quot;</span>, <span class="s">&quot;E&quot;</span>}
+s := a[<span class="n">1</span>:<span class="n">3</span>]               <span class="c">// len 2, cap 4</span>
+s = <span class="b">append</span>(s, <span class="s">&quot;Z&quot;</span>)        <span class="c">// còn chỗ → ghi vào a[3]</span>
+fmt.<span class="f">Println</span>(a)            <span class="c">// [A B C Z E]  ← &quot;D&quot; bị ghi đè âm thầm</span></code></pre></div>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code>s := slices.<span class="f">Clone</span>(a[<span class="n">1</span>:<span class="n">3</span>]) <span class="c">// sao chép ra mảng riêng</span>
+s = <span class="b">append</span>(s, <span class="s">&quot;Z&quot;</span>)        <span class="c">// a không bị ảnh hưởng</span></code></pre></div>
+<aside class="warn"><p>Luôn viết <code>s = append(s, x)</code>. Quên gán lại thì phần tử mới có thể "biến mất" vì nó nằm trong mảng mới mà biến <code>s</code> không trỏ tới. Trình biên dịch sẽ báo lỗi nếu bạn gọi <code>append</code> mà bỏ kết quả.</p></aside>
+
+<h3>Chuẩn bị sẵn sức chứa</h3>
+<p>Khi biết trước số phần tử (ví dụ đổi 1.000 dòng database thành 1.000 DTO), cấp sẵn <code>cap</code> để tránh cấp phát và sao chép nhiều lần:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>out := <span class="b">make</span>([]UserDTO, <span class="n">0</span>, <span class="b">len</span>(users))
+<span class="k">for</span> _, u := <span class="k">range</span> users {
+    out = <span class="b">append</span>(out, <span class="f">toDTO</span>(u))
+}</code></pre></div>
+
+<h3>nil slice và slice rỗng trong JSON</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> a []<span class="t">int</span>        <span class="c">// nil</span>
+b := []<span class="t">int</span>{}       <span class="c">// rỗng, không nil</span>
+<span class="c">// len, append, range đều chạy bình thường với cả hai.</span>
+<span class="c">// Nhưng khi đổi sang JSON:</span>
+json.<span class="f">Marshal</span>(a)    <span class="c">// null</span>
+json.<span class="f">Marshal</span>(b)    <span class="c">// []</span></code></pre></div>
+<aside class="fe"><p>Đây là lý do frontend đôi khi nhận <code>"items": null</code> thay vì <code>[]</code> và vỡ ở dòng <code>items.map(...)</code>. Backend Go nên khởi tạo slice rỗng cho các trường danh sách trong response. Bây giờ bạn biết lỗi đó đến từ đâu.</p></aside>
+
+<h2 id="map-giong-object-map-trong-javascript"><a href="#map-giong-object-map-trong-javascript" class="anchor" aria-hidden="true">#</a>Map: giống object / Map trong JavaScript</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>ages := <span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>{
+    <span class="s">&quot;An&quot;</span>:   <span class="n">20</span>,
+    <span class="s">&quot;Bình&quot;</span>: <span class="n">22</span>,
+}
+ages[<span class="s">&quot;Chi&quot;</span>] = <span class="n">19</span>          <span class="c">// thêm hoặc sửa</span>
+<span class="b">delete</span>(ages, <span class="s">&quot;An&quot;</span>)        <span class="c">// xoá</span>
+fmt.<span class="f">Println</span>(<span class="b">len</span>(ages))    <span class="c">// 2</span>
+
+age := ages[<span class="s">&quot;Không có&quot;</span>]   <span class="c">// trả về zero value: 0, không lỗi</span>
+age, ok := ages[<span class="s">&quot;Bình&quot;</span>]   <span class="c">// &quot;comma ok&quot;: ok = true nếu khoá có tồn tại</span>
+<span class="k">if</span> !ok {
+    fmt.<span class="f">Println</span>(<span class="s">&quot;không có&quot;</span>)
+}
+
+counts := <span class="b">make</span>(<span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>) <span class="c">// map rỗng, ghi được ngay</span>
+counts[<span class="s">&quot;go&quot;</span>]++                 <span class="c">// khoá chưa có thì bắt đầu từ 0</span></code></pre></div>
+
+<h3>Ba điều phải nhớ về map</h3>
+<ol>
+<li><b>Ghi vào nil map gây panic.</b> <code>var m map[string]int; m["a"] = 1</code> làm chương trình dừng. Luôn tạo bằng <code>make</code> hoặc <code>map[...]...{}</code>.</li>
+<li><b>Thứ tự duyệt là ngẫu nhiên</b>, và Go cố tình làm ngẫu nhiên khác nhau mỗi lần chạy để bạn không vô tình phụ thuộc vào nó. Cần thứ tự thì lấy danh sách khoá ra rồi sắp xếp:
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>keys := slices.<span class="f">Sorted</span>(maps.<span class="f">Keys</span>(ages)) <span class="c">// Go 1.23+, import &quot;maps&quot;, &quot;slices&quot;</span>
+<span class="k">for</span> _, k := <span class="k">range</span> keys {
+    fmt.<span class="f">Println</span>(k, ages[k])
+}</code></pre></div></li>
+<li><b>Map không an toàn khi nhiều goroutine cùng ghi.</b> Runtime phát hiện được và dừng chương trình với lỗi <code>fatal error: concurrent map writes</code>. Trong HTTP server (mỗi request một goroutine), một map dùng chung phải được bảo vệ bằng mutex (bài 09).</li>
+</ol>
+
+<h3>Set: dùng map với giá trị rỗng</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>seen := <span class="k">map</span>[<span class="t">string</span>]<span class="k">struct</span>{}{}   <span class="c">// struct{} không tốn bộ nhớ</span>
+seen[<span class="s">&quot;lan@gmail.com&quot;</span>] = <span class="k">struct</span>{}{}
+<span class="k">if</span> _, ok := seen[email]; ok {
+    fmt.<span class="f">Println</span>(<span class="s">&quot;trùng&quot;</span>)
+}</code></pre></div>
+
+<aside class="real"><p>Map trong bộ nhớ là cache đơn giản nhất. Nhưng khi chạy 3 bản server sau load balancer, mỗi bản có map riêng: người dùng gọi lần một vào máy A, lần hai vào máy B và không thấy dữ liệu cũ. Đây là lý do các hệ thống thật dùng Redis cho cache dùng chung (bài 17).</p></aside>
+
+<h2 id="gom-nhom-mau-ban-se-viet-rat-nhieu"><a href="#gom-nhom-mau-ban-se-viet-rat-nhieu" class="anchor" aria-hidden="true">#</a>Gom nhóm: mẫu bạn sẽ viết rất nhiều</h2>
+<p>Ví dụ có danh sách bài nộp, cần gom theo học sinh để tính số bài đã nộp:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Submission <span class="k">struct</span> {
+    StudentID <span class="t">int64</span>
+    Score     <span class="t">float64</span>
+}
+
+<span class="k">func</span> <span class="f">countByStudent</span>(subs []Submission) <span class="k">map</span>[<span class="t">int64</span>]<span class="t">int</span> {
+    out := <span class="b">make</span>(<span class="k">map</span>[<span class="t">int64</span>]<span class="t">int</span>, <span class="b">len</span>(subs))
+    <span class="k">for</span> _, s := <span class="k">range</span> subs {
+        out[s.StudentID]++
+    }
+    <span class="k">return</span> out
+}</code></pre></div>
+<p>Ở bài 16, bạn sẽ dùng chính mẫu này để sửa lỗi N+1 truy vấn: lấy hết dữ liệu liên quan trong một câu SQL rồi gom bằng map trong Go.</p>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> <code>a := []int{1, 2, 3, 4}; b := a[:2]; b = append(b, 99)</code>. Giá trị của <code>a</code> là gì?</p><div class="qo"><button type="button" class="opt">[1 2 3 4]</button><button type="button" class="opt" data-ok>[1 2 99 4]</button><button type="button" class="opt">[1 2 99 3 4]</button></div><p class="why" hidden>b có len 2 nhưng cap 4, còn chỗ trong mảng nền chung nên append ghi thẳng vào a[2].</p></div>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Hai request HTTP cùng lúc ghi vào một <code>map[string]int</code> dùng chung, không có khoá. Điều gì có thể xảy ra?</p><div class="qo"><button type="button" class="opt">Chỉ một request được ghi, request kia bị bỏ qua</button><button type="button" class="opt">Không sao, map trong Go tự đồng bộ</button><button type="button" class="opt" data-ok>Chương trình có thể dừng hẳn với lỗi fatal error: concurrent map writes</button></div><p class="why" hidden>Map không an toàn cho ghi đồng thời. Đây là lỗi fatal (không recover được), làm sập cả server. Dùng sync.Mutex hoặc sync.Map.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Đếm từ xuất hiện nhiều nhất</summary>
+<p>Viết <code>topWords(text string, n int) []string</code> trả về <code>n</code> từ xuất hiện nhiều nhất (không phân biệt hoa thường). Gợi ý: <code>strings.Fields</code>, <code>strings.ToLower</code>, map đếm, rồi <code>slices.SortFunc</code>.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">topWords</span>(text <span class="t">string</span>, n <span class="t">int</span>) []<span class="t">string</span> {
+    counts := <span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>{}
+    <span class="k">for</span> _, w := <span class="k">range</span> strings.<span class="f">Fields</span>(strings.<span class="f">ToLower</span>(text)) {
+        counts[w]++
+    }
+    words := <span class="b">make</span>([]<span class="t">string</span>, <span class="n">0</span>, <span class="b">len</span>(counts))
+    <span class="k">for</span> w := <span class="k">range</span> counts {
+        words = <span class="b">append</span>(words, w)
+    }
+    slices.<span class="f">SortFunc</span>(words, <span class="k">func</span>(a, b <span class="t">string</span>) <span class="t">int</span> {
+        <span class="k">if</span> counts[a] != counts[b] {
+            <span class="k">return</span> counts[b] - counts[a] <span class="c">// nhiều hơn đứng trước</span>
+        }
+        <span class="k">return</span> strings.<span class="f">Compare</span>(a, b)     <span class="c">// bằng nhau thì theo chữ cái, kết quả luôn ổn định</span>
+    })
+    <span class="k">if</span> <span class="b">len</span>(words) &gt; n {
+        words = words[:n]
+    }
+    <span class="k">return</span> words
+}</code></pre></div>
+<p>Để ý dòng so sánh phụ theo chữ cái: vì map duyệt ngẫu nhiên, nếu không có nó thì các từ cùng số lần xuất hiện sẽ đổi chỗ giữa các lần chạy, làm test lúc đúng lúc sai.</p>
+</details>
+</details>
+<details class="ex"><summary>Phân trang trên slice</summary>
+<p>Viết <code>page[T any](items []T, page, size int) []T</code> trả về phần tử của trang <code>page</code> (bắt đầu từ 1). Không được panic khi trang vượt quá dữ liệu hoặc tham số âm. (Chữ <code>[T any]</code> là generics, bài 06 sẽ giải thích. Tạm hiểu là "hàm dùng được cho slice kiểu bất kỳ".)</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> page[T <span class="t">any</span>](items []T, page, size <span class="t">int</span>) []T {
+    <span class="k">if</span> page &lt; <span class="n">1</span> || size &lt; <span class="n">1</span> {
+        <span class="k">return</span> []T{}
+    }
+    start := (page - <span class="n">1</span>) * size
+    <span class="k">if</span> start &gt;= <span class="b">len</span>(items) {
+        <span class="k">return</span> []T{}
+    }
+    end := <span class="b">min</span>(start+size, <span class="b">len</span>(items)) <span class="c">// min có sẵn từ Go 1.21</span>
+    <span class="k">return</span> items[start:end]
+}</code></pre></div>
+<p>Truy cập ngoài phạm vi slice (<code>items[10]</code> khi len là 5) gây <b>panic</b>, khác với JavaScript trả <code>undefined</code>. Mọi chỉ số tính từ dữ liệu người dùng gửi lên đều phải kiểm tra như trên.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="slice-map">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="ham-dieu-khien.html"><small>Bài trước</small>Hàm, rẽ nhánh, vòng lặp và defer</a><a class="next" href="struct-con-tro.html"><small>Bài tiếp theo</small>Struct, con trỏ và method</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#array-do-dai-co-dinh-it-khi-dung-truc-tiep">Array: độ dài cố định, ít khi dùng trực tiếp</a><a href="#slice-mang-ban-se-dung-hang-ngay">Slice: &quot;mảng&quot; bạn sẽ dùng hằng ngày</a><a href="#ben-trong-mot-slice">Bên trong một slice</a><a href="#map-giong-object-map-trong-javascript">Map: giống object / Map trong JavaScript</a><a href="#gom-nhom-mau-ban-se-viet-rat-nhieu">Gom nhóm: mẫu bạn sẽ viết rất nhiều</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

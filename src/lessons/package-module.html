@@ -1,0 +1,168 @@
+<h2>Package = một thư mục</h2>
+<p>Mọi file <code>.go</code> trong cùng một thư mục thuộc cùng một package và nhìn thấy nhau hoàn toàn (không cần import lẫn nhau). Tên package khai báo ở dòng đầu mỗi file, thường trùng tên thư mục.</p>
+<pre lang="text" file="Cấu trúc">
+sobaitap/
+├── go.mod                      module github.com/lan/sobaitap
+├── main.go                     package main
+└── grade/
+    ├── grade.go                package grade
+    └── grade_test.go           package grade
+</pre>
+<pre lang="go" file="grade/grade.go">
+package grade
+
+// Classify: viết HOA chữ đầu → package khác dùng được (exported)
+func Classify(score float64) string {
+    if score >= 8 {
+        return "Giỏi"
+    }
+    if isPass(score) {
+        return "Đạt"
+    }
+    return "Chưa đạt"
+}
+
+// isPass: viết thường → chỉ dùng trong package grade
+func isPass(score float64) bool { return score >= 5 }
+</pre>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "fmt"
+
+    "github.com/lan/sobaitap/grade" // đường dẫn = tên module + thư mục
+)
+
+func main() {
+    fmt.Println(grade.Classify(8.5)) // gọi qua tên package
+    // grade.isPass(6)               // lỗi: isPass không được export
+}
+</pre>
+<aside class="fe"><p>Thay cho <code>export</code> / không <code>export</code> trong ES module, Go dùng chữ hoa / chữ thường của <b>chính cái tên</b>. Quy tắc áp dụng cho mọi thứ: hàm, kiểu, hằng, biến, trường của struct, method. Vì vậy trường struct viết thường thì <code>encoding/json</code> (một package khác) không nhìn thấy (bài 05).</p></aside>
+
+<h2>Đặt tên package</h2>
+<ul>
+<li>Ngắn, chữ thường, một từ, không gạch dưới: <code>grade</code>, <code>auth</code>, <code>postgres</code>.</li>
+<li>Tên package là một phần khi gọi, nên tránh lặp: <code>http.Server</code> chứ không phải <code>http.HTTPServer</code>, <code>user.New</code> chứ không phải <code>user.NewUser</code>.</li>
+<li>Tránh package tên <code>utils</code>, <code>common</code>, <code>helpers</code>: chúng thành bãi rác chứa mọi thứ. Đặt tên theo việc nó làm: <code>money</code>, <code>pagination</code>, <code>httpx</code>.</li>
+</ul>
+
+<h2>Không được import vòng tròn</h2>
+<p>Package A import B thì B không được import A (kể cả gián tiếp qua C). Trình biên dịch từ chối ngay. Quy tắc này buộc bạn tổ chức phụ thuộc theo một chiều, từ ngoài vào trong:</p>
+<fig type="stack" caption="Phụ thuộc chỉ đi một chiều: tầng ngoài biết tầng trong, tầng trong không biết tầng ngoài">
+[fe] cmd/api (main) :: đọc cấu hình, ghép mọi thứ lại, chạy server
+[go] internal/http :: handler, middleware, định tuyến
+[go] internal/service :: nghiệp vụ: quyền, quy tắc, tính toán
+[db] internal/store :: SQL, Redis
+[ok] internal/domain :: kiểu dữ liệu và lỗi dùng chung, không import gì của dự án
+</fig>
+<aside class="tip"><p>Khi gặp lỗi <code>import cycle not allowed</code>, gần như luôn là dấu hiệu cần tách phần dùng chung (kiểu dữ liệu, interface) xuống một package ở tầng thấp hơn mà cả hai cùng import.</p></aside>
+
+<h2>Thư mục internal/: khoá cửa từ bên ngoài</h2>
+<p>Package nằm trong thư mục tên <code>internal</code> chỉ được import bởi code nằm trong thư mục cha của <code>internal</code>. Dự án khác không import được, kể cả khi repo công khai. Đây là quy tắc do chính công cụ <code>go</code> thực thi.</p>
+<p>Với ứng dụng backend (không phải thư viện cho người khác dùng), đặt gần như mọi thứ trong <code>internal/</code>.</p>
+
+<h2>Cấu trúc một dự án API thật</h2>
+<pre lang="text" file="Cấu trúc gợi ý (dùng ở dự án cuối, bài 24)">
+sobaitap/
+├── go.mod
+├── go.sum
+├── cmd/
+│   ├── api/main.go          chương trình API
+│   └── worker/main.go       chương trình chạy việc nền (cùng repo, khác file chạy)
+├── internal/
+│   ├── config/              đọc biến môi trường
+│   ├── domain/              User, Class, Assignment, các lỗi ErrNotFound...
+│   ├── service/             nghiệp vụ
+│   ├── store/postgres/      repository dùng SQL
+│   ├── httpapi/             handler, middleware, routes
+│   └── worker/              xử lý việc trong hàng đợi
+├── migrations/              file SQL đổi cấu trúc database
+├── Dockerfile
+└── Makefile
+</pre>
+<aside class="warn"><p>Trên mạng có repo "golang-standards/project-layout" rất nổi tiếng nhưng nó <b>không phải</b> chuẩn chính thức của đội Go, và quá phức tạp cho đa số dự án. Hướng dẫn chính thức ngắn gọn hơn nằm ở <a href="https://go.dev/doc/modules/layout" target="_blank" rel="noopener">go.dev/doc/modules/layout</a>. Bắt đầu đơn giản, tách package khi file bắt đầu dài và khó tìm.</p></aside>
+
+<h2>Cài và quản lý thư viện</h2>
+<pre lang="sh">
+go get github.com/jackc/pgx/v5@latest    # thêm / nâng cấp lên bản mới nhất
+go get github.com/redis/go-redis/v9@v9.7.0 # chọn đúng phiên bản
+go get -u ./...                           # nâng cấp các phụ thuộc (cẩn thận)
+go mod tidy                               # thêm cái thiếu, xoá cái không dùng
+go list -m all                            # liệt kê mọi module đang dùng
+go mod why github.com/x/y                 # vì sao module này có trong dự án
+</pre>
+<p>Phiên bản theo semver. Điểm đặc biệt: từ phiên bản chính <b>v2 trở lên</b>, số phiên bản nằm luôn trong đường dẫn import (<code>.../pgx/v5</code>, <code>.../go-redis/v9</code>). Nhờ vậy một dự án có thể dùng v4 và v5 cùng lúc khi đang chuyển dần.</p>
+<aside class="prod"><p>Kiểm tra lỗ hổng bảo mật của các thư viện bạn dùng bằng công cụ chính thức <code>govulncheck</code>:</p>
+<pre lang="sh">
+go install golang.org/x/vuln/cmd/govulncheck@latest
+govulncheck ./...
+</pre>
+<p>Nó chỉ báo những lỗ hổng mà code của bạn <b>thật sự gọi tới</b>, nên ít báo động giả hơn <code>npm audit</code> nhiều. Nên chạy trong CI (bài 22).</p></aside>
+
+<h2>Thư viện hay dùng cho backend</h2>
+<p>Văn hoá Go là dùng thư viện chuẩn trước, chỉ thêm thư viện ngoài khi thật cần. Đây là những cái gần như dự án backend nào cũng gặp:</p>
+<table>
+<tr><th>Việc</th><th>Thư viện chuẩn</th><th>Thư viện ngoài phổ biến</th></tr>
+<tr><td>HTTP server, định tuyến</td><td><code>net/http</code> (Go 1.22+ đủ dùng)</td><td><code>go-chi/chi</code>, <code>gin-gonic/gin</code>, <code>labstack/echo</code></td></tr>
+<tr><td>PostgreSQL</td><td><code>database/sql</code></td><td><code>jackc/pgx/v5</code> (driver + pool), <code>sqlc</code> (sinh code từ SQL)</td></tr>
+<tr><td>Migration</td><td></td><td><code>pressly/goose</code>, <code>golang-migrate/migrate</code></td></tr>
+<tr><td>Redis</td><td></td><td><code>redis/go-redis/v9</code></td></tr>
+<tr><td>Log</td><td><code>log/slog</code> (Go 1.21+)</td><td><code>uber-go/zap</code>, <code>rs/zerolog</code></td></tr>
+<tr><td>Băm mật khẩu</td><td></td><td><code>golang.org/x/crypto</code> (bcrypt, argon2)</td></tr>
+<tr><td>Giới hạn tần suất</td><td></td><td><code>golang.org/x/time/rate</code></td></tr>
+<tr><td>Đồng thời nâng cao</td><td><code>sync</code></td><td><code>golang.org/x/sync</code> (errgroup, singleflight)</td></tr>
+<tr><td>Validate</td><td></td><td><code>go-playground/validator</code></td></tr>
+<tr><td>Test</td><td><code>testing</code>, <code>net/http/httptest</code></td><td><code>stretchr/testify</code>, <code>testcontainers-go</code></td></tr>
+<tr><td>Theo dõi hệ thống</td><td><code>net/http/pprof</code></td><td><code>prometheus/client_golang</code>, OpenTelemetry</td></tr>
+</table>
+<p>Các package <code>golang.org/x/...</code> do chính đội Go duy trì, nằm ngoài thư viện chuẩn vì chúng được cập nhật thường xuyên hơn.</p>
+
+<h2>Hàm init: dùng hạn chế</h2>
+<p>Mỗi package có thể có hàm <code>init()</code>, tự chạy khi package được nạp, trước <code>main</code>. Nó khó test và chạy ngầm, nên chỉ dùng cho việc thật đơn giản. Đọc cấu hình, kết nối database thì làm tường minh trong <code>main</code>.</p>
+<p>Đôi khi bạn sẽ thấy import chỉ để chạy <code>init</code> của package đó:</p>
+<pre lang="go">
+import _ "net/http/pprof" // đăng ký các đường dẫn /debug/pprof vào DefaultServeMux
+</pre>
+
+<quiz q="Package <code>internal/store</code> cần gọi một hàm trong <code>internal/service</code>, trong khi <code>service</code> đã import <code>store</code>. Cách xử lý đúng?">
+- Import service vào store, Go sẽ tự xử lý vòng tròn
+- Chép hàm đó sang store
++ Xem lại thiết kế: store không nên biết về service. Tách phần dùng chung xuống package thấp hơn (ví dụ domain)
+? Go cấm import vòng tròn. Tầng lưu trữ không được phụ thuộc vào tầng nghiệp vụ.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Tách package</summary>
+<p>Tạo module <code>example.com/money</code> có package <code>vnd</code> với kiểu <code>VND int64</code>, method <code>String()</code> in dạng <code>1.234.000đ</code> (dùng lại lời giải bài 02) và hàm <code>Parse(s string) (VND, error)</code>. Viết <code>main.go</code> import và dùng nó. Thử gọi một hàm viết thường của <code>vnd</code> từ main để xem lỗi.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go" file="vnd/vnd.go">
+package vnd
+
+import (
+    "fmt"
+    "strconv"
+    "strings"
+)
+
+type VND int64
+
+func (v VND) String() string { return format(int64(v)) }
+
+// Parse nhận "1.234.000", "1234000" hoặc "1.234.000đ"
+func Parse(s string) (VND, error) {
+    s = strings.TrimSuffix(strings.TrimSpace(s), "đ")
+    s = strings.ReplaceAll(s, ".", "")
+    n, err := strconv.ParseInt(s, 10, 64)
+    if err != nil {
+        return 0, fmt.Errorf("số tiền không hợp lệ %q: %w", s, err)
+    }
+    return VND(n), nil
+}
+
+func format(v int64) string { /* như lời giải bài 02 */ return strconv.FormatInt(v, 10) + "đ" }
+</pre>
+<p>Vì <code>VND</code> có method <code>String()</code>, nó thoả <code>fmt.Stringer</code>: <code>fmt.Println(vnd.VND(1234000))</code> tự in dạng đẹp.</p>
+</details>
+</details>

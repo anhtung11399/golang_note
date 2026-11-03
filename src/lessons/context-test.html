@@ -1,0 +1,249 @@
+<h2>context: huỷ và hạn chót cho cả một chuỗi việc</h2>
+<p>Người dùng mở trang, request đi vào server, server gọi database và một API bên ngoài. Giữa chừng người dùng đóng tab. Mọi việc phía sau có nên tiếp tục không? Không: tốn tài nguyên cho một response không ai nhận.</p>
+<p><code>context.Context</code> là cách Go truyền <b>tín hiệu huỷ</b>, <b>hạn chót</b> và một ít <b>dữ liệu đi theo request</b> xuyên qua mọi tầng.</p>
+<fig type="flow" caption="Client ngắt kết nối hoặc quá hạn → ctx bị huỷ → mọi việc đang dùng ctx dừng theo">
+[fe] Client đóng tab / hoặc quá 5 giây
+-> r.Context() bị huỷ
+[go] Handler / ctx
+-> truyền ctx xuống
+[go] Service / ctx
+-> truyền ctx xuống
+[db] Postgres / pgx huỷ câu truy vấn đang chạy
+</fig>
+<aside class="fe"><p>Giống <code>AbortController</code>: bạn tạo <code>controller.signal</code>, truyền vào <code>fetch(url, { signal })</code>, gọi <code>controller.abort()</code> để huỷ. Trong Go, <code>ctx</code> đóng vai <code>signal</code> và được truyền vào <b>mọi</b> hàm có I/O.</p></aside>
+
+<h3>Quy ước bắt buộc</h3>
+<ul>
+<li><code>ctx context.Context</code> là <b>tham số đầu tiên</b> của mọi hàm có gọi mạng, database, hoặc chạy lâu.</li>
+<li>Không lưu ctx vào trong struct. Truyền nó qua tham số.</li>
+<li>Trong HTTP handler, lấy ctx từ <code>r.Context()</code>: nó tự bị huỷ khi client ngắt kết nối.</li>
+<li>Chỉ dùng <code>context.Background()</code> ở điểm khởi đầu: hàm <code>main</code>, test, việc nền.</li>
+</ul>
+
+<h3>Đặt thời hạn</h3>
+<pre lang="go">
+func (s *Service) Quote(ctx context.Context, id int64) (Price, error) {
+    // Gọi dịch vụ tỷ giá bên ngoài, nhưng không chờ quá 2 giây
+    ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+    defer cancel() // LUÔN gọi cancel để giải phóng bộ đếm giờ, kể cả khi xong sớm
+
+    rate, err := s.fx.Rate(ctx, "USD", "VND")
+    if err != nil {
+        if errors.Is(err, context.DeadlineExceeded) {
+            return Price{}, fmt.Errorf("dịch vụ tỷ giá quá chậm: %w", err)
+        }
+        return Price{}, err
+    }
+    // ...
+}
+</pre>
+<p>Hạn chót <b>lồng nhau</b>: nếu request gốc còn 1 giây mà bạn đặt <code>WithTimeout(ctx, 2*time.Second)</code>, ctx con vẫn hết hạn sau 1 giây. Context con không bao giờ sống lâu hơn context cha.</p>
+
+<h3>Tự kiểm tra ctx trong việc chạy lâu</h3>
+<pre lang="go">
+func exportCSV(ctx context.Context, w io.Writer, rows []Row) error {
+    for i, r := range rows {
+        if i%1000 == 0 { // thỉnh thoảng kiểm tra xem đã bị huỷ chưa
+            if err := ctx.Err(); err != nil {
+                return err
+            }
+        }
+        writeRow(w, r)
+    }
+    return nil
+}
+</pre>
+
+<h3>Giá trị đi theo request</h3>
+<pre lang="go">
+type ctxKey string // kiểu riêng, tránh trùng khoá với package khác
+
+const requestIDKey ctxKey = "request_id"
+
+func WithRequestID(ctx context.Context, id string) context.Context {
+    return context.WithValue(ctx, requestIDKey, id)
+}
+
+func RequestID(ctx context.Context) string {
+    id, _ := ctx.Value(requestIDKey).(string)
+    return id
+}
+</pre>
+<aside class="warn"><p>Chỉ đặt vào context những thứ <b>thuộc về request</b>: request id, thông tin người dùng đã xác thực, trace id. Không dùng context để truyền tham số tuỳ chọn hay phụ thuộc (database, logger cấu hình): như vậy hàm có tham số ẩn, rất khó đọc và test.</p></aside>
+
+<h2>Kiểm thử: có sẵn trong Go</h2>
+<p>Không cần cài Jest. File test nằm cạnh file code, tên kết thúc bằng <code>_test.go</code>, hàm test bắt đầu bằng <code>Test</code>:</p>
+<pre lang="go" file="grade/grade_test.go">
+package grade
+
+import "testing"
+
+func TestClassify(t *testing.T) {
+    got := Classify(8.5)
+    if got != "Giỏi" {
+        t.Errorf("Classify(8.5) = %q, muốn %q", got, "Giỏi")
+    }
+}
+</pre>
+<pre lang="sh">
+go test ./...                 # chạy mọi test
+go test ./grade -run Classify # chỉ chạy test có tên khớp
+go test -v ./...              # in chi tiết
+go test -race -cover ./...    # kèm phát hiện race và độ phủ
+</pre>
+<p><code>t.Errorf</code> báo lỗi nhưng chạy tiếp, <code>t.Fatalf</code> báo lỗi và dừng test đó ngay (dùng khi các bước sau vô nghĩa nếu bước này hỏng).</p>
+
+<h3>Test dạng bảng: phong cách chuẩn của Go</h3>
+<p>Thay vì viết 10 hàm test gần giống nhau, liệt kê các trường hợp trong một bảng rồi chạy vòng lặp:</p>
+<pre lang="go">
+func TestClassify(t *testing.T) {
+    tests := []struct {
+        name  string
+        score float64
+        want  string
+    }{
+        {"giỏi", 8.5, "Giỏi"},
+        {"vừa đủ giỏi", 8, "Giỏi"},
+        {"đạt", 6, "Đạt"},
+        {"biên dưới đạt", 5, "Đạt"},
+        {"chưa đạt", 4.9, "Chưa đạt"},
+        {"điểm 0", 0, "Chưa đạt"},
+    }
+    for _, tc := range tests {
+        t.Run(tc.name, func(t *testing.T) {
+            if got := Classify(tc.score); got != tc.want {
+                t.Errorf("Classify(%v) = %q, muốn %q", tc.score, got, tc.want)
+            }
+        })
+    }
+}
+</pre>
+<aside class="tip"><p>Mẹo chọn trường hợp test: trường hợp bình thường, <b>đúng ở biên</b> (8 và 7.99, 5 và 4.99), giá trị rỗng / 0 / âm, và dữ liệu sai. Lỗi thường nằm ở biên.</p></aside>
+
+<h3>Test HTTP handler không cần chạy server</h3>
+<p>Package <code>net/http/httptest</code> tạo request và bộ ghi response giả:</p>
+<pre lang="go">
+func TestHealth(t *testing.T) {
+    req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+    rec := httptest.NewRecorder()
+
+    healthHandler(rec, req) // gọi thẳng handler
+
+    if rec.Code != http.StatusOK {
+        t.Fatalf("status = %d, muốn 200", rec.Code)
+    }
+    if !strings.Contains(rec.Body.String(), `"ok"`) {
+        t.Errorf("body = %s", rec.Body.String())
+    }
+}
+</pre>
+
+<h3>Test có database thật</h3>
+<p>Fake (bài 06) phù hợp để test nghiệp vụ. Nhưng câu SQL thì phải test với database thật: fake không biết câu SQL của bạn sai cú pháp hay thiếu index. Hai cách phổ biến:</p>
+<ul>
+<li>Chạy Postgres bằng Docker trong CI, mỗi test tạo schema riêng hoặc bọc trong một transaction rồi rollback.</li>
+<li>Thư viện <code>testcontainers-go</code>: test tự bật container Postgres, xong tự tắt.</li>
+</ul>
+<aside class="real"><p>Nhiều đội chạy toàn bộ test API với database thật, mỗi test một database sạch. Chậm hơn fake, nhưng bắt được những lỗi chỉ database thật mới có: ràng buộc UNIQUE, khoá ngoại, trigger.</p></aside>
+
+<h3>Hàm trợ giúp và dọn dẹp</h3>
+<pre lang="go">
+func newTestServer(t *testing.T) *Server {
+    t.Helper() // lỗi báo ra đúng dòng gọi hàm này, không phải dòng bên trong
+    db := openTestDB(t)
+    t.Cleanup(func() { db.Close() }) // chạy khi test kết thúc, giống afterEach
+    return NewServer(db)
+}
+</pre>
+
+<h2>Đo hiệu năng (benchmark)</h2>
+<pre lang="go">
+func BenchmarkClassify(b *testing.B) {
+    for b.Loop() { // Go 1.24+. Code cũ viết: for i := 0; i < b.N; i++
+        Classify(7.5)
+    }
+}
+</pre>
+<pre lang="sh">
+go test -bench=. -benchmem ./grade
+# BenchmarkClassify-8   1000000000   0.9 ns/op   0 B/op   0 allocs/op
+</pre>
+<p><code>ns/op</code> là thời gian mỗi lần gọi, <code>allocs/op</code> là số lần cấp phát bộ nhớ. Ở backend tải cao, giảm cấp phát thường giúp nhiều hơn tối ưu thuật toán, vì ít rác hơn cho bộ thu gom rác.</p>
+
+<h2>Bao nhiêu test là đủ?</h2>
+<table>
+<tr><th>Nên test kỹ</th><th>Ít giá trị</th></tr>
+<tr><td>Quy tắc nghiệp vụ: tính tiền, quyền truy cập, chuyển trạng thái</td><td>Getter / setter, code chỉ chuyển dữ liệu qua lại</td></tr>
+<tr><td><b>Mỗi quy tắc phân quyền</b>: người A không xem được dữ liệu người B</td><td>Kiểm tra lại thư viện chuẩn</td></tr>
+<tr><td>Câu SQL phức tạp, chạy với database thật</td><td>Mock từng câu SQL rồi kiểm tra chuỗi SQL</td></tr>
+<tr><td>Lỗi đã từng xảy ra (viết test tái hiện trước khi sửa)</td><td>Đuổi theo 100% coverage</td></tr>
+</table>
+
+<quiz q="Handler gọi <code>s.store.Search(context.Background(), q)</code> thay vì truyền <code>r.Context()</code>. Hậu quả?">
+- Không sao, kết quả giống nhau
++ Khi client đóng kết nối hoặc request quá hạn, câu truy vấn vẫn chạy tới cùng, phí tài nguyên database
+- Truy vấn sẽ bị lỗi ngay lập tức
+? Context mới tạo không liên quan tới request nên không bao giờ bị huỷ. Lúc tải cao, các truy vấn "mồ côi" này chồng chất và làm database quá tải.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Test bảng cho hàm phân trang</summary>
+<p>Viết test dạng bảng cho hàm <code>page</code> ở bài 04: trang đầu, trang giữa, trang cuối thiếu phần tử, trang vượt quá, page = 0, size âm, danh sách rỗng. Chạy với <code>-cover</code> và đọc độ phủ.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go">
+func TestPage(t *testing.T) {
+    items := []int{1, 2, 3, 4, 5}
+    tests := []struct {
+        name       string
+        items      []int
+        page, size int
+        want       []int
+    }{
+        {"trang đầu", items, 1, 2, []int{1, 2}},
+        {"trang giữa", items, 2, 2, []int{3, 4}},
+        {"trang cuối thiếu", items, 3, 2, []int{5}},
+        {"vượt quá", items, 4, 2, []int{}},
+        {"page 0", items, 0, 2, []int{}},
+        {"size âm", items, 1, -1, []int{}},
+        {"rỗng", nil, 1, 10, []int{}},
+    }
+    for _, tc := range tests {
+        t.Run(tc.name, func(t *testing.T) {
+            got := page(tc.items, tc.page, tc.size)
+            if !slices.Equal(got, tc.want) {
+                t.Errorf("page(%d, %d) = %v, muốn %v", tc.page, tc.size, got, tc.want)
+            }
+        })
+    }
+}
+</pre>
+</details>
+</details>
+<details class="ex"><summary>Hàm có hạn chót</summary>
+<p>Viết <code>slowSquare(ctx context.Context, n int) (int, error)</code> mất 1 giây để trả kết quả, nhưng dừng ngay và trả <code>ctx.Err()</code> nếu ctx bị huỷ trước. Viết test chứng minh: với timeout 100ms, hàm trả về <code>context.DeadlineExceeded</code> trong chưa tới 200ms.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go">
+func slowSquare(ctx context.Context, n int) (int, error) {
+    select {
+    case <-time.After(time.Second):
+        return n * n, nil
+    case <-ctx.Done():
+        return 0, ctx.Err()
+    }
+}
+
+func TestSlowSquareTimeout(t *testing.T) {
+    ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+    defer cancel()
+    start := time.Now()
+    _, err := slowSquare(ctx, 3)
+    if !errors.Is(err, context.DeadlineExceeded) {
+        t.Fatalf("err = %v, muốn DeadlineExceeded", err)
+    }
+    if d := time.Since(start); d > 200*time.Millisecond {
+        t.Errorf("mất %v, quá lâu", d)
+    }
+}
+</pre>
+</details>
+</details>

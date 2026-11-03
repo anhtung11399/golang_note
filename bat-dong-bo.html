@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 20: Hàng đợi, việc chạy nền và webhook · Go cho dân Frontend</title>
+<meta name="description" content="Đưa việc chậm ra khỏi request, hàng đợi, thử lại có backoff, idempotency key, outbox, nhận webhook thanh toán an toàn.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo" aria-current="page"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="bat-dong-bo">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#d97706">Chặng 5 · Vận hành hệ thống thật</span><span>Bài 20</span><span>55 phút đọc + làm bài</span></div>
+    <h1>Hàng đợi, việc chạy nền và webhook</h1>
+    <p class="lead">Đưa việc chậm ra khỏi request, hàng đợi, thử lại có backoff, idempotency key, outbox, nhận webhook thanh toán an toàn.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Biết khi nào cần hàng đợi</li><li>Thiết kế việc chạy nền an toàn khi chạy lại</li><li>Xác minh chữ ký webhook</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="khong-bat-nguoi-dung-cho-viec-khong-can-cho"><a href="#khong-bat-nguoi-dung-cho-viec-khong-can-cho" class="anchor" aria-hidden="true">#</a>Không bắt người dùng chờ việc không cần chờ</h2>
+<p>Giáo viên giao bài cho lớp 40 em. Hệ thống cần gửi thông báo cho 40 phụ huynh, mỗi thông báo gọi dịch vụ push mất khoảng 200ms. Làm trong request là 8 giây chờ, và nếu dịch vụ push lỗi giữa chừng thì sao?</p>
+<p>Cách làm đúng: request chỉ <b>lưu bài tập và ghi lại việc cần làm</b>, trả về ngay. Một tiến trình khác (<b>worker</b>) lấy việc ra và làm dần, lỗi thì thử lại.</p>
+<figure class="dg"><svg viewBox="0 0 1169.0400000000002 86" style="min-width:600px;max-width:1169.0400000000002px" role="img" aria-label="Request nhanh và chắc chắn. Việc chậm, có thể lỗi, được làm ở nền và có thử lại"><g class="nd fe"><rect x="10" y="10" width="140.24" height="66" rx="10"/><text x="80.12" y="40" class="tt" text-anchor="middle">Giáo viên</text><text x="80.12" y="58" class="ts" text-anchor="middle">POST /assignments</text></g><line x1="152.24" y1="43" x2="216.24" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd go"><rect x="220.24" y="10" width="146.96" height="66" rx="10"/><text x="293.72" y="40" class="tt" text-anchor="middle">API</text><text x="293.72" y="58" class="ts" text-anchor="middle">lưu bài + ghi việc</text></g><line x1="369.20000000000005" y1="43" x2="474.56000000000006" y2="43" class="ln" marker-end="url(#ar)"/><text x="422.88000000000005" y="34" class="tl" text-anchor="middle">201 sau 30ms</text><g class="nd q"><rect x="478.56000000000006" y="10" width="160.4" height="66" rx="10"/><text x="558.7600000000001" y="40" class="tt" text-anchor="middle">Hàng đợi</text><text x="558.7600000000001" y="58" class="ts" text-anchor="middle">&quot;thông báo bài 9001&quot;</text></g><line x1="640.96" y1="43" x2="717.2" y2="43" class="ln" marker-end="url(#ar)"/><text x="680.08" y="34" class="tl" text-anchor="middle">lấy việc</text><g class="nd go"><rect x="721.2" y="10" width="214.16000000000003" height="66" rx="10"/><text x="828.2800000000001" y="40" class="tt" text-anchor="middle">Worker</text><text x="828.2800000000001" y="58" class="ts" text-anchor="middle">gửi 40 push, lỗi thì thử lại</text></g><line x1="937.3600000000001" y1="43" x2="1001.3600000000001" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd ext"><rect x="1005.3600000000001" y="10" width="153.68" height="66" rx="10"/><text x="1082.2" y="40" class="tt" text-anchor="middle">Dịch vụ push</text><text x="1082.2" y="58" class="ts" text-anchor="middle">FCM, APNs, Web Push</text></g></svg><figcaption>Request nhanh và chắc chắn. Việc chậm, có thể lỗi, được làm ở nền và có thử lại</figcaption></figure>
+<p>Những việc nên đưa ra nền: gửi email / SMS / push, xử lý ảnh / video, tạo báo cáo, gọi AI, đồng bộ với hệ thống khác, xuất file lớn, dọn dữ liệu định kỳ.</p>
+
+<h2 id="chon-hang-doi"><a href="#chon-hang-doi" class="anchor" aria-hidden="true">#</a>Chọn hàng đợi</h2>
+<table>
+<tr><th>Lựa chọn</th><th>Hợp với</th></tr>
+<tr><td><b>Bảng trong Postgres</b> (tự làm, hoặc thư viện River cho Go)</td><td>Hệ thống vừa và nhỏ. Không thêm hạ tầng. Ghi việc <b>trong cùng transaction</b> với dữ liệu nghiệp vụ</td></tr>
+<tr><td>Redis (thư viện Asynq cho Go)</td><td>Nhiều việc nhỏ, cần nhanh, đã có Redis</td></tr>
+<tr><td>RabbitMQ, NATS, Amazon SQS, Google Pub/Sub, Cloudflare Queues</td><td>Hàng đợi chuyên dụng, nhiều dịch vụ trao đổi với nhau</td></tr>
+<tr><td>Kafka</td><td>Dòng sự kiện lượng rất lớn, nhiều bên cùng đọc, cần đọc lại lịch sử</td></tr>
+</table>
+<aside class="tip"><p>Đừng thêm Kafka cho một ứng dụng 1.000 người dùng. Một bảng <code>jobs</code> trong Postgres xử lý được hàng trăm việc mỗi giây và đơn giản hơn nhiều. Khi nào đo được là nó không đủ, mới chuyển.</p></aside>
+
+<h3>Hàng đợi bằng Postgres</h3>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">CREATE</span> <span class="k">TABLE</span> jobs (
+    id          <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    kind        <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    payload     <span class="t">jsonb</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    run_at      <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>(),
+    attempts    <span class="t">int</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="n">0</span>,
+    last_error  <span class="t">text</span>,
+    status      <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="s">'pending'</span>   <span class="c">-- pending | done | dead</span>
+);
+<span class="k">CREATE</span> <span class="k">INDEX</span> jobs_ready <span class="k">ON</span> jobs (run_at) <span class="k">WHERE</span> status = <span class="s">'pending'</span>;</code></pre></div>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Worker lấy một việc. SKIP LOCKED: nhiều worker chạy song song không giành cùng một việc</span>
+<span class="k">func</span> (w *Worker) <span class="f">claim</span>(ctx context.Context, tx pgx.Tx) (Job, <span class="t">error</span>) {
+    <span class="k">var</span> j Job
+    err := tx.<span class="f">QueryRow</span>(ctx, <span class="s">`
+        SELECT id, kind, payload, attempts FROM jobs
+        WHERE status = 'pending' AND run_at &lt;= now()
+        ORDER BY run_at
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED`</span>).<span class="f">Scan</span>(&amp;j.ID, &amp;j.Kind, &amp;j.Payload, &amp;j.Attempts)
+    <span class="k">return</span> j, err
+}
+
+<span class="k">func</span> (w *Worker) <span class="f">runOnce</span>(ctx context.Context) <span class="t">error</span> {
+    <span class="k">return</span> pgx.<span class="f">BeginFunc</span>(ctx, w.db, <span class="k">func</span>(tx pgx.Tx) <span class="t">error</span> {
+        j, err := w.<span class="f">claim</span>(ctx, tx)
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            <span class="k">return</span> err <span class="c">// pgx.ErrNoRows: không có việc, vòng ngoài sẽ ngủ một chút</span>
+        }
+        <span class="k">if</span> err := w.<span class="f">handle</span>(ctx, j); err != <span class="b">nil</span> {
+            delay := time.<span class="f">Duration</span>(<span class="n">1</span>&lt;&lt;<span class="b">min</span>(j.Attempts, <span class="n">10</span>)) * time.Second <span class="c">// 1s, 2s, 4s... tối đa ~17 phút</span>
+            status := <span class="s">&quot;pending&quot;</span>
+            <span class="k">if</span> j.Attempts+<span class="n">1</span> &gt;= <span class="n">8</span> {
+                status = <span class="s">&quot;dead&quot;</span> <span class="c">// quá số lần thử: để người xem xét</span>
+            }
+            _, err2 := tx.<span class="f">Exec</span>(ctx, <span class="s">`UPDATE jobs SET attempts = attempts + 1, last_error = $2,
+                run_at = now() + make_interval(secs =&gt; $3), status = $4 WHERE id = $1`</span>,
+                j.ID, err.<span class="f">Error</span>(), delay.<span class="f">Seconds</span>(), status)
+            <span class="k">return</span> err2
+        }
+        _, err = tx.<span class="f">Exec</span>(ctx, <span class="s">`UPDATE jobs SET status = 'done' WHERE id = $1`</span>, j.ID)
+        <span class="k">return</span> err
+    })
+}</code></pre></div>
+<aside class="warn"><p>Ví dụ trên giữ transaction mở suốt lúc <code>handle</code> chạy, đơn giản nhưng chỉ hợp với việc ngắn. Việc chạy lâu (vài phút) thì nên đổi trạng thái sang <code>running</code> kèm thời điểm hết hạn, commit, xử lý ngoài transaction, rồi cập nhật kết quả. Worker chết giữa chừng thì việc tự quay lại hàng đợi khi hết hạn. Thư viện như River làm sẵn những việc này.</p></aside>
+
+<h2 id="giao-it-nhat-mot-lan-viec-phai-chay-lai-duoc"><a href="#giao-it-nhat-mot-lan-viec-phai-chay-lai-duoc" class="anchor" aria-hidden="true">#</a>Giao ít nhất một lần → việc phải chạy lại được</h2>
+<p>Hầu hết hàng đợi chỉ hứa giao <b>ít nhất một lần</b> (at-least-once). Worker gửi email xong, chưa kịp đánh dấu "done" thì bị tắt, lần sau việc được chạy lại, phụ huynh nhận hai email. Không có cách nào hoàn hảo để tránh hoàn toàn điều này ở phía hàng đợi, nên việc phải được thiết kế <b>idempotent</b>: chạy hai lần cũng như một lần.</p>
+<ul>
+<li>Ghi lại đã làm: <code>INSERT INTO sent_notifications (job_id, user_id) ... ON CONFLICT DO NOTHING</code>, chỉ gửi khi chèn được dòng mới.</li>
+<li>Thao tác đặt giá trị thay vì cộng dồn: <code>SET status = 'paid'</code> thay vì <code>SET balance = balance + 100</code>.</li>
+<li>Truyền khoá idempotency cho dịch vụ bên ngoài nếu nó hỗ trợ (các cổng thanh toán thường có).</li>
+</ul>
+
+<h2 id="outbox-ghi-du-lieu-va-gui-su-kien-khong-mat-cai-nao"><a href="#outbox-ghi-du-lieu-va-gui-su-kien-khong-mat-cai-nao" class="anchor" aria-hidden="true">#</a>Outbox: ghi dữ liệu và gửi sự kiện, không mất cái nào</h2>
+<p>Vấn đề kinh điển: lưu đơn hàng vào database rồi gửi sự kiện "đơn mới" lên Kafka / RabbitMQ. Nếu lưu xong mà gửi lỗi, hệ thống khác không bao giờ biết có đơn. Nếu gửi trước rồi lưu lỗi, hệ thống khác xử lý một đơn không tồn tại.</p>
+<figure class="dg"><svg viewBox="0 0 670 342" style="min-width:600px;max-width:670px" role="img" aria-label="Outbox: sự kiện được ghi CÙNG transaction với dữ liệu, một tiến trình khác chuyển nó đi sau"><line x1="80" y1="66" x2="80" y2="332" class="lf"/><g class="nd go"><rect x="20" y="10" width="120" height="54" rx="10"/><text x="80" y="42" class="tt" text-anchor="middle">API</text></g><line x1="250" y1="66" x2="250" y2="332" class="lf"/><g class="nd db"><rect x="190" y="10" width="120" height="54" rx="10"/><text x="250" y="42" class="tt" text-anchor="middle">Postgres</text></g><line x1="420" y1="66" x2="420" y2="332" class="lf"/><g class="nd go"><rect x="360" y="10" width="120" height="54" rx="10"/><text x="420" y="42" class="tt" text-anchor="middle">Relay</text></g><line x1="590" y1="66" x2="590" y2="332" class="lf"/><g class="nd q"><rect x="530" y="10" width="120" height="54" rx="10"/><text x="590" y="42" class="tt" text-anchor="middle">Hàng đợi</text></g><line x1="80" y1="106" x2="246" y2="106" class="ln" marker-end="url(#ar)"/><text x="165" y="67" class="tl" text-anchor="middle">BEGIN; INSERT orders;</text><text x="165" y="83" class="tl" text-anchor="middle">INSERT outbox(event);</text><text x="165" y="99" class="tl" text-anchor="middle">COMMIT</text><rect x="121.51999999999998" y="136" width="256.96000000000004" height="28" rx="6" class="nt"/><text x="250" y="154" class="tn" text-anchor="middle">hoặc có cả hai, hoặc không có gì</text><line x1="420" y1="190" x2="254" y2="190" class="ln" marker-end="url(#ar)"/><text x="335" y="183" class="tl" text-anchor="middle">đọc outbox chưa gửi</text><line x1="420" y1="248" x2="586" y2="248" class="ln" marker-end="url(#ar)"/><text x="505" y="225" class="tl" text-anchor="middle">publish</text><text x="505" y="241" class="tl" text-anchor="middle">&quot;order.created&quot;</text><line x1="420" y1="290" x2="254" y2="290" class="ln" marker-end="url(#ar)"/><text x="335" y="283" class="tl" text-anchor="middle">đánh dấu đã gửi</text></svg><figcaption>Outbox: sự kiện được ghi CÙNG transaction với dữ liệu, một tiến trình khác chuyển nó đi sau</figcaption></figure>
+<p>Nếu hàng đợi của bạn chính là bảng <code>jobs</code> trong Postgres, bạn có outbox miễn phí: chèn việc trong cùng transaction với dữ liệu.</p>
+
+<h2 id="nhan-webhook-vi-du-ngan-hang-bao-co-tien-vao"><a href="#nhan-webhook-vi-du-ngan-hang-bao-co-tien-vao" class="anchor" aria-hidden="true">#</a>Nhận webhook (ví dụ: ngân hàng báo có tiền vào)</h2>
+<p>Webhook là khi hệ thống khác gọi <b>vào</b> API của bạn để báo một sự kiện: cổng thanh toán báo giao dịch thành công, GitHub báo có commit mới. Endpoint webhook công khai trên Internet, nên ai cũng gọi được. Bốn quy tắc:</p>
+<ol>
+<li><b>Xác minh chữ ký.</b> Bên gửi ký nội dung bằng khoá bí mật chung (thường là HMAC-SHA256) và gửi chữ ký trong header. Không có hoặc sai chữ ký → từ chối.</li>
+<li><b>Chống lặp.</b> Bên gửi sẽ gửi lại khi không nhận được 2xx. Lưu id sự kiện với UNIQUE, gặp lại thì trả 200 và bỏ qua.</li>
+<li><b>Trả lời nhanh.</b> Ghi nhận rồi trả 2xx, xử lý nặng đưa ra hàng đợi. Bên gửi thường có timeout vài giây.</li>
+<li><b>Không tin nội dung.</b> Kiểm số tiền, mã đơn, tài khoản nhận khớp với dữ liệu của bạn. Có thể gọi ngược API của bên gửi để xác nhận.</li>
+</ol>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *Handler) <span class="f">paymentWebhook</span>(w http.ResponseWriter, r *http.Request) {
+    body, err := io.<span class="f">ReadAll</span>(http.<span class="f">MaxBytesReader</span>(w, r.Body, <span class="n">64</span>&lt;&lt;<span class="n">10</span>))
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        http.<span class="f">Error</span>(w, <span class="s">&quot;body quá lớn&quot;</span>, http.StatusRequestEntityTooLarge)
+        <span class="k">return</span>
+    }
+    <span class="c">// 1. Chữ ký tính trên đúng các byte nhận được, TRƯỚC khi parse JSON</span>
+    mac := hmac.<span class="f">New</span>(sha256.New, h.webhookSecret)
+    mac.<span class="f">Write</span>(body)
+    want := hex.<span class="f">EncodeToString</span>(mac.<span class="f">Sum</span>(<span class="b">nil</span>))
+    <span class="k">if</span> !hmac.<span class="f">Equal</span>([]<span class="t">byte</span>(want), []<span class="t">byte</span>(r.Header.<span class="f">Get</span>(<span class="s">&quot;X-Signature&quot;</span>))) { <span class="c">// so sánh thời gian hằng</span>
+        http.<span class="f">Error</span>(w, <span class="s">&quot;sai chữ ký&quot;</span>, http.StatusUnauthorized)
+        <span class="k">return</span>
+    }
+    <span class="k">var</span> ev <span class="k">struct</span> {
+        ID     <span class="t">string</span> <span class="s">`json:&quot;id&quot;`</span>
+        Amount <span class="t">int64</span>  <span class="s">`json:&quot;amount&quot;`</span>
+        Code   <span class="t">string</span> <span class="s">`json:&quot;orderCode&quot;`</span>
+    }
+    <span class="k">if</span> err := json.<span class="f">Unmarshal</span>(body, &amp;ev); err != <span class="b">nil</span> {
+        http.<span class="f">Error</span>(w, <span class="s">&quot;JSON sai&quot;</span>, http.StatusBadRequest)
+        <span class="k">return</span>
+    }
+    <span class="c">// 2 + 3. Ghi sự kiện (UNIQUE id) và tạo việc xử lý trong cùng transaction</span>
+    err = pgx.<span class="f">BeginFunc</span>(r.<span class="f">Context</span>(), h.db, <span class="k">func</span>(tx pgx.Tx) <span class="t">error</span> {
+        tag, err := tx.<span class="f">Exec</span>(r.<span class="f">Context</span>(),
+            <span class="s">`INSERT INTO webhook_events (id, body) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`</span>, ev.ID, body)
+        <span class="k">if</span> err != <span class="b">nil</span> || tag.<span class="f">RowsAffected</span>() == <span class="n">0</span> {
+            <span class="k">return</span> err <span class="c">// đã nhận rồi: không làm gì thêm</span>
+        }
+        _, err = tx.<span class="f">Exec</span>(r.<span class="f">Context</span>(),
+            <span class="s">`INSERT INTO jobs (kind, payload) VALUES ('payment.received', $1)`</span>, body)
+        <span class="k">return</span> err
+    })
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        http.<span class="f">Error</span>(w, <span class="s">&quot;lỗi&quot;</span>, http.StatusInternalServerError) <span class="c">// 5xx → bên gửi sẽ gửi lại, an toàn nhờ UNIQUE</span>
+        <span class="k">return</span>
+    }
+    w.<span class="f">WriteHeader</span>(http.StatusOK)
+}</code></pre></div>
+<aside class="real"><p>Stripe, GitHub, Shopify đều ký webhook bằng HMAC-SHA256 và khuyên kiểm thêm <b>thời điểm</b> trong chữ ký (từ chối sự kiện cũ hơn vài phút) để chống phát lại. Các dịch vụ báo giao dịch ngân hàng ở Việt Nam cũng làm theo kiểu này: cấu hình một URL nhận, kèm khoá bí mật hoặc API key để xác minh.</p></aside>
+
+<h2 id="idempotency-key-cho-api-cua-ban"><a href="#idempotency-key-cho-api-cua-ban" class="anchor" aria-hidden="true">#</a>Idempotency key cho API của bạn</h2>
+<p>Quay lại bài 12: client gửi <code>Idempotency-Key</code> cho thao tác tạo thanh toán.</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">CREATE</span> <span class="k">TABLE</span> idempotency_keys (
+    user_id     <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    <span class="k">key</span>         <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    request_hash bytea <span class="k">NOT</span> <span class="k">NULL</span>,      <span class="c">-- cùng khoá mà khác nội dung → báo lỗi</span>
+    status_code <span class="t">int</span>,                  <span class="c">-- NULL = đang xử lý</span>
+    response    <span class="t">jsonb</span>,
+    created_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>(),
+    <span class="k">PRIMARY</span> <span class="k">KEY</span> (user_id, <span class="k">key</span>)
+);</code></pre></div>
+<ol>
+<li><code>INSERT ... ON CONFLICT DO NOTHING</code>. Chèn được → mình là request đầu tiên, xử lý tiếp.</li>
+<li>Không chèn được → đọc dòng cũ. Có <code>response</code> → trả lại đúng response đó. Chưa có (request đầu đang chạy) → trả 409 "đang xử lý, thử lại sau".</li>
+<li>Xử lý xong, lưu status và response vào dòng đó (tốt nhất trong cùng transaction với dữ liệu nghiệp vụ).</li>
+<li>Dọn các khoá cũ hơn 24 giờ bằng việc định kỳ.</li>
+</ol>
+
+<h2 id="viec-dinh-ky-cron"><a href="#viec-dinh-ky-cron" class="anchor" aria-hidden="true">#</a>Việc định kỳ (cron)</h2>
+<p>Gửi nhắc bài tập lúc 19 giờ, dọn dữ liệu cũ mỗi đêm, tạo báo cáo tuần. Khi chạy 3 bản server, cả 3 cùng có cron và việc chạy 3 lần. Cách xử lý:</p>
+<ul>
+<li>Dùng cron của nền tảng (Kubernetes CronJob, Cloud Scheduler) gọi <b>một</b> lần.</li>
+<li>Hoặc mỗi bản cùng chạy nhưng giành một khoá trước: <code>SELECT pg_try_advisory_lock(42)</code> trong Postgres, chỉ bản giành được mới làm.</li>
+<li>Và vẫn làm việc định kỳ idempotent: "gửi nhắc cho bài chưa được nhắc hôm nay" thay vì "gửi nhắc".</li>
+</ul>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Webhook thanh toán được bên gửi gửi lại 3 lần vì lần đầu API của bạn trả 500 sau khi đã cộng tiền. Thiết kế nào đảm bảo chỉ cộng tiền một lần?</p><div class="qo"><button type="button" class="opt">Trả 200 cho mọi webhook để bên gửi không gửi lại</button><button type="button" class="opt" data-ok>Lưu id sự kiện với UNIQUE và cộng tiền trong cùng transaction với việc lưu id, gặp id đã có thì bỏ qua</button><button type="button" class="opt">Ghi log và kiểm tra bằng tay mỗi sáng</button></div><p class="why" hidden>Trả 200 cả khi lỗi thì mất sự kiện thật. Ràng buộc UNIQUE trên id sự kiện + transaction biến việc xử lý thành idempotent, nên gửi lại bao nhiêu lần cũng an toàn.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Worker gửi thông báo</summary>
+<p>Khi giáo viên giao bài, tạo một việc <code>notify.assignment</code> trong cùng transaction với bài tập. Viết worker (chương trình riêng <code>cmd/worker</code>) lấy việc bằng <code>SKIP LOCKED</code>, gửi thông báo cho từng phụ huynh (giả lập bằng log, cho lỗi ngẫu nhiên 20%), thử lại có backoff, không gửi trùng cho một phụ huynh dù việc chạy lại, dừng an toàn khi nhận SIGTERM.</p>
+<details class="sol"><summary>Tiêu chí tự kiểm tra</summary>
+<ul>
+<li>Bảng <code>notifications_sent(job_id, user_id)</code> có khoá chính kép: gửi cho ai thì chèn dòng đó, chèn không được nghĩa là đã gửi.</li>
+<li>Chạy 3 worker cùng lúc: không việc nào bị xử lý hai lần cùng lúc.</li>
+<li>Tắt worker bằng Ctrl+C giữa chừng rồi bật lại: việc dở dang được làm tiếp, không ai nhận trùng.</li>
+<li>Việc lỗi 8 lần chuyển sang <code>dead</code> và có <code>last_error</code> để đọc.</li>
+<li>Vòng lặp chính: <code>for ctx.Err() == nil { if no job { sleep 1s } }</code>, không quay liên tục làm nóng CPU khi hàng đợi rỗng.</li>
+</ul>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="bat-dong-bo">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="bao-mat-api.html"><small>Bài trước</small>Bảo mật API: các lỗ hổng hay gặp nhất</a><a class="next" href="quan-sat.html"><small>Bài tiếp theo</small>Theo dõi hệ thống: log, metrics, tracing</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#khong-bat-nguoi-dung-cho-viec-khong-can-cho">Không bắt người dùng chờ việc không cần chờ</a><a href="#chon-hang-doi">Chọn hàng đợi</a><a href="#giao-it-nhat-mot-lan-viec-phai-chay-lai-duoc">Giao ít nhất một lần → việc phải chạy lại được</a><a href="#outbox-ghi-du-lieu-va-gui-su-kien-khong-mat-cai-nao">Outbox: ghi dữ liệu và gửi sự kiện, không mất cái nào</a><a href="#nhan-webhook-vi-du-ngan-hang-bao-co-tien-vao">Nhận webhook (ví dụ: ngân hàng báo có tiền vào)</a><a href="#idempotency-key-cho-api-cua-ban">Idempotency key cho API của bạn</a><a href="#viec-dinh-ky-cron">Việc định kỳ (cron)</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

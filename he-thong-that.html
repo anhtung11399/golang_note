@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 23: Các hệ thống thật hoạt động ra sao · Go cho dân Frontend</title>
+<meta name="description" content="Go ở Google, Uber, Cloudflare, Discord. Thiết kế dịch vụ rút gọn link, bán vé giờ cao điểm, gửi thông báo cho triệu người.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that" aria-current="page"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="he-thong-that">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#d97706">Chặng 5 · Vận hành hệ thống thật</span><span>Bài 23</span><span>60 phút đọc + làm bài</span></div>
+    <h1>Các hệ thống thật hoạt động ra sao</h1>
+    <p class="lead">Go ở Google, Uber, Cloudflare, Discord. Thiết kế dịch vụ rút gọn link, bán vé giờ cao điểm, gửi thông báo cho triệu người.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Ước lượng tải cho một hệ thống</li><li>Biết các mẫu thiết kế lặp lại ở hệ thống lớn</li><li>Đọc được bài viết kỹ thuật của các công ty lớn</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="go-ngoai-doi-that"><a href="#go-ngoai-doi-that" class="anchor" aria-hidden="true">#</a>Go ngoài đời thật</h2>
+<p>Những câu chuyện dưới đây được các công ty tự kể trong blog kỹ thuật và các buổi nói chuyện công khai. Đọc chúng là cách tốt nhất để hiểu vì sao các mẫu thiết kế trong lộ trình này tồn tại.</p>
+
+<h3>Google: lý do Go ra đời</h3>
+<p>Rob Pike, Ken Thompson và Robert Griesemer bắt đầu thiết kế Go năm 2007 ở Google. Lý do họ nêu: các dự án C++ khổng lồ mất rất lâu để biên dịch, quản lý phụ thuộc rắc rối, và việc viết phần mềm mạng chạy trên máy nhiều nhân quá khó. Mọi đặc điểm của Go đều trả lời những vấn đề đó: biên dịch nhanh, không import vòng tròn, gofmt, goroutine.</p>
+
+<h3>Docker và Kubernetes: hạ tầng của Internet hiện đại</h3>
+<p>Docker (2013) và Kubernetes (2014, Google công bố mã nguồn) đều viết bằng Go, kéo theo cả hệ sinh thái điện toán đám mây: etcd, Prometheus, Terraform, Istio, containerd. Nếu bạn làm backend, gần như chắc chắn bạn đang chạy trên những công cụ viết bằng Go.</p>
+
+<h3>Uber: hàng nghìn dịch vụ Go</h3>
+<p>Uber là một trong những công ty dùng Go lớn nhất, với hàng nghìn microservice. Họ công bố <i>Uber Go Style Guide</i>, các thư viện <code>zap</code> (log nhanh), <code>fx</code> (dependency injection), và một nghiên cứu năm 2022 về data race trong mã Go của họ: phát hiện hàng nghìn race, nhiều cái do chia sẻ biến trong closure, dùng map và slice đồng thời. Đó là lý do <code>go test -race</code> xuất hiện trong mọi CI nghiêm túc.</p>
+
+<h3>Cloudflare: Go ở rìa mạng</h3>
+<p>Cloudflare dùng Go cho rất nhiều dịch vụ nội bộ và đã viết nhiều bài về cách đặt timeout cho <code>net/http</code> (bài viết "The complete guide to Go net/http timeouts" của họ là tài liệu tham khảo kinh điển cho bài 11).</p>
+
+<h3>Discord: khi Go không còn phù hợp</h3>
+<p>Năm 2020, Discord kể việc viết lại dịch vụ "Read States" (lưu kênh nào bạn đã đọc tới đâu) từ Go sang Rust. Dịch vụ giữ một bộ nhớ đệm rất lớn trong RAM. Cứ khoảng 2 phút, bộ thu gom rác của Go chạy và làm độ trễ tăng vọt theo chu kỳ. Bản Rust không có GC nên độ trễ đều hơn. Bài học không phải "Go chậm", mà là: <b>mỗi công cụ có giới hạn</b>, và bạn chỉ biết giới hạn đó bằng cách đo. Go đã cải thiện GC nhiều từ đó (ví dụ <code>GOMEMLIMIT</code> ở Go 1.19).</p>
+
+<h3>Twitch: "memory ballast"</h3>
+<p>Năm 2019 Twitch viết về việc cấp phát sẵn một mảng 10GB không dùng tới, chỉ để bộ thu gom rác chạy ít lần hơn, giảm đáng kể CPU tốn cho GC và độ trễ của API. Mẹo này về sau được thay bằng <code>GOMEMLIMIT</code> chính thức. Câu chuyện cho thấy các đội ở quy mô lớn đo và tinh chỉnh tới từng thành phần của runtime.</p>
+
+<h3>Grab: Go ở Đông Nam Á</h3>
+<p>Grab dùng Go cho phần lớn hệ thống backend (đặt xe, giao đồ ăn, thanh toán) và viết nhiều bài trên blog kỹ thuật về thiết kế dịch vụ, xử lý tải giờ cao điểm, cơ sở dữ liệu. Nếu bạn muốn làm backend Go ở khu vực này, đó là nguồn đọc rất sát thực tế.</p>
+<aside class="tip"><p>Thói quen đáng tập: mỗi tuần đọc một bài blog kỹ thuật (Cloudflare, Uber, Discord, Grab, Shopify, Stripe, GitHub). Nhiều blog có mục "postmortem" kể lại sự cố: đọc chúng giúp bạn tránh được lỗi trước khi tự mắc phải.</p></aside>
+
+<h2 id="uoc-luong-tai-phep-tinh-tren-mat-sau-to-giay"><a href="#uoc-luong-tai-phep-tinh-tren-mat-sau-to-giay" class="anchor" aria-hidden="true">#</a>Ước lượng tải: phép tính trên mặt sau tờ giấy</h2>
+<p>Trước khi thiết kế, người làm backend ước lượng con số. Ví dụ ứng dụng sổ bài tập cho 100.000 học sinh:</p>
+<table>
+<tr><th>Đại lượng</th><th>Ước lượng</th><th>Kết quả</th></tr>
+<tr><td>Bài nộp mỗi ngày</td><td>100.000 em × 3 bài</td><td>300.000 dòng/ngày, khoảng 60 triệu dòng mỗi năm học</td></tr>
+<tr><td>Request mỗi giây trung bình</td><td>100.000 người × 40 request/ngày ÷ 86.400 giây</td><td>khoảng 46 request/giây</td></tr>
+<tr><td>Giờ cao điểm</td><td>Phần lớn phụ huynh vào lúc 19 đến 21 giờ: gấp khoảng 10 lần trung bình</td><td>khoảng 500 request/giây</td></tr>
+<tr><td>Ảnh bài làm</td><td>300.000 bài × 2 ảnh × 500KB</td><td>khoảng 300GB mỗi ngày</td></tr>
+</table>
+<p>Kết luận: 500 request/giây là việc nhẹ với một vài bản server Go và một Postgres có index tốt. Thứ thật sự cần thiết kế cẩn thận là <b>ảnh</b>: dung lượng lưu trữ, chi phí, nén ảnh trước khi upload, tải thẳng lên dịch vụ lưu trữ (presigned URL) thay vì đi qua server API, và chính sách xoá dữ liệu cuối năm học.</p>
+<aside class="fe"><p>Một số tham khảo để ước lượng: một truy vấn có index ở Postgres mất cỡ dưới 1ms trên máy chủ, một lần đi về Redis cùng trung tâm dữ liệu cỡ dưới 1ms, gọi một API ở châu lục khác mất hàng trăm ms. Một bản server Go đơn giản xử lý được hàng nghìn request/giây nếu không phải chờ database chậm.</p></aside>
+
+<h2 id="thiet-ke-1-dich-vu-rut-gon-link"><a href="#thiet-ke-1-dich-vu-rut-gon-link" class="anchor" aria-hidden="true">#</a>Thiết kế 1: dịch vụ rút gọn link</h2>
+<p>Đề bài kinh điển trong phỏng vấn thiết kế hệ thống: <code>POST /links {url}</code> trả về <code>sbt.vn/aZ3k9</code>, mở link ngắn thì chuyển hướng tới link gốc.</p>
+<figure class="dg"><svg viewBox="0 0 951.6800000000001 86" style="min-width:600px;max-width:951.6800000000001px" role="img" aria-label="Đọc nhiều hơn ghi rất nhiều: cache và CDN gánh phần lớn lượt mở link"><g class="nd fe"><rect x="10" y="10" width="139.20000000000002" height="66" rx="10"/><text x="79.60000000000001" y="40" class="tt" text-anchor="middle">Người mở link</text><text x="79.60000000000001" y="58" class="ts" text-anchor="middle">GET /aZ3k9</text></g><line x1="151.20000000000002" y1="43" x2="215.20000000000002" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd ext"><rect x="219.20000000000002" y="10" width="146.96" height="66" rx="10"/><text x="292.68" y="40" class="tt" text-anchor="middle">CDN</text><text x="292.68" y="58" class="ts" text-anchor="middle">cache chuyển hướng</text></g><line x1="368.16" y1="43" x2="432.16" y2="43" class="ln" marker-end="url(#ar)"/><text x="401.16" y="34" class="tl" text-anchor="middle">miss</text><g class="nd go"><rect x="436.16" y="10" width="116" height="66" rx="10"/><text x="494.16" y="40" class="tt" text-anchor="middle">API Go</text><text x="494.16" y="58" class="ts" text-anchor="middle">tra mã</text></g><line x1="554.1600000000001" y1="43" x2="618.1600000000001" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd cache"><rect x="622.1600000000001" y="10" width="116" height="66" rx="10"/><text x="680.1600000000001" y="40" class="tt" text-anchor="middle">Redis</text><text x="680.1600000000001" y="58" class="ts" text-anchor="middle">mã → URL</text></g><line x1="740.1600000000001" y1="43" x2="804.1600000000001" y2="43" class="ln" marker-end="url(#ar)"/><text x="773.1600000000001" y="34" class="tl" text-anchor="middle">miss</text><g class="nd db"><rect x="808.1600000000001" y="10" width="133.52" height="66" rx="10"/><text x="874.9200000000001" y="40" class="tt" text-anchor="middle">Postgres</text><text x="874.9200000000001" y="58" class="ts" text-anchor="middle">links(code, url)</text></g></svg><figcaption>Đọc nhiều hơn ghi rất nhiều: cache và CDN gánh phần lớn lượt mở link</figcaption></figure>
+<ul>
+<li><b>Sinh mã</b>: mã hoá id tự tăng sang base62 (ngắn, không trùng, nhưng đoán được thứ tự), hoặc chuỗi ngẫu nhiên 7 ký tự + UNIQUE và thử lại khi trùng (62<sup>7</sup> khoảng 3,5 nghìn tỷ tổ hợp).</li>
+<li><b>Chuyển hướng</b>: <code>301</code> (trình duyệt nhớ, ít tải nhưng không đếm được lượt mở) hay <code>302</code> (đếm được mọi lượt).</li>
+<li><b>Đếm lượt mở</b>: không UPDATE bộ đếm mỗi lần mở (một dòng nóng bị tranh chấp, bài 16). Ghi sự kiện vào hàng đợi, gom và cộng theo lô.</li>
+<li><b>Lạm dụng</b>: link lừa đảo, mã độc. Kiểm URL với danh sách đen (ví dụ Google Safe Browsing), giới hạn tần suất tạo link, chặn SSRF nếu có tính năng xem trước.</li>
+</ul>
+
+<h2 id="thiet-ke-2-mo-ban-ve-gio-cao-diem"><a href="#thiet-ke-2-mo-ban-ve-gio-cao-diem" class="anchor" aria-hidden="true">#</a>Thiết kế 2: mở bán vé giờ cao điểm</h2>
+<p>10.000 vé concert, 500.000 người cùng vào lúc 10 giờ sáng.</p>
+<ul>
+<li><b>Phòng chờ ảo</b>: không cho 500.000 người cùng đập vào API đặt vé. Xếp hàng ở phía trước (CDN / dịch vụ hàng chờ), mỗi lần cho một lượng vừa đủ vào.</li>
+<li><b>Giữ chỗ có hạn</b>: chọn ghế thì giữ 10 phút (<code>UPDATE seats SET held_by = $1, held_until = now() + interval '10 minutes' WHERE id = $2 AND (held_by IS NULL OR held_until &lt; now())</code>). Không thanh toán thì ghế tự trả lại.</li>
+<li><b>Không bán quá</b>: điều kiện nằm trong câu UPDATE (bài 16). Với vé không chọn ghế, có thể trừ số lượng nguyên tử trong Redis (<code>DECR</code>, âm thì hoàn lại) rồi ghi đơn vào database qua hàng đợi.</li>
+<li><b>Chống bot</b>: CAPTCHA, giới hạn mỗi tài khoản, phát hiện hành vi bất thường (OWASP API6).</li>
+<li><b>Thanh toán</b>: idempotency key, webhook xác nhận (bài 20), đối soát cuối ngày.</li>
+</ul>
+
+<h2 id="thiet-ke-3-gui-thong-bao-cho-mot-trieu-nguoi"><a href="#thiet-ke-3-gui-thong-bao-cho-mot-trieu-nguoi" class="anchor" aria-hidden="true">#</a>Thiết kế 3: gửi thông báo cho một triệu người</h2>
+<p>Trường học gửi thông báo nghỉ học do bão cho mọi phụ huynh trong tỉnh.</p>
+<figure class="dg"><svg viewBox="0 0 757.3600000000001 558" style="min-width:600px;max-width:757.3600000000001px" role="img" aria-label="Chia nhỏ việc lớn thành nhiều việc nhỏ, mỗi tầng có giới hạn tốc độ riêng"><g class="nd fe"><rect x="10" y="10" width="355.20000000000005" height="66" rx="10"/><text x="187.60000000000002" y="40" class="tt" text-anchor="middle">Quản trị bấm Gửi</text><text x="187.60000000000002" y="58" class="ts" text-anchor="middle">POST /broadcasts</text></g><line x1="187.60000000000002" y1="80" x2="187.60000000000002" y2="124" class="ln" marker-end="url(#ar)"/><text x="201.60000000000002" y="107" class="tl" text-anchor="start">1 việc: &quot;broadcast 77&quot;</text><g class="nd q"><rect x="10" y="128" width="355.20000000000005" height="66" rx="10"/><text x="187.60000000000002" y="166" class="tt" text-anchor="middle">Hàng đợi</text></g><line x1="187.60000000000002" y1="198" x2="187.60000000000002" y2="242" class="ln" marker-end="url(#ar)"/><text x="201.60000000000002" y="225" class="tl" text-anchor="start">worker chia theo lô 1.000 người</text><g class="nd q"><rect x="10" y="246" width="355.20000000000005" height="66" rx="10"/><text x="187.60000000000002" y="284" class="tt" text-anchor="middle">1.000 việc &quot;gửi lô k của broadcast 77&quot;</text></g><line x1="187.60000000000002" y1="316" x2="187.60000000000002" y2="360" class="ln" marker-end="url(#ar)"/><text x="201.60000000000002" y="343" class="tl" text-anchor="start">nhiều worker, giới hạn tốc độ theo nhà cung cấp</text><g class="nd ext"><rect x="10" y="364" width="355.20000000000005" height="66" rx="10"/><text x="187.60000000000002" y="394" class="tt" text-anchor="middle">Web Push</text><text x="187.60000000000002" y="412" class="ts" text-anchor="middle">FCM / APNs / email</text></g><line x1="187.60000000000002" y1="434" x2="187.60000000000002" y2="478" class="ln" marker-end="url(#ar)"/><text x="201.60000000000002" y="461" class="tl" text-anchor="start">kết quả từng người</text><g class="nd db"><rect x="10" y="482" width="355.20000000000005" height="66" rx="10"/><text x="187.60000000000002" y="512" class="tt" text-anchor="middle">Bảng deliveries</text><text x="187.60000000000002" y="530" class="ts" text-anchor="middle">đã gửi, lỗi, máy không còn đăng ký thì xoá</text></g></svg><figcaption>Chia nhỏ việc lớn thành nhiều việc nhỏ, mỗi tầng có giới hạn tốc độ riêng</figcaption></figure>
+<ul>
+<li>Không có một request nào làm việc với một triệu dòng. Mọi thứ đi qua hàng đợi, theo lô.</li>
+<li>Mỗi lô idempotent (bảng <code>deliveries</code> có khoá chính <code>(broadcast_id, user_id)</code>).</li>
+<li>Tôn trọng giới hạn tốc độ của nhà cung cấp (token bucket, bài 17). Lỗi 429 / 5xx thì thử lại có backoff.</li>
+<li>Máy trả "không còn đăng ký" (HTTP 404 / 410 với Web Push) thì xoá đăng ký đó, nếu không lần sau lại gửi thừa.</li>
+<li>Theo dõi tiến độ: đã gửi bao nhiêu, lỗi bao nhiêu, hàng đợi còn bao nhiêu (bài 21).</li>
+</ul>
+
+<h2 id="nhung-mau-lap-lai-o-moi-he-thong-lon"><a href="#nhung-mau-lap-lai-o-moi-he-thong-lon" class="anchor" aria-hidden="true">#</a>Những mẫu lặp lại ở mọi hệ thống lớn</h2>
+<table>
+<tr><th>Vấn đề</th><th>Mẫu giải quyết</th><th>Bài</th></tr>
+<tr><td>Đọc nhiều, ghi ít</td><td>Cache nhiều tầng, bản sao chỉ đọc của database</td><td>17</td></tr>
+<tr><td>Việc chậm, có thể lỗi</td><td>Hàng đợi + worker + thử lại + idempotent</td><td>20</td></tr>
+<tr><td>Nhiều người tranh một tài nguyên</td><td>Điều kiện trong câu ghi, khoá dòng, giữ chỗ có hạn</td><td>16</td></tr>
+<tr><td>Gửi lại, bấm hai lần, webhook lặp</td><td>Idempotency key, ràng buộc UNIQUE</td><td>12, 20</td></tr>
+<tr><td>Dịch vụ phía sau chậm / chết</td><td>Timeout, thử lại có giới hạn, circuit breaker, chạy giảm chức năng</td><td>11, 17</td></tr>
+<tr><td>Tải tăng đột biến</td><td>Server stateless + mở rộng ngang, rate limit, hàng chờ</td><td>17, 22</td></tr>
+<tr><td>Dữ liệu một bảng quá lớn</td><td>Index đúng, phân vùng theo thời gian, xoá / lưu trữ dữ liệu cũ</td><td>16</td></tr>
+<tr><td>Ghi dữ liệu và báo cho hệ thống khác</td><td>Outbox</td><td>20</td></tr>
+</table>
+<aside class="warn"><p><b>Microservice không phải điểm khởi đầu.</b> Nhiều công ty lớn bắt đầu bằng một ứng dụng nguyên khối (monolith), tách dịch vụ khi đội ngũ và tải đủ lớn. Tách sớm biến lời gọi hàm thành lời gọi mạng, biến một transaction thành bài toán giao dịch phân tán. Một monolith Go chia package rõ ràng (bài 08) đủ cho rất nhiều sản phẩm.</p></aside>
+
+<quiz q="Tính năng "đếm lượt xem bài tập" làm bằng <code>UPDATE assignments SET views = views + 1 WHERE id = $1</code> mỗi lần mở. Bài tập của một lớp đông được mở 300 lần/giây lúc cao điểm. Vấn đề là gì?">
+- Không có vấn đề, Postgres xử lý được hàng nghìn UPDATE mỗi giây
++ Mọi request tranh khoá cùng một dòng, xếp hàng chờ nhau và làm chậm cả các truy vấn khác chạm vào dòng đó
+- views sẽ bị đếm sai do race
+? Câu UPDATE nguyên tử nên không sai số, nhưng một "dòng nóng" thành nút cổ chai. Giải pháp: đếm trong Redis (INCR) rồi định kỳ ghi gộp vào database, hoặc ghi sự kiện rồi tổng hợp theo lô.
+</quiz>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Thiết kế hệ thống của riêng bạn</summary>
+<p>Chọn một sản phẩm bạn từng làm frontend (sàn thương mại, app đặt lịch, mạng xã hội nội bộ...). Viết một trang thiết kế gồm: ước lượng tải (người dùng, request/giây lúc cao điểm, dung lượng dữ liệu mỗi năm), lược đồ database các bảng chính, danh sách endpoint chính, việc nào chạy nền, chỗ nào có tranh chấp dữ liệu và cách xử lý, cache gì, giới hạn gì.</p>
+<details class="sol"><summary>Cách tự đánh giá</summary>
+<ul>
+<li>Mỗi con số ước lượng có phép tính đi kèm.</li>
+<li>Mỗi endpoint ghi rõ ai được gọi và kiểm quyền thế nào.</li>
+<li>Mỗi thao tác "kiểm tra rồi mới làm" đã được chuyển thành điều kiện trong câu SQL hoặc khoá.</li>
+<li>Mỗi việc gọi ra ngoài có timeout, có thử lại, và idempotent.</li>
+<li>Có nói rõ dữ liệu nào được xoá khi nào.</li>
+</ul>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="he-thong-that">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="trien-khai.html"><small>Bài trước</small>Docker, CI/CD và triển khai</a><a class="next" href="du-an.html"><small>Bài tiếp theo</small>Dự án: API &quot;Sổ bài tập&quot; chuẩn production</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#go-ngoai-doi-that">Go ngoài đời thật</a><a href="#uoc-luong-tai-phep-tinh-tren-mat-sau-to-giay">Ước lượng tải: phép tính trên mặt sau tờ giấy</a><a href="#thiet-ke-1-dich-vu-rut-gon-link">Thiết kế 1: dịch vụ rút gọn link</a><a href="#thiet-ke-2-mo-ban-ve-gio-cao-diem">Thiết kế 2: mở bán vé giờ cao điểm</a><a href="#thiet-ke-3-gui-thong-bao-cho-mot-trieu-nguoi">Thiết kế 3: gửi thông báo cho một triệu người</a><a href="#nhung-mau-lap-lai-o-moi-he-thong-lon">Những mẫu lặp lại ở mọi hệ thống lớn</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 12: Thiết kế REST API chuẩn · Go cho dân Frontend</title>
+<meta name="description" content="Đặt tên endpoint, chọn method và status code, định dạng lỗi, phân trang, lọc, idempotency, version.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest" aria-current="page"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="rest">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#7c3aed">Chặng 2 · Xây API</span><span>Bài 12</span><span>50 phút đọc + làm bài</span></div>
+    <h1>Thiết kế REST API chuẩn</h1>
+    <p class="lead">Đặt tên endpoint, chọn method và status code, định dạng lỗi, phân trang, lọc, idempotency, version.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Thiết kế endpoint cho một tài nguyên</li><li>Trả status code và lỗi nhất quán</li><li>Phân trang đúng cách</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="tai-nguyen-va-duong-dan"><a href="#tai-nguyen-va-duong-dan" class="anchor" aria-hidden="true">#</a>Tài nguyên và đường dẫn</h2>
+<p>REST xoay quanh <b>tài nguyên</b> (danh từ) và dùng <b>method HTTP</b> làm động từ. Đường dẫn nói "cái gì", method nói "làm gì".</p>
+<table>
+<tr><th>Việc</th><th>Endpoint</th><th>Thành công</th></tr>
+<tr><td>Danh sách lớp của tôi</td><td><code>GET /v1/classes</code></td><td>200 + danh sách</td></tr>
+<tr><td>Tạo lớp</td><td><code>POST /v1/classes</code></td><td>201 + lớp mới + header <code>Location</code></td></tr>
+<tr><td>Xem một lớp</td><td><code>GET /v1/classes/{id}</code></td><td>200</td></tr>
+<tr><td>Sửa vài trường</td><td><code>PATCH /v1/classes/{id}</code></td><td>200 + lớp sau khi sửa</td></tr>
+<tr><td>Thay toàn bộ</td><td><code>PUT /v1/classes/{id}</code></td><td>200</td></tr>
+<tr><td>Xoá</td><td><code>DELETE /v1/classes/{id}</code></td><td>204, không có body</td></tr>
+<tr><td>Bài tập của một lớp</td><td><code>GET /v1/classes/{id}/assignments</code></td><td>200</td></tr>
+<tr><td>Hành động không phải CRUD</td><td><code>POST /v1/assignments/{id}/submit</code></td><td>200 / 201</td></tr>
+</table>
+<ul>
+<li>Danh từ số nhiều, chữ thường, gạch ngang: <code>/payment-issues</code>, không phải <code>/getPaymentIssue</code>.</li>
+<li>Lồng tối đa một, hai tầng. <code>/classes/5/assignments</code> được, <code>/schools/1/classes/5/assignments/9/files/3</code> thì quá sâu: dùng <code>/files/3</code>.</li>
+<li>Hành động không khớp CRUD (duyệt, nộp, huỷ, gửi lại) dùng <code>POST</code> với động từ ở cuối: <code>POST /orders/9/cancel</code>. Đây là cách các API lớn như Stripe vẫn làm.</li>
+</ul>
+
+<h2 id="method-an-toan-va-idempotent"><a href="#method-an-toan-va-idempotent" class="anchor" aria-hidden="true">#</a>Method: an toàn và idempotent</h2>
+<table>
+<tr><th>Method</th><th>An toàn (không đổi dữ liệu)</th><th>Idempotent (gọi nhiều lần = gọi một lần)</th><th>Ghi chú</th></tr>
+<tr><td>GET, HEAD</td><td>Có</td><td>Có</td><td>Không bao giờ được đổi dữ liệu. Trình duyệt, CDN, crawler có thể tự gọi lại bất cứ lúc nào</td></tr>
+<tr><td>PUT</td><td>Không</td><td>Có</td><td>Gửi lại bản đầy đủ, kết quả vẫn thế</td></tr>
+<tr><td>DELETE</td><td>Không</td><td>Có</td><td>Xoá lần hai: dữ liệu vẫn là "đã xoá" (status có thể là 404)</td></tr>
+<tr><td>PATCH</td><td>Không</td><td>Tuỳ</td><td><code>{"name":"5A"}</code> idempotent, <code>{"op":"increment"}</code> thì không</td></tr>
+<tr><td>POST</td><td>Không</td><td><b>Không</b></td><td>Gửi hai lần = tạo hai bản ghi, trừ khi có idempotency key</td></tr>
+</table>
+<aside class="warn"><p>Đừng bao giờ làm endpoint kiểu <code>GET /delete?id=5</code>. Thư viện prefetch link, trình kiểm tra link trong Slack/Zalo, hay bot tìm kiếm có thể tự gọi GET và xoá dữ liệu của bạn.</p></aside>
+
+<h2 id="status-code-chon-dung-de-client-xu-ly-dung"><a href="#status-code-chon-dung-de-client-xu-ly-dung" class="anchor" aria-hidden="true">#</a>Status code: chọn đúng để client xử lý đúng</h2>
+<table>
+<tr><th>Mã</th><th>Khi nào</th></tr>
+<tr><td><b>200</b> OK</td><td>Thành công, có body</td></tr>
+<tr><td><b>201</b> Created</td><td>Tạo mới thành công (POST)</td></tr>
+<tr><td><b>204</b> No Content</td><td>Thành công, không có body (DELETE)</td></tr>
+<tr><td><b>400</b> Bad Request</td><td>Dữ liệu sai: JSON hỏng, thiếu trường, sai định dạng</td></tr>
+<tr><td><b>401</b> Unauthorized</td><td><b>Chưa đăng nhập</b> hoặc phiên hết hạn (tên gây nhầm, thật ra là "unauthenticated")</td></tr>
+<tr><td><b>403</b> Forbidden</td><td>Đã đăng nhập nhưng <b>không có quyền</b></td></tr>
+<tr><td><b>404</b> Not Found</td><td>Không có. Cũng dùng khi tài nguyên tồn tại nhưng không thuộc người gọi, để không lộ là nó tồn tại</td></tr>
+<tr><td><b>409</b> Conflict</td><td>Xung đột trạng thái: email đã dùng, đơn đã thanh toán rồi, dữ liệu đã bị người khác sửa</td></tr>
+<tr><td><b>413</b> Content Too Large</td><td>Body / file quá lớn</td></tr>
+<tr><td><b>422</b> Unprocessable Content</td><td>Một số đội dùng cho lỗi nghiệp vụ (JSON đúng nhưng giá trị không hợp lệ). Chọn 400 hay 422 đều được, miễn nhất quán</td></tr>
+<tr><td><b>429</b> Too Many Requests</td><td>Vượt giới hạn tần suất, kèm header <code>Retry-After</code></td></tr>
+<tr><td><b>500</b> Internal Server Error</td><td>Lỗi của bạn, không lường trước</td></tr>
+<tr><td><b>502 / 503 / 504</b></td><td>Dịch vụ phía sau lỗi / đang quá tải hoặc bảo trì / quá thời gian</td></tr>
+</table>
+<aside class="fe"><p>Hãy nghĩ tới code frontend sẽ viết: 401 thì chuyển về trang đăng nhập, 403 hiện "không có quyền", 409 hiện thông báo cụ thể, 429 chờ rồi thử lại, 5xx hiện "thử lại sau". Status đúng giúp frontend xử lý chung ở một chỗ (interceptor) thay vì đọc nội dung từng lỗi.</p></aside>
+
+<h2 id="mot-dinh-dang-loi-cho-toan-bo-api"><a href="#mot-dinh-dang-loi-cho-toan-bo-api" class="anchor" aria-hidden="true">#</a>Một định dạng lỗi cho toàn bộ API</h2>
+<div class="code"><div class="code-h"><span>Response lỗi</span><button class="copy" type="button">Sao chép</button></div><pre><code>{
+  <span class="s">&quot;error&quot;</span>: {
+    <span class="s">&quot;code&quot;</span>: <span class="s">&quot;CLASS_FULL&quot;</span>,
+    <span class="s">&quot;message&quot;</span>: <span class="s">&quot;Lớp đã đủ sĩ số&quot;</span>,
+    <span class="s">&quot;fields&quot;</span>: { <span class="s">&quot;joinCode&quot;</span>: <span class="s">&quot;Lớp đã đủ 40 học sinh&quot;</span> }
+  }
+}</code></pre></div>
+<ul>
+<li><code>code</code>: hằng số ổn định cho <b>máy</b> đọc. Frontend <code>switch</code> theo nó. Không bao giờ đổi.</li>
+<li><code>message</code>: câu cho <b>người</b> đọc, có thể hiện thẳng lên giao diện.</li>
+<li><code>fields</code>: lỗi theo từng ô nhập, để form tô đỏ đúng ô.</li>
+</ul>
+<p>Có một chuẩn chính thức cho việc này là <b>Problem Details for HTTP APIs</b> (RFC 9457, <code>Content-Type: application/problem+json</code>). Dùng chuẩn hay tự định nghĩa đều được, quan trọng nhất là <b>mọi</b> endpoint trả cùng một dạng.</p>
+
+<h2 id="validate-khong-tin-du-lieu-nao"><a href="#validate-khong-tin-du-lieu-nao" class="anchor" aria-hidden="true">#</a>Validate: không tin dữ liệu nào</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> CreateAssignmentReq <span class="k">struct</span> {
+    Title    <span class="t">string</span> <span class="s">`json:&quot;title&quot;`</span>
+    DueDate  <span class="t">string</span> <span class="s">`json:&quot;dueDate&quot;`</span>  <span class="c">// &quot;2026-11-10&quot;</span>
+    Count    <span class="t">int</span>    <span class="s">`json:&quot;count&quot;`</span>
+}
+
+<span class="k">func</span> (r *CreateAssignmentReq) <span class="f">Validate</span>() <span class="t">error</span> {
+    r.Title = strings.<span class="f">TrimSpace</span>(r.Title)
+    fields := <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{}
+    <span class="k">if</span> n := utf8.<span class="f">RuneCountInString</span>(r.Title); n == <span class="n">0</span> || n &gt; <span class="n">200</span> {
+        fields[<span class="s">&quot;title&quot;</span>] = <span class="s">&quot;Nội dung từ 1 đến 200 ký tự&quot;</span>
+    }
+    <span class="k">if</span> _, err := time.<span class="f">Parse</span>(time.DateOnly, r.DueDate); err != <span class="b">nil</span> {
+        fields[<span class="s">&quot;dueDate&quot;</span>] = <span class="s">&quot;Ngày không hợp lệ (YYYY-MM-DD)&quot;</span>
+    }
+    <span class="k">if</span> r.Count &lt; <span class="n">1</span> || r.Count &gt; <span class="n">50</span> {
+        fields[<span class="s">&quot;count&quot;</span>] = <span class="s">&quot;Số bài từ 1 đến 50&quot;</span>
+    }
+    <span class="k">if</span> <span class="b">len</span>(fields) &gt; <span class="n">0</span> {
+        <span class="k">return</span> &amp;FieldsError{Fields: fields}
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}</code></pre></div>
+<aside class="prod"><p>Mọi giới hạn validate ở backend phải <b>khớp</b> với <code>maxlength</code>, <code>min</code>, <code>max</code> ở form frontend. Frontend validate để trải nghiệm tốt, backend validate để dữ liệu đúng. Thư viện <code>go-playground/validator</code> cho phép viết luật bằng tag (<code>validate:"required,max=200"</code>), rất phổ biến khi struct nhiều trường.</p></aside>
+
+<h2 id="phan-trang-loc-sap-xep"><a href="#phan-trang-loc-sap-xep" class="anchor" aria-hidden="true">#</a>Phân trang, lọc, sắp xếp</h2>
+<p><b>Không bao giờ</b> trả toàn bộ một bảng. Bảng có 10 dòng lúc ra mắt sẽ có 10 triệu dòng sau hai năm.</p>
+<h3>Phân trang theo số trang (offset)</h3>
+<div class="code"><div class="code-h"><span>HTTP</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">GET</span> /v1/classes/<span class="n">5</span>/assignments?page=<span class="n">2</span>&amp;size=<span class="n">20</span>&amp;sort=-dueDate&amp;subject=toan</code></pre></div>
+<div class="code"><div class="code-h"><span>JSON</span><button class="copy" type="button">Sao chép</button></div><pre><code>{ <span class="s">&quot;items&quot;</span>: [ ... ], <span class="s">&quot;page&quot;</span>: <span class="n">2</span>, <span class="s">&quot;size&quot;</span>: <span class="n">20</span>, <span class="s">&quot;total&quot;</span>: <span class="n">137</span> }</code></pre></div>
+<p>Dễ làm, có số trang để nhảy. Nhược điểm: <code>OFFSET 100000</code> chậm (database vẫn phải đi qua 100.000 dòng), và nếu có dòng mới chen vào lúc người dùng đang lật trang thì bị trùng hoặc sót.</p>
+<h3>Phân trang theo con trỏ (cursor)</h3>
+<div class="code"><div class="code-h"><span>HTTP</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">GET</span> /v1/notifications?limit=<span class="n">20</span>&amp;after=eyJpZCI6OTAwMX0</code></pre></div>
+<div class="code"><div class="code-h"><span>JSON</span><button class="copy" type="button">Sao chép</button></div><pre><code>{ <span class="s">&quot;items&quot;</span>: [ ... ], <span class="s">&quot;nextCursor&quot;</span>: <span class="s">&quot;eyJpZCI6ODk4MX0&quot;</span>, <span class="s">&quot;hasMore&quot;</span>: <span class="b">true</span> }</code></pre></div>
+<p>Nhanh với mọi độ sâu và không trùng / sót, hợp với cuộn vô hạn và feed. Không nhảy thẳng tới trang 50 được. Cách cài đặt bằng SQL ở bài 16.</p>
+<aside class="real"><p>Stripe dùng cursor: tham số <code>starting_after</code> và trường <code>has_more</code>. GitHub API trả link trang sau trong header <code>Link</code>. Twitter / X, Facebook Graph API đều dùng cursor cho feed.</p></aside>
+<aside class="warn"><p>Luôn đặt <b>giới hạn trên</b> cho <code>size</code> (ví dụ tối đa 100), và chỉ cho sắp xếp / lọc theo <b>danh sách cột cho phép</b>. Tuyệt đối không ghép thẳng tham số <code>sort</code> vào câu SQL (bài 19: SQL injection).</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> sortable = <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{
+    <span class="s">&quot;dueDate&quot;</span>:   <span class="s">&quot;due_date&quot;</span>,
+    <span class="s">&quot;createdAt&quot;</span>: <span class="s">&quot;created_at&quot;</span>,
+}
+col, ok := sortable[strings.<span class="f">TrimPrefix</span>(sortParam, <span class="s">&quot;-&quot;</span>)]
+<span class="k">if</span> !ok {
+    col = <span class="s">&quot;created_at&quot;</span>
+}</code></pre></div></aside>
+
+<h2 id="ngay-gio-id-tien-trong-json"><a href="#ngay-gio-id-tien-trong-json" class="anchor" aria-hidden="true">#</a>Ngày giờ, id, tiền trong JSON</h2>
+<ul>
+<li><b>Thời điểm</b>: chuỗi ISO 8601 / RFC 3339 có múi giờ, nên dùng UTC: <code>"2026-11-03T08:30:00Z"</code>. Go mặc định đổi <code>time.Time</code> sang dạng này.</li>
+<li><b>Ngày</b> không có giờ (hạn nộp, ngày sinh): <code>"2026-11-10"</code>. Đừng biến nó thành thời điểm nửa đêm UTC, sẽ lệch ngày ở múi giờ Việt Nam (UTC+7).</li>
+<li><b>Id</b> 64 bit: cân nhắc trả dạng chuỗi (JavaScript chỉ chính xác tới 2<sup>53</sup>, bài 02).</li>
+<li><b>Tiền</b>: số nguyên theo đơn vị nhỏ nhất kèm mã tiền tệ: <code>{"amount": 49000, "currency": "VND"}</code>.</li>
+</ul>
+
+<h2 id="idempotency-key-bam-hai-lan-khong-tra-tien-hai-lan"><a href="#idempotency-key-bam-hai-lan-khong-tra-tien-hai-lan" class="anchor" aria-hidden="true">#</a>Idempotency key: bấm hai lần không trả tiền hai lần</h2>
+<p>Người dùng bấm "Thanh toán", mạng chập chờn, app tự gửi lại. POST không idempotent nên có thể tạo hai giao dịch. Giải pháp là client tạo một khoá ngẫu nhiên cho <b>mỗi thao tác</b> và gửi kèm:</p>
+<div class="code"><div class="code-h"><span>HTTP</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">POST</span> /v1/payments
+Idempotency-Key: 8b1f3c3e-6a2c-4c1e-9a77-2f1b1c0d9e11</code></pre></div>
+<figure class="dg"><svg viewBox="0 0 500 474" style="min-width:500px;max-width:500px" role="img" aria-label="Server nhớ khoá đã xử lý. Gửi lại cùng khoá nhận lại đúng kết quả cũ"><line x1="80" y1="66" x2="80" y2="464" class="lf"/><g class="nd fe"><rect x="20" y="10" width="120" height="54" rx="10"/><text x="80" y="42" class="tt" text-anchor="middle">App</text></g><line x1="250" y1="66" x2="250" y2="464" class="lf"/><g class="nd go"><rect x="190" y="10" width="120" height="54" rx="10"/><text x="250" y="42" class="tt" text-anchor="middle">API</text></g><line x1="420" y1="66" x2="420" y2="464" class="lf"/><g class="nd db"><rect x="360" y="10" width="120" height="54" rx="10"/><text x="420" y="42" class="tt" text-anchor="middle">Database</text></g><line x1="80" y1="106" x2="246" y2="106" class="ln" marker-end="url(#ar)"/><text x="165" y="83" class="tl" text-anchor="middle">POST /payments (key</text><text x="165" y="99" class="tl" text-anchor="middle">K)</text><line x1="250" y1="164" x2="416" y2="164" class="ln" marker-end="url(#ar)"/><text x="335" y="141" class="tl" text-anchor="middle">chưa có K → xử lý,</text><text x="335" y="157" class="tl" text-anchor="middle">lưu kết quả kèm K</text><line x1="250" y1="222" x2="84" y2="222" class="ln ds" marker-end="url(#ar)"/><text x="165" y="183" class="tl" text-anchor="middle">201 {id: 77}  (mạng</text><text x="165" y="199" class="tl" text-anchor="middle">rớt, app không nhận</text><text x="165" y="215" class="tl" text-anchor="middle">được)</text><line x1="80" y1="280" x2="246" y2="280" class="ln" marker-end="url(#ar)"/><text x="165" y="257" class="tl" text-anchor="middle">gửi lại POST</text><text x="165" y="273" class="tl" text-anchor="middle">/payments (key K)</text><line x1="250" y1="322" x2="416" y2="322" class="ln" marker-end="url(#ar)"/><text x="335" y="315" class="tl" text-anchor="middle">đã có K</text><line x1="420" y1="364" x2="254" y2="364" class="ln ds" marker-end="url(#ar)"/><text x="335" y="357" class="tl" text-anchor="middle">kết quả cũ {id: 77}</text><line x1="250" y1="422" x2="84" y2="422" class="ln ds" marker-end="url(#ar)"/><text x="165" y="399" class="tl" text-anchor="middle">201 {id: 77}, không</text><text x="165" y="415" class="tl" text-anchor="middle">tạo giao dịch thứ hai</text></svg><figcaption>Server nhớ khoá đã xử lý. Gửi lại cùng khoá nhận lại đúng kết quả cũ</figcaption></figure>
+<aside class="real"><p>Đây đúng là cách Stripe làm với header <code>Idempotency-Key</code>, và là một trong những thiết kế API được nhắc tới nhiều nhất. Phần cài đặt (bảng lưu khoá, UNIQUE, xử lý hai request cùng khoá tới cùng lúc) ở bài 20.</p></aside>
+
+<h2 id="chong-ghi-de-khi-hai-nguoi-cung-sua"><a href="#chong-ghi-de-khi-hai-nguoi-cung-sua" class="anchor" aria-hidden="true">#</a>Chống ghi đè khi hai người cùng sửa</h2>
+<p>Giáo viên A và B cùng mở form sửa một bài tập. A lưu, rồi B lưu đè mất thay đổi của A. Cách chuẩn là <b>optimistic concurrency</b>: mỗi bản ghi có số phiên bản, client gửi lại phiên bản nó đã đọc.</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">UPDATE</span> assignments
+<span class="k">SET</span> title = $<span class="n">1</span>, version = version + <span class="n">1</span>
+<span class="k">WHERE</span> id = $<span class="n">2</span> <span class="k">AND</span> version = $<span class="n">3</span>;   <span class="c">-- 0 dòng bị sửa → đã có người sửa trước → trả 409</span></code></pre></div>
+<p>Trong HTTP, phiên bản thường đi qua header <code>ETag</code> (server trả) và <code>If-Match</code> (client gửi lại), hoặc đơn giản là trường <code>version</code> trong JSON.</p>
+
+<h2 id="version-va-tai-lieu"><a href="#version-va-tai-lieu" class="anchor" aria-hidden="true">#</a>Version và tài liệu</h2>
+<ul>
+<li>Đặt <code>/v1</code> ngay từ đầu. Khi phải thay đổi phá vỡ tương thích (đổi tên trường, đổi kiểu), mở <code>/v2</code> và giữ <code>/v1</code> chạy một thời gian cho app di động cũ.</li>
+<li>Thêm trường mới <b>không</b> phá tương thích. Xoá, đổi tên, đổi kiểu thì có. App di động không ép người dùng cập nhật được, nên một phiên bản API có thể phải sống nhiều năm.</li>
+<li>Viết tài liệu bằng <b>OpenAPI</b> (Swagger). Từ file OpenAPI có thể sinh client TypeScript cho frontend, và công cụ <code>oapi-codegen</code> sinh khung server Go.</li>
+</ul>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Người dùng đã đăng nhập gọi <code>GET /v1/classes/77</code>, lớp 77 có tồn tại nhưng thuộc giáo viên khác. Status nào hợp lý nhất?</p><div class="qo"><button type="button" class="opt">401</button><button type="button" class="opt">200 với dữ liệu rỗng</button><button type="button" class="opt" data-ok>404 (hoặc 403), và 404 tốt hơn vì không tiết lộ lớp 77 có tồn tại</button></div><p class="why" hidden>401 là chưa đăng nhập, không đúng. Trả 404 giúp kẻ dò id không phân biệt được "không tồn tại" với "không phải của bạn". GitHub trả 404 cho repo riêng tư mà bạn không có quyền.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Thiết kế API cho tính năng điểm danh</summary>
+<p>Giáo viên điểm danh học sinh theo ngày (có mặt / vắng có phép / vắng không phép), phụ huynh xin nghỉ cho con. Viết ra: danh sách endpoint (method + đường dẫn), body request, response, status cho từng trường hợp lỗi.</p>
+<details class="sol"><summary>Một đáp án</summary>
+<table>
+<tr><th>Endpoint</th><th>Ai gọi</th><th>Ghi chú</th></tr>
+<tr><td><code>GET /v1/classes/{id}/attendance?date=2026-11-03</code></td><td>Giáo viên lớp đó</td><td>200: danh sách học sinh + trạng thái. 404 nếu không phải lớp của mình</td></tr>
+<tr><td><code>PUT /v1/classes/{id}/attendance/{date}</code></td><td>Giáo viên</td><td>Body: <code>[{"studentId":"12","status":"absent_excused"}]</code>. PUT vì gửi cả danh sách của ngày đó, gửi lại vẫn ra cùng kết quả</td></tr>
+<tr><td><code>POST /v1/children/{id}/absence-requests</code></td><td>Phụ huynh của bé</td><td>Body: <code>{"from":"2026-11-05","to":"2026-11-06","reason":"health"}</code>. 201. 400 nếu <code>to &lt; from</code>, 409 nếu đã có đơn trùng ngày</td></tr>
+<tr><td><code>POST /v1/absence-requests/{id}/approve</code></td><td>Giáo viên</td><td>Hành động: dùng POST + động từ</td></tr>
+</table>
+<p><code>reason</code> chỉ nhận danh sách cố định (<code>health</code>, <code>family</code>, <code>other</code>) thay vì chữ tự do: bớt rủi ro lưu thông tin sức khoẻ chi tiết của trẻ em, loại dữ liệu nhạy cảm theo luật bảo vệ dữ liệu cá nhân.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="rest">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="http.html"><small>Bài trước</small>HTTP từ gốc với net/http</a><a class="next" href="kien-truc.html"><small>Bài tiếp theo</small>Middleware, log và cấu trúc phân lớp</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#tai-nguyen-va-duong-dan">Tài nguyên và đường dẫn</a><a href="#method-an-toan-va-idempotent">Method: an toàn và idempotent</a><a href="#status-code-chon-dung-de-client-xu-ly-dung">Status code: chọn đúng để client xử lý đúng</a><a href="#mot-dinh-dang-loi-cho-toan-bo-api">Một định dạng lỗi cho toàn bộ API</a><a href="#validate-khong-tin-du-lieu-nao">Validate: không tin dữ liệu nào</a><a href="#phan-trang-loc-sap-xep">Phân trang, lọc, sắp xếp</a><a href="#ngay-gio-id-tien-trong-json">Ngày giờ, id, tiền trong JSON</a><a href="#idempotency-key-bam-hai-lan-khong-tra-tien-hai-lan">Idempotency key: bấm hai lần không trả tiền hai lần</a><a href="#chong-ghi-de-khi-hai-nguoi-cung-sua">Chống ghi đè khi hai người cùng sửa</a><a href="#version-va-tai-lieu">Version và tài liệu</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

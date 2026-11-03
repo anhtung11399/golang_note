@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 19: Bảo mật API: các lỗ hổng hay gặp nhất · Go cho dân Frontend</title>
+<meta name="description" content="OWASP API Top 10 bằng ví dụ Go: truy cập dữ liệu người khác, SQL injection, gán trường bừa, SSRF, lộ bí mật, CORS.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api" aria-current="page"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="bao-mat-api">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#dc2626">Chặng 4 · Bảo mật</span><span>Bài 19</span><span>60 phút đọc + làm bài</span></div>
+    <h1>Bảo mật API: các lỗ hổng hay gặp nhất</h1>
+    <p class="lead">OWASP API Top 10 bằng ví dụ Go: truy cập dữ liệu người khác, SQL injection, gán trường bừa, SSRF, lộ bí mật, CORS.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Nhận ra lỗi BOLA / IDOR trong code</li><li>Chống tiêu tốn tài nguyên không giới hạn</li><li>Có checklist bảo mật trước khi lên production</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="owasp-api-security-top-10"><a href="#owasp-api-security-top-10" class="anchor" aria-hidden="true">#</a>OWASP API Security Top 10</h2>
+<p>OWASP là tổ chức phi lợi nhuận về bảo mật ứng dụng. Danh sách <b>API Security Top 10 (bản 2023)</b> tổng hợp những lỗ hổng API gặp nhiều nhất ngoài thực tế:</p>
+<table>
+<tr><th>#</th><th>Tên</th><th>Nói đơn giản</th></tr>
+<tr><td>API1</td><td>Broken Object Level Authorization (BOLA)</td><td>Đổi id trong URL là xem / sửa được dữ liệu người khác</td></tr>
+<tr><td>API2</td><td>Broken Authentication</td><td>Đăng nhập, phiên, token làm sai</td></tr>
+<tr><td>API3</td><td>Broken Object Property Level Authorization</td><td>Trả về trường không được xem, hoặc cho sửa trường không được sửa</td></tr>
+<tr><td>API4</td><td>Unrestricted Resource Consumption</td><td>Không giới hạn kích thước, số lượng, tần suất</td></tr>
+<tr><td>API5</td><td>Broken Function Level Authorization</td><td>Người thường gọi được endpoint của quản trị</td></tr>
+<tr><td>API6</td><td>Unrestricted Access to Sensitive Business Flows</td><td>Bot lạm dụng luồng nghiệp vụ: gom vé, spam mã giảm giá</td></tr>
+<tr><td>API7</td><td>Server Side Request Forgery (SSRF)</td><td>Lừa server gọi tới địa chỉ nội bộ</td></tr>
+<tr><td>API8</td><td>Security Misconfiguration</td><td>CORS mở toang, lộ thông tin lỗi, thiếu header bảo mật</td></tr>
+<tr><td>API9</td><td>Improper Inventory Management</td><td>API cũ, bản thử nghiệm bị bỏ quên vẫn chạy</td></tr>
+<tr><td>API10</td><td>Unsafe Consumption of APIs</td><td>Tin tưởng mù quáng dữ liệu từ API bên thứ ba</td></tr>
+</table>
+<p>Phần dưới đi qua từng lỗi với code Go, theo thứ tự hay gặp nhất.</p>
+
+<h2 id="api1-bola-loi-so-mot"><a href="#api1-bola-loi-so-mot" class="anchor" aria-hidden="true">#</a>API1: BOLA, lỗi số một</h2>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// GET /v1/submissions/{id}: đã đăng nhập là xem được MỌI bài nộp</span>
+<span class="k">func</span> (h *Handler) <span class="f">getSubmission</span>(w http.ResponseWriter, r *http.Request) {
+    sub, err := h.store.<span class="f">Submission</span>(r.<span class="f">Context</span>(), <span class="f">pathID</span>(r))
+    <span class="c">// ...</span>
+}</code></pre></div>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *Handler) <span class="f">getSubmission</span>(w http.ResponseWriter, r *http.Request) {
+    me := <span class="f">UserFrom</span>(r.<span class="f">Context</span>())
+    <span class="c">// Store chỉ trả bài nộp mà người gọi có quyền xem: học sinh nộp bài đó, hoặc giáo viên của lớp</span>
+    sub, err := h.store.<span class="f">SubmissionVisibleTo</span>(r.<span class="f">Context</span>(), me.ID, <span class="f">pathID</span>(r))
+    <span class="k">if</span> errors.<span class="f">Is</span>(err, domain.ErrNotFound) {
+        <span class="f">WriteError</span>(w, r, err) <span class="c">// 404: không phân biệt &quot;không có&quot; với &quot;không phải của bạn&quot;</span>
+        <span class="k">return</span>
+    }
+    <span class="c">// ...</span>
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">SELECT</span> s.* <span class="k">FROM</span> submissions s
+<span class="k">JOIN</span> assignments a <span class="k">ON</span> a.id = s.assignment_id
+<span class="k">JOIN</span> classes c <span class="k">ON</span> c.id = a.class_id
+<span class="k">WHERE</span> s.id = $<span class="n">2</span>
+  <span class="k">AND</span> (s.student_id = $<span class="n">1</span> <span class="k">OR</span> c.teacher_id = $<span class="n">1</span>);</code></pre></div>
+<aside class="real"><p>BOLA (còn gọi là IDOR) là nguyên nhân của rất nhiều vụ lộ dữ liệu lớn qua API: đổi số trong URL là xem được đơn hàng, hồ sơ, hoá đơn của người khác. Vụ rò rỉ dữ liệu khách hàng của nhà mạng Úc Optus năm 2022 được báo chí mô tả là xuất phát từ một API không yêu cầu xác thực và có định danh khách hàng tăng dần. Lỗi này không cần kỹ thuật cao: chỉ cần một vòng lặp đổi id.</p></aside>
+
+<h2 id="api3-lo-truong-va-gan-truong-bua"><a href="#api3-lo-truong-va-gan-truong-bua" class="anchor" aria-hidden="true">#</a>API3: lộ trường và gán trường bừa</h2>
+<h3>Trả thừa dữ liệu</h3>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> User <span class="k">struct</span> {
+    ID           <span class="t">int64</span>  <span class="s">`json:&quot;id&quot;`</span>
+    Name         <span class="t">string</span> <span class="s">`json:&quot;name&quot;`</span>
+    Email        <span class="t">string</span> <span class="s">`json:&quot;email&quot;`</span>
+    PasswordHash <span class="t">string</span> <span class="s">`json:&quot;passwordHash&quot;`</span> <span class="c">// lộ!</span>
+    IsAdmin      <span class="t">bool</span>   <span class="s">`json:&quot;isAdmin&quot;`</span>
+}
+<span class="f">WriteJSON</span>(w, <span class="n">200</span>, user) <span class="c">// trả nguyên struct database ra ngoài</span></code></pre></div>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Struct riêng cho response (DTO): chỉ những trường người xem được phép thấy</span>
+<span class="k">type</span> PublicUserDTO <span class="k">struct</span> {
+    ID   <span class="t">int64</span>  <span class="s">`json:&quot;id&quot;`</span>
+    Name <span class="t">string</span> <span class="s">`json:&quot;name&quot;`</span>
+}
+<span class="f">WriteJSON</span>(w, <span class="n">200</span>, PublicUserDTO{ID: u.ID, Name: u.Name})</code></pre></div>
+<aside class="fe"><p>"Frontend không hiển thị trường đó" không phải là bảo vệ. Mở tab Network là thấy toàn bộ JSON. Cái gì không được xem thì không được có trong response.</p></aside>
+<h3>Gán trường bừa (mass assignment)</h3>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// PATCH /v1/me với body {&quot;name&quot;:&quot;Lan&quot;,&quot;isAdmin&quot;:true}</span>
+<span class="k">var</span> u User
+json.<span class="f">NewDecoder</span>(r.Body).<span class="f">Decode</span>(&amp;u) <span class="c">// đọc thẳng vào struct có trường IsAdmin</span>
+store.<span class="f">UpdateUser</span>(ctx, u)          <span class="c">// người dùng tự phong mình làm admin</span></code></pre></div>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> UpdateMeReq <span class="k">struct</span> { <span class="c">// chỉ những trường người dùng được tự sửa</span>
+    Name *<span class="t">string</span> <span class="s">`json:&quot;name&quot;`</span>
+}</code></pre></div>
+<p>Quy tắc: <b>struct đọc request, struct database và struct response là ba kiểu khác nhau.</b> Hơi dài dòng, nhưng không bao giờ lộ nhầm hay cho sửa nhầm một trường mới thêm vào database.</p>
+
+<h2 id="api4-gioi-han-moi-thu"><a href="#api4-gioi-han-moi-thu" class="anchor" aria-hidden="true">#</a>API4: giới hạn mọi thứ</h2>
+<table>
+<tr><th>Tài nguyên</th><th>Giới hạn</th></tr>
+<tr><td>Kích thước body</td><td><code>http.MaxBytesReader</code> (bài 11)</td></tr>
+<tr><td>File upload</td><td>Kích thước mỗi file, số file mỗi lần, số file mỗi ngày mỗi người</td></tr>
+<tr><td>Phân trang</td><td><code>size</code> tối đa 100</td></tr>
+<tr><td>Độ dài chuỗi</td><td>Mọi trường chữ có độ dài tối đa (khớp với form frontend)</td></tr>
+<tr><td>Tần suất</td><td>Đăng nhập, gửi OTP / email, tạo dữ liệu, gọi tính năng AI tốn tiền</td></tr>
+<tr><td>Thời gian</td><td>Timeout server, timeout truy vấn database, timeout gọi API ngoài</td></tr>
+<tr><td>Số lượng</td><td>Số lớp mỗi giáo viên, số học sinh mỗi lớp, số phần tử trong một lần gửi hàng loạt</td></tr>
+</table>
+<aside class="real"><p>Tính năng gọi AI, gửi SMS, gửi email là những chỗ bị lạm dụng tốn tiền nhất: mỗi lần gọi là một khoản phí. Kẻ xấu gửi hàng vạn yêu cầu OTP tới các số điện thoại trả phí cao (kiểu gian lận gọi là SMS pumping) đã khiến nhiều công ty nhận hoá đơn rất lớn. Mỗi tính năng tốn tiền cần giới hạn theo người dùng <b>và</b> giới hạn tổng.</p></aside>
+
+<h2 id="api5-endpoint-quan-tri"><a href="#api5-endpoint-quan-tri" class="anchor" aria-hidden="true">#</a>API5: endpoint quản trị</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>admin := http.<span class="f">NewServeMux</span>()
+admin.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /users&quot;</span>, h.adminListUsers)
+admin.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /users/{id}/ban&quot;</span>, h.adminBan)
+
+<span class="c">// Bọc CẢ nhóm trong một middleware kiểm quyền, thay vì nhớ kiểm ở từng handler</span>
+mux.<span class="f">Handle</span>(<span class="s">&quot;/admin/&quot;</span>, http.<span class="f">StripPrefix</span>(<span class="s">&quot;/admin&quot;</span>, <span class="f">RequireAdmin</span>(admin)))</code></pre></div>
+<p>Cách an toàn hơn nữa: tách trang quản trị thành <b>ứng dụng riêng</b>, tên miền riêng, hệ thống đăng nhập riêng (có xác thực hai lớp), thậm chí chỉ truy cập được qua VPN. Lỗi ở API công khai khi đó không chạm tới chức năng quản trị.</p>
+
+<h2 id="sql-injection-va-cac-loai-injection-khac"><a href="#sql-injection-va-cac-loai-injection-khac" class="anchor" aria-hidden="true">#</a>SQL injection và các loại injection khác</h2>
+<p>Đã gặp ở bài 15: luôn dùng tham số <code>$1</code>. Những chỗ vẫn hay sót:</p>
+<ul>
+<li>Tên cột sắp xếp, chiều sắp xếp lấy từ query string → dùng danh sách cho phép.</li>
+<li><code>LIKE</code> với dữ liệu người dùng: tham số vẫn an toàn, nhưng ký tự <code>%</code> và <code>_</code> trong từ khoá sẽ là ký tự đại diện. Thoát chúng nếu muốn tìm đúng chữ.</li>
+<li>Chạy lệnh hệ thống: không bao giờ <code>exec.Command("sh", "-c", "convert " + filename)</code>. Truyền tham số riêng: <code>exec.Command("convert", filename, out)</code>.</li>
+<li>Đường dẫn file từ người dùng: <code>../../etc/passwd</code>. Từ Go 1.24 có <code>os.Root</code> để giới hạn thao tác file trong một thư mục.</li>
+</ul>
+
+<h2 id="api7-ssrf"><a href="#api7-ssrf" class="anchor" aria-hidden="true">#</a>API7: SSRF</h2>
+<p>Tính năng "nhập URL ảnh đại diện", "nhập URL webhook", "xem trước link": server tải URL do người dùng đưa. Kẻ tấn công đưa <code>http://169.254.169.254/latest/meta-data/</code> (địa chỉ dịch vụ metadata trên AWS, nơi có thể chứa thông tin đăng nhập tạm của máy chủ) hoặc <code>http://localhost:6379</code>.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Chặn ở tầng kết nối: kiểm IP THẬT sau khi phân giải DNS (chống đổi DNS giữa lúc kiểm và lúc gọi)</span>
+dialer := &amp;net.Dialer{
+    Timeout: <span class="n">5</span> * time.Second,
+    Control: <span class="k">func</span>(network, address <span class="t">string</span>, _ syscall.RawConn) <span class="t">error</span> {
+        host, _, err := net.<span class="f">SplitHostPort</span>(address)
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            <span class="k">return</span> err
+        }
+        ip, err := netip.<span class="f">ParseAddr</span>(host)
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            <span class="k">return</span> err
+        }
+        <span class="k">if</span> ip.<span class="f">IsLoopback</span>() || ip.<span class="f">IsPrivate</span>() || ip.<span class="f">IsLinkLocalUnicast</span>() || ip.<span class="f">IsUnspecified</span>() || ip.<span class="f">IsMulticast</span>() {
+            <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;địa chỉ bị chặn: %s&quot;</span>, ip)
+        }
+        <span class="k">return</span> <span class="b">nil</span>
+    },
+}
+safeClient := &amp;http.Client{
+    Timeout:   <span class="n">10</span> * time.Second,
+    Transport: &amp;http.Transport{DialContext: dialer.DialContext},
+}</code></pre></div>
+<aside class="real"><p>Vụ Capital One năm 2019 (thông tin của khoảng 100 triệu khách hàng bị lộ) liên quan tới SSRF: kẻ tấn công khiến một máy chủ gọi tới dịch vụ metadata của AWS và lấy được thông tin đăng nhập tạm. Sau đó AWS đẩy mạnh IMDSv2, phiên bản yêu cầu token, để khó khai thác kiểu này hơn.</p></aside>
+
+<h2 id="api8-cau-hinh-sai"><a href="#api8-cau-hinh-sai" class="anchor" aria-hidden="true">#</a>API8: cấu hình sai</h2>
+<h3>CORS</h3>
+<p>CORS là cơ chế trình duyệt hỏi server "trang ở tên miền X có được đọc response của bạn không". Nó bảo vệ <b>người dùng</b> khỏi trang độc, không bảo vệ API khỏi curl.</p>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Phản chiếu mọi Origin + cho gửi cookie: trang web bất kỳ đọc được dữ liệu của người dùng đang đăng nhập</span>
+w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Access-Control-Allow-Origin&quot;</span>, r.Header.<span class="f">Get</span>(<span class="s">&quot;Origin&quot;</span>))
+w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Access-Control-Allow-Credentials&quot;</span>, <span class="s">&quot;true&quot;</span>)</code></pre></div>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> allowed = <span class="k">map</span>[<span class="t">string</span>]<span class="t">bool</span>{<span class="s">&quot;https://sobaitap.vn&quot;</span>: <span class="b">true</span>, <span class="s">&quot;https://admin.sobaitap.vn&quot;</span>: <span class="b">true</span>}
+
+<span class="k">if</span> o := r.Header.<span class="f">Get</span>(<span class="s">&quot;Origin&quot;</span>); allowed[o] {
+    w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Access-Control-Allow-Origin&quot;</span>, o)
+    w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Access-Control-Allow-Credentials&quot;</span>, <span class="s">&quot;true&quot;</span>)
+    w.<span class="f">Header</span>().<span class="f">Add</span>(<span class="s">&quot;Vary&quot;</span>, <span class="s">&quot;Origin&quot;</span>) <span class="c">// để cache không trả nhầm header cho Origin khác</span>
+}</code></pre></div>
+<aside class="fe"><p>Bạn chắc đã từng gặp lỗi CORS ở frontend và cách "sửa nhanh" là bật <code>*</code> ở backend. Giờ bạn ở phía bên kia: chỉ liệt kê đúng tên miền của mình. Nếu frontend và API cùng tên miền (API ở <code>/api</code>), bạn không cần CORS.</p></aside>
+<h3>Header bảo mật và thông tin lỗi</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">SecurityHeaders</span>(next http.Handler) http.Handler {
+    <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        h := w.<span class="f">Header</span>()
+        h.<span class="f">Set</span>(<span class="s">&quot;X-Content-Type-Options&quot;</span>, <span class="s">&quot;nosniff&quot;</span>)
+        h.<span class="f">Set</span>(<span class="s">&quot;Referrer-Policy&quot;</span>, <span class="s">&quot;strict-origin-when-cross-origin&quot;</span>)
+        h.<span class="f">Set</span>(<span class="s">&quot;Strict-Transport-Security&quot;</span>, <span class="s">&quot;max-age=31536000; includeSubDomains&quot;</span>)
+        h.<span class="f">Set</span>(<span class="s">&quot;X-Frame-Options&quot;</span>, <span class="s">&quot;DENY&quot;</span>)
+        next.<span class="f">ServeHTTP</span>(w, r)
+    })
+}</code></pre></div>
+<ul>
+<li>Không trả stack trace, câu SQL, chuỗi lỗi nội bộ cho client (bài 07).</li>
+<li>Tắt các endpoint gỡ lỗi (<code>/debug/pprof</code>) trên cổng công khai, đặt chúng ở cổng nội bộ.</li>
+<li>Không để bản dev (<code>DEV_FAKE_LOGIN=1</code>, dữ liệu mẫu) chạy được trên production. Kiểm tra lúc khởi động và từ chối chạy.</li>
+</ul>
+
+<h2 id="bi-mat-secrets"><a href="#bi-mat-secrets" class="anchor" aria-hidden="true">#</a>Bí mật (secrets)</h2>
+<ul>
+<li>Không commit khoá API, mật khẩu database, khoá ký vào git, kể cả repo riêng tư. Lỡ commit thì coi như đã lộ: <b>đổi khoá</b>, xoá khỏi lịch sử git không đủ.</li>
+<li>Đưa vào qua biến môi trường hoặc trình quản lý bí mật (AWS Secrets Manager, GCP Secret Manager, Vault, secrets của nền tảng deploy).</li>
+<li>Bật tính năng quét bí mật của GitHub (secret scanning, push protection) cho repo.</li>
+<li>So sánh token, chữ ký bằng <code>subtle.ConstantTimeCompare</code> hoặc <code>hmac.Equal</code> để không lộ thông tin qua thời gian so sánh.</li>
+</ul>
+
+<h2 id="upload-file"><a href="#upload-file" class="anchor" aria-hidden="true">#</a>Upload file</h2>
+<ul>
+<li>Giới hạn kích thước <b>trước khi</b> đọc hết vào bộ nhớ.</li>
+<li>Không tin phần mở rộng hay <code>Content-Type</code> client gửi. Đọc vài byte đầu: <code>http.DetectContentType</code>.</li>
+<li>Tên file lưu trữ do server tạo (id ngẫu nhiên), không dùng tên người dùng đặt.</li>
+<li>Lưu ở dịch vụ lưu trữ đối tượng (S3, R2, GCS), phục vụ file qua tên miền khác với ứng dụng, hoặc kèm <code>Content-Disposition: attachment</code>, để file HTML / SVG độc không chạy được trong tên miền của bạn.</li>
+<li>Kiểm quyền khi tải file về, giống mọi tài nguyên khác (BOLA với file là cực kỳ phổ biến).</li>
+</ul>
+
+<h2 id="cong-cu-tu-dong"><a href="#cong-cu-tu-dong" class="anchor" aria-hidden="true">#</a>Công cụ tự động</h2>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code>govulncheck ./...                 <span class="c"># thư viện có lỗ hổng mà code bạn thật sự gọi tới</span>
+<span class="k">go</span> vet ./...                      <span class="c"># lỗi thường gặp</span>
+<span class="k">go</span> install github.com/securego/gosec/v2/cmd/gosec@latest
+gosec ./...                       <span class="c"># quét mẫu code không an toàn: SQL ghép chuỗi, crypto yếu, thiếu timeout...</span></code></pre></div>
+<p>Công cụ chỉ bắt được lỗi có mẫu. BOLA, lộ trường, lỗi nghiệp vụ thì phải bắt bằng review code và test phân quyền.</p>
+
+<quiz q="Tính năng "nhập URL logo trường học, server tải về và lưu lại". Kiểm tra nào quan trọng nhất?">
+- URL phải kết thúc bằng .png hoặc .jpg
++ Chặn kết nối tới địa chỉ nội bộ / loopback / link-local (kiểm sau khi phân giải DNS), giới hạn kích thước và thời gian tải
+- URL phải bắt đầu bằng https
+? Đuôi file và https không ngăn được http://169.254.169.254/x.png hay https://ten-mien-tro-ve-127.0.0.1/logo.png. Kiểm IP thật ở tầng kết nối mới chặn được SSRF.
+</quiz>
+
+<h2 id="checklist-truoc-khi-len-production"><a href="#checklist-truoc-khi-len-production" class="anchor" aria-hidden="true">#</a>Checklist trước khi lên production</h2>
+<details class="ex"><summary>Tự rà API của bạn theo danh sách này</summary>
+<ul>
+<li>Mọi endpoint (trừ vài endpoint công khai có chủ đích) yêu cầu đăng nhập.</li>
+<li>Mọi truy vấn theo id có điều kiện quyền sở hữu, và có test người B truy cập dữ liệu người A.</li>
+<li>Struct request / database / response tách riêng. Không trả hash mật khẩu, token, email của người khác.</li>
+<li>Body, file, chuỗi, phân trang, tần suất đều có giới hạn.</li>
+<li>Truy vấn SQL chỉ dùng tham số, tên cột động chọn từ danh sách cho phép.</li>
+<li>Cookie <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite</code>. Kiểm <code>Origin</code> cho request thay đổi dữ liệu. CORS chỉ mở cho tên miền của mình.</li>
+<li><code>http.Server</code> và <code>http.Client</code> có timeout. Gọi URL do người dùng nhập thì có chặn SSRF.</li>
+<li>Lỗi 500 không lộ chi tiết. Log không chứa mật khẩu, token.</li>
+<li>Bí mật không nằm trong git. <code>govulncheck</code>, <code>gosec</code> chạy trong CI.</li>
+<li>Endpoint quản trị tách riêng, có xác thực hai lớp.</li>
+</ul>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="bao-mat-api">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="xac-thuc.html"><small>Bài trước</small>Xác thực và phân quyền</a><a class="next" href="bat-dong-bo.html"><small>Bài tiếp theo</small>Hàng đợi, việc chạy nền và webhook</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#owasp-api-security-top-10">OWASP API Security Top 10</a><a href="#api1-bola-loi-so-mot">API1: BOLA, lỗi số một</a><a href="#api3-lo-truong-va-gan-truong-bua">API3: lộ trường và gán trường bừa</a><a href="#api4-gioi-han-moi-thu">API4: giới hạn mọi thứ</a><a href="#api5-endpoint-quan-tri">API5: endpoint quản trị</a><a href="#sql-injection-va-cac-loai-injection-khac">SQL injection và các loại injection khác</a><a href="#api7-ssrf">API7: SSRF</a><a href="#api8-cau-hinh-sai">API8: cấu hình sai</a><a href="#bi-mat-secrets">Bí mật (secrets)</a><a href="#upload-file">Upload file</a><a href="#cong-cu-tu-dong">Công cụ tự động</a><a href="#checklist-truoc-khi-len-production">Checklist trước khi lên production</a></nav>
+</div>
+</body>
+</html>

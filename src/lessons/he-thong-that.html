@@ -1,0 +1,122 @@
+<h2>Go ngoài đời thật</h2>
+<p>Những câu chuyện dưới đây được các công ty tự kể trong blog kỹ thuật và các buổi nói chuyện công khai. Đọc chúng là cách tốt nhất để hiểu vì sao các mẫu thiết kế trong lộ trình này tồn tại.</p>
+
+<h3>Google: lý do Go ra đời</h3>
+<p>Rob Pike, Ken Thompson và Robert Griesemer bắt đầu thiết kế Go năm 2007 ở Google. Lý do họ nêu: các dự án C++ khổng lồ mất rất lâu để biên dịch, quản lý phụ thuộc rắc rối, và việc viết phần mềm mạng chạy trên máy nhiều nhân quá khó. Mọi đặc điểm của Go đều trả lời những vấn đề đó: biên dịch nhanh, không import vòng tròn, gofmt, goroutine.</p>
+
+<h3>Docker và Kubernetes: hạ tầng của Internet hiện đại</h3>
+<p>Docker (2013) và Kubernetes (2014, Google công bố mã nguồn) đều viết bằng Go, kéo theo cả hệ sinh thái điện toán đám mây: etcd, Prometheus, Terraform, Istio, containerd. Nếu bạn làm backend, gần như chắc chắn bạn đang chạy trên những công cụ viết bằng Go.</p>
+
+<h3>Uber: hàng nghìn dịch vụ Go</h3>
+<p>Uber là một trong những công ty dùng Go lớn nhất, với hàng nghìn microservice. Họ công bố <i>Uber Go Style Guide</i>, các thư viện <code>zap</code> (log nhanh), <code>fx</code> (dependency injection), và một nghiên cứu năm 2022 về data race trong mã Go của họ: phát hiện hàng nghìn race, nhiều cái do chia sẻ biến trong closure, dùng map và slice đồng thời. Đó là lý do <code>go test -race</code> xuất hiện trong mọi CI nghiêm túc.</p>
+
+<h3>Cloudflare: Go ở rìa mạng</h3>
+<p>Cloudflare dùng Go cho rất nhiều dịch vụ nội bộ và đã viết nhiều bài về cách đặt timeout cho <code>net/http</code> (bài viết "The complete guide to Go net/http timeouts" của họ là tài liệu tham khảo kinh điển cho bài 11).</p>
+
+<h3>Discord: khi Go không còn phù hợp</h3>
+<p>Năm 2020, Discord kể việc viết lại dịch vụ "Read States" (lưu kênh nào bạn đã đọc tới đâu) từ Go sang Rust. Dịch vụ giữ một bộ nhớ đệm rất lớn trong RAM. Cứ khoảng 2 phút, bộ thu gom rác của Go chạy và làm độ trễ tăng vọt theo chu kỳ. Bản Rust không có GC nên độ trễ đều hơn. Bài học không phải "Go chậm", mà là: <b>mỗi công cụ có giới hạn</b>, và bạn chỉ biết giới hạn đó bằng cách đo. Go đã cải thiện GC nhiều từ đó (ví dụ <code>GOMEMLIMIT</code> ở Go 1.19).</p>
+
+<h3>Twitch: "memory ballast"</h3>
+<p>Năm 2019 Twitch viết về việc cấp phát sẵn một mảng 10GB không dùng tới, chỉ để bộ thu gom rác chạy ít lần hơn, giảm đáng kể CPU tốn cho GC và độ trễ của API. Mẹo này về sau được thay bằng <code>GOMEMLIMIT</code> chính thức. Câu chuyện cho thấy các đội ở quy mô lớn đo và tinh chỉnh tới từng thành phần của runtime.</p>
+
+<h3>Grab: Go ở Đông Nam Á</h3>
+<p>Grab dùng Go cho phần lớn hệ thống backend (đặt xe, giao đồ ăn, thanh toán) và viết nhiều bài trên blog kỹ thuật về thiết kế dịch vụ, xử lý tải giờ cao điểm, cơ sở dữ liệu. Nếu bạn muốn làm backend Go ở khu vực này, đó là nguồn đọc rất sát thực tế.</p>
+<aside class="tip"><p>Thói quen đáng tập: mỗi tuần đọc một bài blog kỹ thuật (Cloudflare, Uber, Discord, Grab, Shopify, Stripe, GitHub). Nhiều blog có mục "postmortem" kể lại sự cố: đọc chúng giúp bạn tránh được lỗi trước khi tự mắc phải.</p></aside>
+
+<h2>Ước lượng tải: phép tính trên mặt sau tờ giấy</h2>
+<p>Trước khi thiết kế, người làm backend ước lượng con số. Ví dụ ứng dụng sổ bài tập cho 100.000 học sinh:</p>
+<table>
+<tr><th>Đại lượng</th><th>Ước lượng</th><th>Kết quả</th></tr>
+<tr><td>Bài nộp mỗi ngày</td><td>100.000 em × 3 bài</td><td>300.000 dòng/ngày, khoảng 60 triệu dòng mỗi năm học</td></tr>
+<tr><td>Request mỗi giây trung bình</td><td>100.000 người × 40 request/ngày ÷ 86.400 giây</td><td>khoảng 46 request/giây</td></tr>
+<tr><td>Giờ cao điểm</td><td>Phần lớn phụ huynh vào lúc 19 đến 21 giờ: gấp khoảng 10 lần trung bình</td><td>khoảng 500 request/giây</td></tr>
+<tr><td>Ảnh bài làm</td><td>300.000 bài × 2 ảnh × 500KB</td><td>khoảng 300GB mỗi ngày</td></tr>
+</table>
+<p>Kết luận: 500 request/giây là việc nhẹ với một vài bản server Go và một Postgres có index tốt. Thứ thật sự cần thiết kế cẩn thận là <b>ảnh</b>: dung lượng lưu trữ, chi phí, nén ảnh trước khi upload, tải thẳng lên dịch vụ lưu trữ (presigned URL) thay vì đi qua server API, và chính sách xoá dữ liệu cuối năm học.</p>
+<aside class="fe"><p>Một số tham khảo để ước lượng: một truy vấn có index ở Postgres mất cỡ dưới 1ms trên máy chủ, một lần đi về Redis cùng trung tâm dữ liệu cỡ dưới 1ms, gọi một API ở châu lục khác mất hàng trăm ms. Một bản server Go đơn giản xử lý được hàng nghìn request/giây nếu không phải chờ database chậm.</p></aside>
+
+<h2>Thiết kế 1: dịch vụ rút gọn link</h2>
+<p>Đề bài kinh điển trong phỏng vấn thiết kế hệ thống: <code>POST /links {url}</code> trả về <code>sbt.vn/aZ3k9</code>, mở link ngắn thì chuyển hướng tới link gốc.</p>
+<fig type="flow" caption="Đọc nhiều hơn ghi rất nhiều: cache và CDN gánh phần lớn lượt mở link">
+[fe] Người mở link / GET /aZ3k9
+->
+[ext] CDN / cache chuyển hướng
+-> miss
+[go] API Go / tra mã
+->
+[cache] Redis / mã → URL
+-> miss
+[db] Postgres / links(code, url)
+</fig>
+<ul>
+<li><b>Sinh mã</b>: mã hoá id tự tăng sang base62 (ngắn, không trùng, nhưng đoán được thứ tự), hoặc chuỗi ngẫu nhiên 7 ký tự + UNIQUE và thử lại khi trùng (62<sup>7</sup> khoảng 3,5 nghìn tỷ tổ hợp).</li>
+<li><b>Chuyển hướng</b>: <code>301</code> (trình duyệt nhớ, ít tải nhưng không đếm được lượt mở) hay <code>302</code> (đếm được mọi lượt).</li>
+<li><b>Đếm lượt mở</b>: không UPDATE bộ đếm mỗi lần mở (một dòng nóng bị tranh chấp, bài 16). Ghi sự kiện vào hàng đợi, gom và cộng theo lô.</li>
+<li><b>Lạm dụng</b>: link lừa đảo, mã độc. Kiểm URL với danh sách đen (ví dụ Google Safe Browsing), giới hạn tần suất tạo link, chặn SSRF nếu có tính năng xem trước.</li>
+</ul>
+
+<h2>Thiết kế 2: mở bán vé giờ cao điểm</h2>
+<p>10.000 vé concert, 500.000 người cùng vào lúc 10 giờ sáng.</p>
+<ul>
+<li><b>Phòng chờ ảo</b>: không cho 500.000 người cùng đập vào API đặt vé. Xếp hàng ở phía trước (CDN / dịch vụ hàng chờ), mỗi lần cho một lượng vừa đủ vào.</li>
+<li><b>Giữ chỗ có hạn</b>: chọn ghế thì giữ 10 phút (<code>UPDATE seats SET held_by = $1, held_until = now() + interval '10 minutes' WHERE id = $2 AND (held_by IS NULL OR held_until &lt; now())</code>). Không thanh toán thì ghế tự trả lại.</li>
+<li><b>Không bán quá</b>: điều kiện nằm trong câu UPDATE (bài 16). Với vé không chọn ghế, có thể trừ số lượng nguyên tử trong Redis (<code>DECR</code>, âm thì hoàn lại) rồi ghi đơn vào database qua hàng đợi.</li>
+<li><b>Chống bot</b>: CAPTCHA, giới hạn mỗi tài khoản, phát hiện hành vi bất thường (OWASP API6).</li>
+<li><b>Thanh toán</b>: idempotency key, webhook xác nhận (bài 20), đối soát cuối ngày.</li>
+</ul>
+
+<h2>Thiết kế 3: gửi thông báo cho một triệu người</h2>
+<p>Trường học gửi thông báo nghỉ học do bão cho mọi phụ huynh trong tỉnh.</p>
+<fig type="flow" dir="down" caption="Chia nhỏ việc lớn thành nhiều việc nhỏ, mỗi tầng có giới hạn tốc độ riêng">
+[fe] Quản trị bấm Gửi / POST /broadcasts
+-> 1 việc: "broadcast 77"
+[q] Hàng đợi
+-> worker chia theo lô 1.000 người
+[q] 1.000 việc "gửi lô k của broadcast 77"
+-> nhiều worker, giới hạn tốc độ theo nhà cung cấp
+[ext] Web Push / FCM / APNs / email
+-> kết quả từng người
+[db] Bảng deliveries / đã gửi, lỗi, máy không còn đăng ký thì xoá
+</fig>
+<ul>
+<li>Không có một request nào làm việc với một triệu dòng. Mọi thứ đi qua hàng đợi, theo lô.</li>
+<li>Mỗi lô idempotent (bảng <code>deliveries</code> có khoá chính <code>(broadcast_id, user_id)</code>).</li>
+<li>Tôn trọng giới hạn tốc độ của nhà cung cấp (token bucket, bài 17). Lỗi 429 / 5xx thì thử lại có backoff.</li>
+<li>Máy trả "không còn đăng ký" (HTTP 404 / 410 với Web Push) thì xoá đăng ký đó, nếu không lần sau lại gửi thừa.</li>
+<li>Theo dõi tiến độ: đã gửi bao nhiêu, lỗi bao nhiêu, hàng đợi còn bao nhiêu (bài 21).</li>
+</ul>
+
+<h2>Những mẫu lặp lại ở mọi hệ thống lớn</h2>
+<table>
+<tr><th>Vấn đề</th><th>Mẫu giải quyết</th><th>Bài</th></tr>
+<tr><td>Đọc nhiều, ghi ít</td><td>Cache nhiều tầng, bản sao chỉ đọc của database</td><td>17</td></tr>
+<tr><td>Việc chậm, có thể lỗi</td><td>Hàng đợi + worker + thử lại + idempotent</td><td>20</td></tr>
+<tr><td>Nhiều người tranh một tài nguyên</td><td>Điều kiện trong câu ghi, khoá dòng, giữ chỗ có hạn</td><td>16</td></tr>
+<tr><td>Gửi lại, bấm hai lần, webhook lặp</td><td>Idempotency key, ràng buộc UNIQUE</td><td>12, 20</td></tr>
+<tr><td>Dịch vụ phía sau chậm / chết</td><td>Timeout, thử lại có giới hạn, circuit breaker, chạy giảm chức năng</td><td>11, 17</td></tr>
+<tr><td>Tải tăng đột biến</td><td>Server stateless + mở rộng ngang, rate limit, hàng chờ</td><td>17, 22</td></tr>
+<tr><td>Dữ liệu một bảng quá lớn</td><td>Index đúng, phân vùng theo thời gian, xoá / lưu trữ dữ liệu cũ</td><td>16</td></tr>
+<tr><td>Ghi dữ liệu và báo cho hệ thống khác</td><td>Outbox</td><td>20</td></tr>
+</table>
+<aside class="warn"><p><b>Microservice không phải điểm khởi đầu.</b> Nhiều công ty lớn bắt đầu bằng một ứng dụng nguyên khối (monolith), tách dịch vụ khi đội ngũ và tải đủ lớn. Tách sớm biến lời gọi hàm thành lời gọi mạng, biến một transaction thành bài toán giao dịch phân tán. Một monolith Go chia package rõ ràng (bài 08) đủ cho rất nhiều sản phẩm.</p></aside>
+
+<quiz q="Tính năng "đếm lượt xem bài tập" làm bằng <code>UPDATE assignments SET views = views + 1 WHERE id = $1</code> mỗi lần mở. Bài tập của một lớp đông được mở 300 lần/giây lúc cao điểm. Vấn đề là gì?">
+- Không có vấn đề, Postgres xử lý được hàng nghìn UPDATE mỗi giây
++ Mọi request tranh khoá cùng một dòng, xếp hàng chờ nhau và làm chậm cả các truy vấn khác chạm vào dòng đó
+- views sẽ bị đếm sai do race
+? Câu UPDATE nguyên tử nên không sai số, nhưng một "dòng nóng" thành nút cổ chai. Giải pháp: đếm trong Redis (INCR) rồi định kỳ ghi gộp vào database, hoặc ghi sự kiện rồi tổng hợp theo lô.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Thiết kế hệ thống của riêng bạn</summary>
+<p>Chọn một sản phẩm bạn từng làm frontend (sàn thương mại, app đặt lịch, mạng xã hội nội bộ...). Viết một trang thiết kế gồm: ước lượng tải (người dùng, request/giây lúc cao điểm, dung lượng dữ liệu mỗi năm), lược đồ database các bảng chính, danh sách endpoint chính, việc nào chạy nền, chỗ nào có tranh chấp dữ liệu và cách xử lý, cache gì, giới hạn gì.</p>
+<details class="sol"><summary>Cách tự đánh giá</summary>
+<ul>
+<li>Mỗi con số ước lượng có phép tính đi kèm.</li>
+<li>Mỗi endpoint ghi rõ ai được gọi và kiểm quyền thế nào.</li>
+<li>Mỗi thao tác "kiểm tra rồi mới làm" đã được chuyển thành điều kiện trong câu SQL hoặc khoá.</li>
+<li>Mỗi việc gọi ra ngoài có timeout, có thử lại, và idempotent.</li>
+<li>Có nói rõ dữ liệu nào được xoá khi nào.</li>
+</ul>
+</details>
+</details>

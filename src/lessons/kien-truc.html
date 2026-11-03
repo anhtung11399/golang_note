@@ -1,0 +1,291 @@
+<h2>Middleware: những lớp vỏ quanh handler</h2>
+<p>Có những việc mọi request đều cần: ghi log, gắn request id, chặn panic, kiểm tra đăng nhập, giới hạn tần suất. Thay vì chép vào từng handler, ta bọc handler trong các <b>middleware</b>.</p>
+<p>Trong Go, middleware chỉ là một hàm nhận <code>http.Handler</code> và trả về <code>http.Handler</code> mới:</p>
+<pre lang="go">
+type Middleware func(http.Handler) http.Handler
+</pre>
+<fig type="stack" both="1" caption="Request đi vào qua từng lớp, response đi ra theo thứ tự ngược lại">
+[ext] RequestID :: gắn mã cho request, đưa vào ctx và header
+[ext] Logger :: đo thời gian, ghi status khi response xong
+[warn] Recover :: chặn panic, trả 500 tử tế
+[q] Auth :: đọc cookie phiên, đưa người dùng vào ctx
+[go] Handler :: nghiệp vụ của endpoint
+</fig>
+<aside class="fe"><p>Giống hệt interceptor của Angular <code>HttpClient</code> hay middleware của Express / Next.js, chỉ là ở phía server. Nếu bạn từng viết <code>app.use((req, res, next) =&gt; ...)</code> trong Express, thì <code>next.ServeHTTP(w, r)</code> chính là <code>next()</code>.</p></aside>
+
+<h3>Request ID</h3>
+<pre lang="go" file="internal/httpapi/middleware.go">
+func RequestID(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        id := r.Header.Get("X-Request-ID")
+        if id == "" || len(id) > 64 {
+            id = newID() // ví dụ 16 byte ngẫu nhiên dạng hex
+        }
+        w.Header().Set("X-Request-ID", id)
+        ctx := WithRequestID(r.Context(), id) // hàm ở bài 10
+        next.ServeHTTP(w, r.WithContext(ctx))
+    })
+}
+</pre>
+<p>Khi người dùng báo lỗi kèm mã request (hiện trên màn hình lỗi), bạn tìm đúng dòng log của request đó trong hàng triệu dòng.</p>
+
+<h3>Logger: cần biết status code</h3>
+<p><code>http.ResponseWriter</code> không cho đọc lại status đã ghi. Mẹo chuẩn: bọc nó trong một struct ghi nhớ status.</p>
+<pre lang="go">
+type statusRecorder struct {
+    http.ResponseWriter // nhúng: mọi method khác giữ nguyên
+    status int
+    bytes  int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+    s.status = code
+    s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusRecorder) Write(b []byte) (int, error) {
+    if s.status == 0 {
+        s.status = http.StatusOK
+    }
+    n, err := s.ResponseWriter.Write(b)
+    s.bytes += n
+    return n, err
+}
+
+func Logger(log *slog.Logger) Middleware {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            start := time.Now()
+            rec := &statusRecorder{ResponseWriter: w}
+            next.ServeHTTP(rec, r)
+            log.InfoContext(r.Context(), "http",
+                "method", r.Method,
+                "path", r.URL.Path,
+                "status", rec.status,
+                "bytes", rec.bytes,
+                "duration_ms", time.Since(start).Milliseconds(),
+                "request_id", RequestIDFrom(r.Context()),
+            )
+        })
+    }
+}
+</pre>
+
+<h3>Ghép các middleware</h3>
+<pre lang="go">
+func Chain(h http.Handler, mws ...Middleware) http.Handler {
+    for i := len(mws) - 1; i >= 0; i-- { // bọc từ trong ra ngoài
+        h = mws[i](h)
+    }
+    return h
+}
+
+handler := Chain(mux, RequestID, Logger(logger), Recover)
+// thứ tự chạy khi có request: RequestID → Logger → Recover → mux
+</pre>
+<aside class="tip"><p>Middleware chỉ áp dụng cho một số route (ví dụ yêu cầu đăng nhập) thì bọc riêng route đó: <code>mux.Handle("GET /v1/me", RequireAuth(http.HandlerFunc(me)))</code>. Thư viện <code>chi</code> có cú pháp nhóm route tiện hơn (<code>r.Group</code>, <code>r.With</code>), một lý do khiến nó vẫn được dùng nhiều.</p></aside>
+
+<h2>Log có cấu trúc với slog</h2>
+<p>Log dạng chữ tự do (<code>log.Printf("user %d tạo lớp %s", ...)</code>) đọc bằng mắt thì được, nhưng không lọc được khi có hàng triệu dòng. Log có cấu trúc ghi từng trường riêng, thường dạng JSON, để hệ thống log (Grafana Loki, Elasticsearch, Datadog, Cloud Logging...) tìm kiếm và đếm.</p>
+<pre lang="go">
+logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+slog.SetDefault(logger)
+
+slog.Info("tạo lớp", "class_id", 42, "teacher_id", 7)
+slog.Error("gửi email thất bại", "err", err, "user_id", 7)
+</pre>
+<pre lang="json" file="stdout">
+{"time":"2026-11-03T08:30:00.123Z","level":"INFO","msg":"tạo lớp","class_id":42,"teacher_id":7}
+</pre>
+<aside class="warn"><p>Không bao giờ ghi vào log: mật khẩu, token phiên, mã OTP, số thẻ, nội dung body đầy đủ của request đăng nhập / thanh toán. Log thường được nhiều người đọc hơn database và lưu ở nhiều nơi hơn. Rò rỉ qua log là một kiểu sự cố bảo mật rất phổ biến.</p></aside>
+
+<h2>Tách lớp: handler, service, store</h2>
+<p>Khi handler vừa đọc JSON, vừa kiểm quyền, vừa viết SQL, vừa gửi email, nó dài 200 dòng và không test được. Cách tổ chức phổ biến nhất ở backend Go:</p>
+<table>
+<tr><th>Lớp</th><th>Làm gì</th><th>Không làm gì</th></tr>
+<tr><td><b>Handler</b> (httpapi)</td><td>Đọc request, gọi service, đổi kết quả / lỗi thành response</td><td>Không viết SQL, không chứa quy tắc nghiệp vụ</td></tr>
+<tr><td><b>Service</b></td><td>Quy tắc nghiệp vụ: quyền, giới hạn, tính toán, điều phối nhiều store</td><td>Không biết HTTP (không có <code>http.Request</code>), không viết SQL</td></tr>
+<tr><td><b>Store</b> (repository)</td><td>Đọc / ghi database, Redis</td><td>Không quyết định nghiệp vụ</td></tr>
+</table>
+<pre lang="go" file="internal/service/classes.go">
+type ClassStore interface {
+    CountByTeacher(ctx context.Context, teacherID int64) (int, error)
+    Create(ctx context.Context, c domain.Class) (domain.Class, error)
+}
+
+type Classes struct {
+    store ClassStore
+    clock func() time.Time // tiêm được thời gian → test được các trường hợp theo ngày
+}
+
+func NewClasses(s ClassStore) *Classes {
+    return &Classes{store: s, clock: time.Now}
+}
+
+const FreeClassQuota = 1
+
+func (s *Classes) Create(ctx context.Context, teacherID int64, in CreateClassInput) (domain.Class, error) {
+    if err := in.Validate(); err != nil {
+        return domain.Class{}, err
+    }
+    n, err := s.store.CountByTeacher(ctx, teacherID)
+    if err != nil {
+        return domain.Class{}, fmt.Errorf("đếm lớp: %w", err)
+    }
+    if n >= FreeClassQuota {
+        return domain.Class{}, domain.ErrQuotaExceeded
+    }
+    return s.store.Create(ctx, domain.Class{TeacherID: teacherID, Name: in.Name, CreatedAt: s.clock()})
+}
+</pre>
+<pre lang="go" file="internal/httpapi/classes.go">
+func (h *Handler) createClass(w http.ResponseWriter, r *http.Request) {
+    user := MustUser(r.Context()) // middleware Auth đã đưa vào ctx
+    var in service.CreateClassInput
+    if err := DecodeJSON(w, r, &in); err != nil {
+        WriteError(w, r, err)
+        return
+    }
+    c, err := h.classes.Create(r.Context(), user.ID, in)
+    if err != nil {
+        WriteError(w, r, err) // ErrQuotaExceeded → 402 hoặc 409 tuỳ quy ước, ở MỘT chỗ
+        return
+    }
+    WriteJSON(w, http.StatusCreated, toClassDTO(c))
+}
+</pre>
+<aside class="warn"><p>Đoạn service trên có lỗi tranh chấp: hai request "tạo lớp" tới cùng lúc, cả hai đều đếm được 0 rồi cùng tạo, giáo viên có 2 lớp miễn phí. Bài 16 sửa nó bằng cách đưa điều kiện vào chính câu SQL. Bạn sẽ gặp kiểu lỗi "kiểm tra rồi mới làm" này ở mọi nơi.</p></aside>
+<aside class="tip"><p>Đừng tách lớp cho có. Endpoint chỉ đọc một bảng và trả về thì handler gọi thẳng store là đủ. Cấu trúc ba lớp đáng giá khi có quy tắc nghiệp vụ thật.</p></aside>
+
+<h2>Cấu hình qua biến môi trường</h2>
+<p>Theo nguyên tắc <i>12-factor app</i>, cấu hình (địa chỉ database, khoá bí mật, cổng) đến từ biến môi trường, không nằm trong code. Cùng một file chạy, đổi biến môi trường là chạy được ở máy bạn, staging hay production.</p>
+<pre lang="go" file="internal/config/config.go">
+type Config struct {
+    Addr        string
+    DatabaseURL string
+    RedisURL    string
+    SessionKey  []byte
+    Env         string // "dev" | "prod"
+}
+
+func Load() (Config, error) {
+    c := Config{
+        Addr:        getenv("ADDR", ":8080"),
+        DatabaseURL: os.Getenv("DATABASE_URL"),
+        RedisURL:    os.Getenv("REDIS_URL"),
+        Env:         getenv("APP_ENV", "dev"),
+    }
+    var missing []string
+    if c.DatabaseURL == "" {
+        missing = append(missing, "DATABASE_URL")
+    }
+    key := os.Getenv("SESSION_KEY")
+    if len(key) < 32 {
+        missing = append(missing, "SESSION_KEY (ít nhất 32 ký tự)")
+    }
+    c.SessionKey = []byte(key)
+    if len(missing) > 0 {
+        return c, fmt.Errorf("thiếu cấu hình: %s", strings.Join(missing, ", "))
+    }
+    return c, nil
+}
+
+func getenv(k, def string) string {
+    if v := os.Getenv(k); v != "" {
+        return v
+    }
+    return def
+}
+</pre>
+<aside class="prod"><p><b>Hỏng sớm.</b> Thiếu cấu hình thì dừng ngay lúc khởi động với thông báo rõ ràng, thay vì chạy được rồi lỗi ở request đầu tiên lúc 2 giờ sáng. Bí mật (khoá, mật khẩu database) không bao giờ commit vào git: dùng tính năng secrets của nơi triển khai.</p></aside>
+
+<h2>Ghép mọi thứ trong main</h2>
+<p>Hàm <code>main</code> là nơi duy nhất biết mọi thành phần cụ thể: đọc cấu hình, tạo kết nối, "tiêm" chúng vào service và handler qua các hàm <code>New...</code>. Không cần framework dependency injection.</p>
+<pre lang="go" file="cmd/api/main.go">
+func main() {
+    if err := run(); err != nil {
+        slog.Error("dừng", "err", err)
+        os.Exit(1)
+    }
+}
+
+func run() error {
+    cfg, err := config.Load()
+    if err != nil {
+        return err
+    }
+    logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+    // Huỷ ctx khi nhận Ctrl+C (SIGINT) hoặc lệnh dừng của Docker / Kubernetes (SIGTERM)
+    ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer stop()
+
+    db, err := pgxpool.New(ctx, cfg.DatabaseURL)
+    if err != nil {
+        return fmt.Errorf("kết nối database: %w", err)
+    }
+    defer db.Close()
+
+    store := postgres.NewStore(db)
+    classes := service.NewClasses(store)
+    h := httpapi.New(classes, logger)
+
+    srv := &http.Server{
+        Addr:              cfg.Addr,
+        Handler:           h.Routes(),
+        ReadHeaderTimeout: 5 * time.Second,
+        ReadTimeout:       15 * time.Second,
+        WriteTimeout:      30 * time.Second,
+        IdleTimeout:       60 * time.Second,
+    }
+
+    errCh := make(chan error, 1)
+    go func() {
+        logger.Info("bắt đầu", "addr", cfg.Addr)
+        errCh <- srv.ListenAndServe()
+    }()
+
+    select {
+    case err := <-errCh: // server không mở được cổng, v.v.
+        return err
+    case <-ctx.Done(): // nhận tín hiệu dừng
+    }
+
+    logger.Info("đang tắt, chờ các request dở dang")
+    shutdownCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+    defer cancel()
+    return srv.Shutdown(shutdownCtx)
+}
+</pre>
+
+<h2>Tắt server an toàn (graceful shutdown)</h2>
+<p>Mỗi lần deploy bản mới, bản cũ bị dừng. Nếu dừng ngay lập tức, những request đang xử lý dở (một người đang nộp bài, một giao dịch đang ghi) bị cắt ngang.</p>
+<fig type="seq" caption="srv.Shutdown: ngừng nhận kết nối mới, chờ request đang chạy xong, rồi mới thoát">
+actors: [ext] Nền tảng chạy, [go] Server cũ, [fe] Request đang chạy
+Nền tảng chạy -> Server cũ: SIGTERM (bản mới đã sẵn sàng)
+note Server cũ: ngừng nhận kết nối mới, load balancer chuyển sang bản mới
+Request đang chạy --> Server cũ: xử lý nốt, trả response
+Server cũ -> Server cũ: hết request → đóng database
+Nền tảng chạy -> Server cũ: quá thời gian chờ thì SIGKILL
+</fig>
+<aside class="real"><p>Kubernetes gửi <code>SIGTERM</code>, chờ mặc định 30 giây (<code>terminationGracePeriodSeconds</code>), rồi mới gửi <code>SIGKILL</code>. Docker <code>stop</code> chờ 10 giây. Vì vậy thời gian chờ Shutdown trong code (20 giây ở trên) phải ngắn hơn thời gian chờ của nền tảng.</p></aside>
+
+<quiz q="Middleware Logger ghi log <b>trước khi</b> gọi <code>next.ServeHTTP</code>. Thông tin nào nó sẽ không có?">
+- Method và đường dẫn
++ Status code và thời gian xử lý
+- Request ID
+? Status và thời gian chỉ biết sau khi handler chạy xong, nên phải ghi log sau next.ServeHTTP (hoặc trong defer).
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Nâng cấp API ghi chú của bài 11</summary>
+<p>Tổ chức lại API ghi chú: tách <code>internal/notes</code> (service + store trong bộ nhớ có interface), <code>internal/httpapi</code> (handler + middleware RequestID, Logger, Recover), <code>cmd/api/main.go</code> đọc <code>ADDR</code> từ biến môi trường và tắt an toàn. Thêm một route <code>GET /panic</code> chỉ để thử: gọi nó phải nhận 500 và server vẫn chạy.</p>
+<details class="sol"><summary>Tiêu chí tự kiểm tra</summary>
+<ul>
+<li><code>internal/notes</code> không import <code>net/http</code>.</li>
+<li>Test service chạy được không cần HTTP, test handler dùng <code>httptest</code> với store giả.</li>
+<li>Mỗi dòng log có <code>request_id</code>, <code>status</code>, <code>duration_ms</code>, và response có header <code>X-Request-ID</code> trùng giá trị đó.</li>
+<li>Chạy <code>curl</code> một request chậm (thêm <code>time.Sleep(5*time.Second)</code> vào một handler), bấm Ctrl+C khi nó đang chạy: request vẫn nhận được response rồi server mới thoát.</li>
+</ul>
+</details>
+</details>

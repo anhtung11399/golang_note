@@ -1,0 +1,188 @@
+<h2>Tài nguyên và đường dẫn</h2>
+<p>REST xoay quanh <b>tài nguyên</b> (danh từ) và dùng <b>method HTTP</b> làm động từ. Đường dẫn nói "cái gì", method nói "làm gì".</p>
+<table>
+<tr><th>Việc</th><th>Endpoint</th><th>Thành công</th></tr>
+<tr><td>Danh sách lớp của tôi</td><td><code>GET /v1/classes</code></td><td>200 + danh sách</td></tr>
+<tr><td>Tạo lớp</td><td><code>POST /v1/classes</code></td><td>201 + lớp mới + header <code>Location</code></td></tr>
+<tr><td>Xem một lớp</td><td><code>GET /v1/classes/{id}</code></td><td>200</td></tr>
+<tr><td>Sửa vài trường</td><td><code>PATCH /v1/classes/{id}</code></td><td>200 + lớp sau khi sửa</td></tr>
+<tr><td>Thay toàn bộ</td><td><code>PUT /v1/classes/{id}</code></td><td>200</td></tr>
+<tr><td>Xoá</td><td><code>DELETE /v1/classes/{id}</code></td><td>204, không có body</td></tr>
+<tr><td>Bài tập của một lớp</td><td><code>GET /v1/classes/{id}/assignments</code></td><td>200</td></tr>
+<tr><td>Hành động không phải CRUD</td><td><code>POST /v1/assignments/{id}/submit</code></td><td>200 / 201</td></tr>
+</table>
+<ul>
+<li>Danh từ số nhiều, chữ thường, gạch ngang: <code>/payment-issues</code>, không phải <code>/getPaymentIssue</code>.</li>
+<li>Lồng tối đa một, hai tầng. <code>/classes/5/assignments</code> được, <code>/schools/1/classes/5/assignments/9/files/3</code> thì quá sâu: dùng <code>/files/3</code>.</li>
+<li>Hành động không khớp CRUD (duyệt, nộp, huỷ, gửi lại) dùng <code>POST</code> với động từ ở cuối: <code>POST /orders/9/cancel</code>. Đây là cách các API lớn như Stripe vẫn làm.</li>
+</ul>
+
+<h2>Method: an toàn và idempotent</h2>
+<table>
+<tr><th>Method</th><th>An toàn (không đổi dữ liệu)</th><th>Idempotent (gọi nhiều lần = gọi một lần)</th><th>Ghi chú</th></tr>
+<tr><td>GET, HEAD</td><td>Có</td><td>Có</td><td>Không bao giờ được đổi dữ liệu. Trình duyệt, CDN, crawler có thể tự gọi lại bất cứ lúc nào</td></tr>
+<tr><td>PUT</td><td>Không</td><td>Có</td><td>Gửi lại bản đầy đủ, kết quả vẫn thế</td></tr>
+<tr><td>DELETE</td><td>Không</td><td>Có</td><td>Xoá lần hai: dữ liệu vẫn là "đã xoá" (status có thể là 404)</td></tr>
+<tr><td>PATCH</td><td>Không</td><td>Tuỳ</td><td><code>{"name":"5A"}</code> idempotent, <code>{"op":"increment"}</code> thì không</td></tr>
+<tr><td>POST</td><td>Không</td><td><b>Không</b></td><td>Gửi hai lần = tạo hai bản ghi, trừ khi có idempotency key</td></tr>
+</table>
+<aside class="warn"><p>Đừng bao giờ làm endpoint kiểu <code>GET /delete?id=5</code>. Thư viện prefetch link, trình kiểm tra link trong Slack/Zalo, hay bot tìm kiếm có thể tự gọi GET và xoá dữ liệu của bạn.</p></aside>
+
+<h2>Status code: chọn đúng để client xử lý đúng</h2>
+<table>
+<tr><th>Mã</th><th>Khi nào</th></tr>
+<tr><td><b>200</b> OK</td><td>Thành công, có body</td></tr>
+<tr><td><b>201</b> Created</td><td>Tạo mới thành công (POST)</td></tr>
+<tr><td><b>204</b> No Content</td><td>Thành công, không có body (DELETE)</td></tr>
+<tr><td><b>400</b> Bad Request</td><td>Dữ liệu sai: JSON hỏng, thiếu trường, sai định dạng</td></tr>
+<tr><td><b>401</b> Unauthorized</td><td><b>Chưa đăng nhập</b> hoặc phiên hết hạn (tên gây nhầm, thật ra là "unauthenticated")</td></tr>
+<tr><td><b>403</b> Forbidden</td><td>Đã đăng nhập nhưng <b>không có quyền</b></td></tr>
+<tr><td><b>404</b> Not Found</td><td>Không có. Cũng dùng khi tài nguyên tồn tại nhưng không thuộc người gọi, để không lộ là nó tồn tại</td></tr>
+<tr><td><b>409</b> Conflict</td><td>Xung đột trạng thái: email đã dùng, đơn đã thanh toán rồi, dữ liệu đã bị người khác sửa</td></tr>
+<tr><td><b>413</b> Content Too Large</td><td>Body / file quá lớn</td></tr>
+<tr><td><b>422</b> Unprocessable Content</td><td>Một số đội dùng cho lỗi nghiệp vụ (JSON đúng nhưng giá trị không hợp lệ). Chọn 400 hay 422 đều được, miễn nhất quán</td></tr>
+<tr><td><b>429</b> Too Many Requests</td><td>Vượt giới hạn tần suất, kèm header <code>Retry-After</code></td></tr>
+<tr><td><b>500</b> Internal Server Error</td><td>Lỗi của bạn, không lường trước</td></tr>
+<tr><td><b>502 / 503 / 504</b></td><td>Dịch vụ phía sau lỗi / đang quá tải hoặc bảo trì / quá thời gian</td></tr>
+</table>
+<aside class="fe"><p>Hãy nghĩ tới code frontend sẽ viết: 401 thì chuyển về trang đăng nhập, 403 hiện "không có quyền", 409 hiện thông báo cụ thể, 429 chờ rồi thử lại, 5xx hiện "thử lại sau". Status đúng giúp frontend xử lý chung ở một chỗ (interceptor) thay vì đọc nội dung từng lỗi.</p></aside>
+
+<h2>Một định dạng lỗi cho toàn bộ API</h2>
+<pre lang="json" file="Response lỗi">
+{
+  "error": {
+    "code": "CLASS_FULL",
+    "message": "Lớp đã đủ sĩ số",
+    "fields": { "joinCode": "Lớp đã đủ 40 học sinh" }
+  }
+}
+</pre>
+<ul>
+<li><code>code</code>: hằng số ổn định cho <b>máy</b> đọc. Frontend <code>switch</code> theo nó. Không bao giờ đổi.</li>
+<li><code>message</code>: câu cho <b>người</b> đọc, có thể hiện thẳng lên giao diện.</li>
+<li><code>fields</code>: lỗi theo từng ô nhập, để form tô đỏ đúng ô.</li>
+</ul>
+<p>Có một chuẩn chính thức cho việc này là <b>Problem Details for HTTP APIs</b> (RFC 9457, <code>Content-Type: application/problem+json</code>). Dùng chuẩn hay tự định nghĩa đều được, quan trọng nhất là <b>mọi</b> endpoint trả cùng một dạng.</p>
+
+<h2>Validate: không tin dữ liệu nào</h2>
+<pre lang="go">
+type CreateAssignmentReq struct {
+    Title    string `json:"title"`
+    DueDate  string `json:"dueDate"`  // "2026-11-10"
+    Count    int    `json:"count"`
+}
+
+func (r *CreateAssignmentReq) Validate() error {
+    r.Title = strings.TrimSpace(r.Title)
+    fields := map[string]string{}
+    if n := utf8.RuneCountInString(r.Title); n == 0 || n > 200 {
+        fields["title"] = "Nội dung từ 1 đến 200 ký tự"
+    }
+    if _, err := time.Parse(time.DateOnly, r.DueDate); err != nil {
+        fields["dueDate"] = "Ngày không hợp lệ (YYYY-MM-DD)"
+    }
+    if r.Count < 1 || r.Count > 50 {
+        fields["count"] = "Số bài từ 1 đến 50"
+    }
+    if len(fields) > 0 {
+        return &FieldsError{Fields: fields}
+    }
+    return nil
+}
+</pre>
+<aside class="prod"><p>Mọi giới hạn validate ở backend phải <b>khớp</b> với <code>maxlength</code>, <code>min</code>, <code>max</code> ở form frontend. Frontend validate để trải nghiệm tốt, backend validate để dữ liệu đúng. Thư viện <code>go-playground/validator</code> cho phép viết luật bằng tag (<code>validate:"required,max=200"</code>), rất phổ biến khi struct nhiều trường.</p></aside>
+
+<h2>Phân trang, lọc, sắp xếp</h2>
+<p><b>Không bao giờ</b> trả toàn bộ một bảng. Bảng có 10 dòng lúc ra mắt sẽ có 10 triệu dòng sau hai năm.</p>
+<h3>Phân trang theo số trang (offset)</h3>
+<pre lang="http">
+GET /v1/classes/5/assignments?page=2&size=20&sort=-dueDate&subject=toan
+</pre>
+<pre lang="json">
+{ "items": [ ... ], "page": 2, "size": 20, "total": 137 }
+</pre>
+<p>Dễ làm, có số trang để nhảy. Nhược điểm: <code>OFFSET 100000</code> chậm (database vẫn phải đi qua 100.000 dòng), và nếu có dòng mới chen vào lúc người dùng đang lật trang thì bị trùng hoặc sót.</p>
+<h3>Phân trang theo con trỏ (cursor)</h3>
+<pre lang="http">
+GET /v1/notifications?limit=20&after=eyJpZCI6OTAwMX0
+</pre>
+<pre lang="json">
+{ "items": [ ... ], "nextCursor": "eyJpZCI6ODk4MX0", "hasMore": true }
+</pre>
+<p>Nhanh với mọi độ sâu và không trùng / sót, hợp với cuộn vô hạn và feed. Không nhảy thẳng tới trang 50 được. Cách cài đặt bằng SQL ở bài 16.</p>
+<aside class="real"><p>Stripe dùng cursor: tham số <code>starting_after</code> và trường <code>has_more</code>. GitHub API trả link trang sau trong header <code>Link</code>. Twitter / X, Facebook Graph API đều dùng cursor cho feed.</p></aside>
+<aside class="warn"><p>Luôn đặt <b>giới hạn trên</b> cho <code>size</code> (ví dụ tối đa 100), và chỉ cho sắp xếp / lọc theo <b>danh sách cột cho phép</b>. Tuyệt đối không ghép thẳng tham số <code>sort</code> vào câu SQL (bài 19: SQL injection).</p>
+<pre lang="go">
+var sortable = map[string]string{
+    "dueDate":   "due_date",
+    "createdAt": "created_at",
+}
+col, ok := sortable[strings.TrimPrefix(sortParam, "-")]
+if !ok {
+    col = "created_at"
+}
+</pre></aside>
+
+<h2>Ngày giờ, id, tiền trong JSON</h2>
+<ul>
+<li><b>Thời điểm</b>: chuỗi ISO 8601 / RFC 3339 có múi giờ, nên dùng UTC: <code>"2026-11-03T08:30:00Z"</code>. Go mặc định đổi <code>time.Time</code> sang dạng này.</li>
+<li><b>Ngày</b> không có giờ (hạn nộp, ngày sinh): <code>"2026-11-10"</code>. Đừng biến nó thành thời điểm nửa đêm UTC, sẽ lệch ngày ở múi giờ Việt Nam (UTC+7).</li>
+<li><b>Id</b> 64 bit: cân nhắc trả dạng chuỗi (JavaScript chỉ chính xác tới 2<sup>53</sup>, bài 02).</li>
+<li><b>Tiền</b>: số nguyên theo đơn vị nhỏ nhất kèm mã tiền tệ: <code>{"amount": 49000, "currency": "VND"}</code>.</li>
+</ul>
+
+<h2>Idempotency key: bấm hai lần không trả tiền hai lần</h2>
+<p>Người dùng bấm "Thanh toán", mạng chập chờn, app tự gửi lại. POST không idempotent nên có thể tạo hai giao dịch. Giải pháp là client tạo một khoá ngẫu nhiên cho <b>mỗi thao tác</b> và gửi kèm:</p>
+<pre lang="http">
+POST /v1/payments
+Idempotency-Key: 8b1f3c3e-6a2c-4c1e-9a77-2f1b1c0d9e11
+</pre>
+<fig type="seq" caption="Server nhớ khoá đã xử lý. Gửi lại cùng khoá nhận lại đúng kết quả cũ">
+actors: [fe] App, [go] API, [db] Database
+App -> API: POST /payments (key K)
+API -> Database: chưa có K → xử lý, lưu kết quả kèm K
+API --> App: 201 {id: 77}  (mạng rớt, app không nhận được)
+App -> API: gửi lại POST /payments (key K)
+API -> Database: đã có K
+Database --> API: kết quả cũ {id: 77}
+API --> App: 201 {id: 77}, không tạo giao dịch thứ hai
+</fig>
+<aside class="real"><p>Đây đúng là cách Stripe làm với header <code>Idempotency-Key</code>, và là một trong những thiết kế API được nhắc tới nhiều nhất. Phần cài đặt (bảng lưu khoá, UNIQUE, xử lý hai request cùng khoá tới cùng lúc) ở bài 20.</p></aside>
+
+<h2>Chống ghi đè khi hai người cùng sửa</h2>
+<p>Giáo viên A và B cùng mở form sửa một bài tập. A lưu, rồi B lưu đè mất thay đổi của A. Cách chuẩn là <b>optimistic concurrency</b>: mỗi bản ghi có số phiên bản, client gửi lại phiên bản nó đã đọc.</p>
+<pre lang="sql">
+UPDATE assignments
+SET title = $1, version = version + 1
+WHERE id = $2 AND version = $3;   -- 0 dòng bị sửa → đã có người sửa trước → trả 409
+</pre>
+<p>Trong HTTP, phiên bản thường đi qua header <code>ETag</code> (server trả) và <code>If-Match</code> (client gửi lại), hoặc đơn giản là trường <code>version</code> trong JSON.</p>
+
+<h2>Version và tài liệu</h2>
+<ul>
+<li>Đặt <code>/v1</code> ngay từ đầu. Khi phải thay đổi phá vỡ tương thích (đổi tên trường, đổi kiểu), mở <code>/v2</code> và giữ <code>/v1</code> chạy một thời gian cho app di động cũ.</li>
+<li>Thêm trường mới <b>không</b> phá tương thích. Xoá, đổi tên, đổi kiểu thì có. App di động không ép người dùng cập nhật được, nên một phiên bản API có thể phải sống nhiều năm.</li>
+<li>Viết tài liệu bằng <b>OpenAPI</b> (Swagger). Từ file OpenAPI có thể sinh client TypeScript cho frontend, và công cụ <code>oapi-codegen</code> sinh khung server Go.</li>
+</ul>
+
+<quiz q="Người dùng đã đăng nhập gọi <code>GET /v1/classes/77</code>, lớp 77 có tồn tại nhưng thuộc giáo viên khác. Status nào hợp lý nhất?">
+- 401
+- 200 với dữ liệu rỗng
++ 404 (hoặc 403), và 404 tốt hơn vì không tiết lộ lớp 77 có tồn tại
+? 401 là chưa đăng nhập, không đúng. Trả 404 giúp kẻ dò id không phân biệt được "không tồn tại" với "không phải của bạn". GitHub trả 404 cho repo riêng tư mà bạn không có quyền.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Thiết kế API cho tính năng điểm danh</summary>
+<p>Giáo viên điểm danh học sinh theo ngày (có mặt / vắng có phép / vắng không phép), phụ huynh xin nghỉ cho con. Viết ra: danh sách endpoint (method + đường dẫn), body request, response, status cho từng trường hợp lỗi.</p>
+<details class="sol"><summary>Một đáp án</summary>
+<table>
+<tr><th>Endpoint</th><th>Ai gọi</th><th>Ghi chú</th></tr>
+<tr><td><code>GET /v1/classes/{id}/attendance?date=2026-11-03</code></td><td>Giáo viên lớp đó</td><td>200: danh sách học sinh + trạng thái. 404 nếu không phải lớp của mình</td></tr>
+<tr><td><code>PUT /v1/classes/{id}/attendance/{date}</code></td><td>Giáo viên</td><td>Body: <code>[{"studentId":"12","status":"absent_excused"}]</code>. PUT vì gửi cả danh sách của ngày đó, gửi lại vẫn ra cùng kết quả</td></tr>
+<tr><td><code>POST /v1/children/{id}/absence-requests</code></td><td>Phụ huynh của bé</td><td>Body: <code>{"from":"2026-11-05","to":"2026-11-06","reason":"health"}</code>. 201. 400 nếu <code>to &lt; from</code>, 409 nếu đã có đơn trùng ngày</td></tr>
+<tr><td><code>POST /v1/absence-requests/{id}/approve</code></td><td>Giáo viên</td><td>Hành động: dùng POST + động từ</td></tr>
+</table>
+<p><code>reason</code> chỉ nhận danh sách cố định (<code>health</code>, <code>family</code>, <code>other</code>) thay vì chữ tự do: bớt rủi ro lưu thông tin sức khoẻ chi tiết của trẻ em, loại dữ liệu nhạy cảm theo luật bảo vệ dữ liệu cá nhân.</p>
+</details>
+</details>

@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 14: SQL và thiết kế cơ sở dữ liệu · Go cho dân Frontend</title>
+<meta name="description" content="Bảng, khoá chính, khoá ngoại, quan hệ 1-n và n-n, chuẩn hoá, JOIN, GROUP BY: nền tảng mọi backend.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql" aria-current="page"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="sql">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#059669">Chặng 3 · Dữ liệu</span><span>Bài 14</span><span>60 phút đọc + làm bài</span></div>
+    <h1>SQL và thiết kế cơ sở dữ liệu</h1>
+    <p class="lead">Bảng, khoá chính, khoá ngoại, quan hệ 1-n và n-n, chuẩn hoá, JOIN, GROUP BY: nền tảng mọi backend.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Thiết kế bảng cho một nghiệp vụ thật</li><li>Viết SELECT có JOIN, GROUP BY</li><li>Hiểu ràng buộc giúp dữ liệu luôn đúng</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="vi-sao-van-la-sql"><a href="#vi-sao-van-la-sql" class="anchor" aria-hidden="true">#</a>Vì sao vẫn là SQL</h2>
+<p>Có rất nhiều loại database (MongoDB, DynamoDB, Cassandra...), nhưng với đa số ứng dụng nghiệp vụ, <b>cơ sở dữ liệu quan hệ</b> (PostgreSQL, MySQL) vẫn là lựa chọn mặc định: dữ liệu có cấu trúc rõ, có quan hệ với nhau, cần giao dịch đúng tuyệt đối. Lộ trình này dùng <b>PostgreSQL</b>, database mã nguồn mở được dùng rộng rãi nhất cho backend hiện nay.</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c"># Chạy Postgres bằng Docker (cách nhanh nhất trên máy cá nhân)</span>
+<span class="k">docker</span> run -d --name pg -e POSTGRES_PASSWORD=dev -p <span class="n">5432</span>:<span class="n">5432</span> postgres:<span class="n">17</span>
+<span class="k">docker</span> exec -it pg <span class="k">psql</span> -U postgres     <span class="c"># mở cửa sổ gõ SQL</span></code></pre></div>
+<aside class="fe"><p>Hãy nghĩ một bảng như một mảng object cùng kiểu, mỗi dòng là một object, mỗi cột là một thuộc tính có kiểu cố định. Khác với state ở frontend: dữ liệu này dùng chung cho mọi người, sống nhiều năm, và database sẽ <b>từ chối</b> dữ liệu sai ràng buộc thay vì để bạn tự kiểm tra.</p></aside>
+
+<h2 id="thiet-ke-bang-cho-so-bai-tap"><a href="#thiet-ke-bang-cho-so-bai-tap" class="anchor" aria-hidden="true">#</a>Thiết kế bảng cho "Sổ bài tập"</h2>
+<p>Nghiệp vụ: giáo viên có nhiều lớp. Lớp có nhiều học sinh, một học sinh có thể học nhiều lớp (học thêm). Lớp có nhiều bài tập. Mỗi học sinh nộp mỗi bài tập một lần, có điểm.</p>
+<figure class="dg">
+<svg viewBox="0 0 760 330" style="min-width:620px;max-width:760px" role="img" aria-label="Sơ đồ quan hệ các bảng">
+  <g class="nd go"><rect x="20" y="20" width="170" height="110" rx="10"/></g>
+  <text x="105" y="44" class="tl" text-anchor="middle" style="font-weight:700">users</text>
+  <text x="34" y="68" class="ts">id (PK)</text><text x="34" y="88" class="ts">email (UNIQUE)</text><text x="34" y="108" class="ts">name, role</text>
+
+  <g class="nd go"><rect x="290" y="20" width="180" height="110" rx="10"/></g>
+  <text x="380" y="44" class="tl" text-anchor="middle" style="font-weight:700">classes</text>
+  <text x="304" y="68" class="ts">id (PK)</text><text x="304" y="88" class="ts">teacher_id → users.id</text><text x="304" y="108" class="ts">name, capacity</text>
+
+  <g class="nd db"><rect x="290" y="200" width="180" height="110" rx="10"/></g>
+  <text x="380" y="224" class="tl" text-anchor="middle" style="font-weight:700">enrollments</text>
+  <text x="304" y="248" class="ts">class_id → classes.id</text><text x="304" y="268" class="ts">student_id → users.id</text><text x="304" y="288" class="ts">PK (class_id, student_id)</text>
+
+  <g class="nd go"><rect x="570" y="20" width="170" height="110" rx="10"/></g>
+  <text x="655" y="44" class="tl" text-anchor="middle" style="font-weight:700">assignments</text>
+  <text x="584" y="68" class="ts">id (PK)</text><text x="584" y="88" class="ts">class_id → classes.id</text><text x="584" y="108" class="ts">title, due_date</text>
+
+  <g class="nd db"><rect x="570" y="200" width="170" height="110" rx="10"/></g>
+  <text x="655" y="224" class="tl" text-anchor="middle" style="font-weight:700">submissions</text>
+  <text x="584" y="248" class="ts">assignment_id → ...</text><text x="584" y="268" class="ts">student_id → users.id</text><text x="584" y="288" class="ts">score, submitted_at</text>
+
+  <path d="M190 70 H290" class="ln" marker-end="url(#ar)"/><text x="240" y="62" class="ts" text-anchor="middle">1 - n</text>
+  <path d="M470 70 H570" class="ln" marker-end="url(#ar)"/><text x="520" y="62" class="ts" text-anchor="middle">1 - n</text>
+  <path d="M380 130 V200" class="ln" marker-end="url(#ar)"/><text x="388" y="170" class="ts">1 - n</text>
+  <path d="M105 130 V255 H290" class="ln" marker-end="url(#ar)"/><text x="190" y="248" class="ts" text-anchor="middle">học sinh</text>
+  <path d="M655 130 V200" class="ln" marker-end="url(#ar)"/><text x="663" y="170" class="ts">1 - n</text>
+</svg>
+<figcaption>Học sinh và lớp là quan hệ nhiều - nhiều, nên cần bảng nối <code>enrollments</code></figcaption>
+</figure>
+<div class="code"><div class="code-h"><span>migrations/001_init.sql</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">CREATE</span> <span class="k">TABLE</span> users (
+    id          <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    email       <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">UNIQUE</span>,
+    name        <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (char_length(name) <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">80</span>),
+    role        <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (role <span class="k">IN</span> (<span class="s">'teacher'</span>, <span class="s">'student'</span>)),
+    created_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>()
+);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> classes (
+    id          <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    teacher_id  <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> users(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    name        <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (char_length(name) <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">60</span>),
+    capacity    <span class="t">int</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (capacity <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">80</span>),
+    created_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>()
+);
+
+<span class="c">-- Bảng nối cho quan hệ nhiều - nhiều</span>
+<span class="k">CREATE</span> <span class="k">TABLE</span> enrollments (
+    class_id    <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> classes(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    student_id  <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> users(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    joined_at   <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>(),
+    <span class="k">PRIMARY</span> <span class="k">KEY</span> (class_id, student_id)        <span class="c">-- một học sinh vào một lớp đúng một lần</span>
+);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> assignments (
+    id          <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    class_id    <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> classes(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    title       <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    due_date    <span class="t">date</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    created_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>()
+);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> submissions (
+    assignment_id <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> assignments(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    student_id    <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> users(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    score         <span class="t">numeric</span>(<span class="n">4</span>,<span class="n">2</span>) <span class="k">CHECK</span> (score <span class="k">BETWEEN</span> <span class="n">0</span> <span class="k">AND</span> <span class="n">10</span>),  <span class="c">-- NULL = chưa chấm</span>
+    submitted_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>(),
+    <span class="k">PRIMARY</span> <span class="k">KEY</span> (assignment_id, student_id)
+);</code></pre></div>
+
+<h2 id="rang-buoc-de-database-giu-du-lieu-dung"><a href="#rang-buoc-de-database-giu-du-lieu-dung" class="anchor" aria-hidden="true">#</a>Ràng buộc: để database giữ dữ liệu đúng</h2>
+<table>
+<tr><th>Ràng buộc</th><th>Đảm bảo điều gì</th></tr>
+<tr><td><code>PRIMARY KEY</code></td><td>Mỗi dòng có định danh duy nhất, không NULL</td></tr>
+<tr><td><code>NOT NULL</code></td><td>Không được để trống</td></tr>
+<tr><td><code>UNIQUE</code></td><td>Không trùng (email). Dù hai request đăng ký cùng email tới cùng lúc, chỉ một cái thành công</td></tr>
+<tr><td><code>REFERENCES</code> (khoá ngoại)</td><td>Không có lớp nào trỏ tới giáo viên không tồn tại</td></tr>
+<tr><td><code>ON DELETE CASCADE</code></td><td>Xoá lớp thì tự xoá bài tập, bài nộp của lớp đó</td></tr>
+<tr><td><code>CHECK</code></td><td>Giá trị trong khoảng cho phép: điểm 0 đến 10, sĩ số 1 đến 80</td></tr>
+</table>
+<aside class="prod"><p>Kiểm tra ở Go là tốt, nhưng <b>ràng buộc trong database là lớp phòng thủ cuối cùng</b>: nó vẫn đúng khi có bug trong code, khi hai request chạy song song, khi ai đó sửa dữ liệu bằng tay hay viết script nhập liệu. Code bạn viết hôm nay sẽ được người khác sửa trong 3 năm tới, còn ràng buộc thì vẫn ở đó.</p></aside>
+
+<h3>Khoá chính: số tự tăng hay UUID?</h3>
+<table>
+<tr><th></th><th>Số tự tăng (identity / bigserial)</th><th>UUID</th></tr>
+<tr><td>Kích thước</td><td>8 byte</td><td>16 byte</td></tr>
+<tr><td>Đoán được id khác?</td><td>Có: thấy đơn 1001 là đoán được 1002</td><td>Không</td></tr>
+<tr><td>Tạo ở client / nhiều máy</td><td>Không, phải hỏi database</td><td>Được</td></tr>
+<tr><td>Hiệu năng index</td><td>Rất tốt (luôn chèn vào cuối)</td><td>UUID v4 ngẫu nhiên làm index phân mảnh. UUID v7 / ULID (có thời gian ở đầu) khắc phục được</td></tr>
+</table>
+<p>Cả hai đều phổ biến. Lưu ý: id đoán được <b>không</b> phải lỗ hổng nếu mọi endpoint đều kiểm quyền (bài 19). Đừng dựa vào id khó đoán để bảo mật.</p>
+
+<h2 id="crud-co-ban"><a href="#crud-co-ban" class="anchor" aria-hidden="true">#</a>CRUD cơ bản</h2>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- Tạo, và lấy lại id vừa tạo</span>
+<span class="k">INSERT</span> <span class="k">INTO</span> classes (teacher_id, name, capacity) <span class="k">VALUES</span> (<span class="n">7</span>, <span class="s">'Lớp 5A'</span>, <span class="n">35</span>)
+<span class="k">RETURNING</span> id, created_at;
+
+<span class="c">-- Đọc</span>
+<span class="k">SELECT</span> id, name, capacity <span class="k">FROM</span> classes <span class="k">WHERE</span> teacher_id = <span class="n">7</span> <span class="k">ORDER</span> <span class="k">BY</span> created_at <span class="k">DESC</span> <span class="k">LIMIT</span> <span class="n">20</span>;
+
+<span class="c">-- Sửa (luôn có WHERE!)</span>
+<span class="k">UPDATE</span> classes <span class="k">SET</span> name = <span class="s">'Lớp 5A1'</span> <span class="k">WHERE</span> id = <span class="n">42</span> <span class="k">AND</span> teacher_id = <span class="n">7</span>;
+
+<span class="c">-- Xoá (luôn có WHERE!)</span>
+<span class="k">DELETE</span> <span class="k">FROM</span> classes <span class="k">WHERE</span> id = <span class="n">42</span> <span class="k">AND</span> teacher_id = <span class="n">7</span>;</code></pre></div>
+<aside class="warn"><p><code>UPDATE classes SET name = 'x'</code> quên <code>WHERE</code> là sửa <b>mọi dòng</b> của bảng. Khi sửa dữ liệu bằng tay trên production: mở transaction (<code>BEGIN</code>), chạy, xem số dòng bị ảnh hưởng, đúng rồi mới <code>COMMIT</code>.</p></aside>
+<p>Để ý điều kiện <code>AND teacher_id = 7</code>: không chỉ sửa lớp 42, mà sửa lớp 42 <b>nếu nó thuộc giáo viên 7</b>. Gộp kiểm quyền vào câu SQL là thói quen tốt nhất bạn có thể tập từ bây giờ.</p>
+
+<h2 id="join-ghep-du-lieu-tu-nhieu-bang"><a href="#join-ghep-du-lieu-tu-nhieu-bang" class="anchor" aria-hidden="true">#</a>JOIN: ghép dữ liệu từ nhiều bảng</h2>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- Bài tập kèm tên lớp (INNER JOIN: chỉ lấy dòng có ở cả hai bên)</span>
+<span class="k">SELECT</span> a.id, a.title, a.due_date, c.name <span class="k">AS</span> class_name
+<span class="k">FROM</span> assignments a
+<span class="k">JOIN</span> classes c <span class="k">ON</span> c.id = a.class_id
+<span class="k">WHERE</span> c.teacher_id = <span class="n">7</span>;
+
+<span class="c">-- Mọi học sinh của lớp 42 kèm điểm bài 9 (LEFT JOIN: giữ cả học sinh chưa nộp)</span>
+<span class="k">SELECT</span> u.id, u.name, s.score, s.submitted_at
+<span class="k">FROM</span> enrollments e
+<span class="k">JOIN</span> users u <span class="k">ON</span> u.id = e.student_id
+<span class="k">LEFT</span> <span class="k">JOIN</span> submissions s <span class="k">ON</span> s.student_id = e.student_id <span class="k">AND</span> s.assignment_id = <span class="n">9</span>
+<span class="k">WHERE</span> e.class_id = <span class="n">42</span>
+<span class="k">ORDER</span> <span class="k">BY</span> u.name;</code></pre></div>
+<table>
+<tr><th>Học sinh</th><th>score</th><th>submitted_at</th></tr>
+<tr><td>An</td><td>9.00</td><td>2026-11-02 19:05</td></tr>
+<tr><td>Bình</td><td><i>NULL</i></td><td><i>NULL</i></td></tr>
+<tr><td>Chi</td><td>7.50</td><td>2026-11-02 20:41</td></tr>
+</table>
+<p>Bình chưa nộp: <code>LEFT JOIN</code> vẫn giữ dòng của Bình với các cột của <code>submissions</code> là NULL. Nếu dùng <code>JOIN</code> thường, Bình biến mất khỏi danh sách, và giáo viên không biết ai chưa nộp.</p>
+<aside class="warn"><p>Để ý: điều kiện <code>s.assignment_id = 9</code> nằm trong <code>ON</code>, không phải trong <code>WHERE</code>. Đặt vào <code>WHERE</code> thì dòng NULL của Bình bị lọc mất, LEFT JOIN thành JOIN thường. Đây là lỗi SQL kinh điển.</p></aside>
+
+<h2 id="gom-nhom-group-by"><a href="#gom-nhom-group-by" class="anchor" aria-hidden="true">#</a>Gom nhóm: GROUP BY</h2>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- Mỗi lớp của giáo viên 7: số học sinh, số bài tập</span>
+<span class="k">SELECT</span> c.id, c.name,
+       <span class="k">count</span>(<span class="k">DISTINCT</span> e.student_id) <span class="k">AS</span> students,
+       <span class="k">count</span>(<span class="k">DISTINCT</span> a.id)         <span class="k">AS</span> assignments
+<span class="k">FROM</span> classes c
+<span class="k">LEFT</span> <span class="k">JOIN</span> enrollments e <span class="k">ON</span> e.class_id = c.id
+<span class="k">LEFT</span> <span class="k">JOIN</span> assignments a <span class="k">ON</span> a.class_id = c.id
+<span class="k">WHERE</span> c.teacher_id = <span class="n">7</span>
+<span class="k">GROUP</span> <span class="k">BY</span> c.id, c.name;
+
+<span class="c">-- Điểm trung bình theo học sinh trong lớp 42, chỉ lấy em dưới 5</span>
+<span class="k">SELECT</span> s.student_id, round(<span class="k">avg</span>(s.score), <span class="n">2</span>) <span class="k">AS</span> avg_score, <span class="k">count</span>(*) <span class="k">AS</span> graded
+<span class="k">FROM</span> submissions s
+<span class="k">JOIN</span> assignments a <span class="k">ON</span> a.id = s.assignment_id
+<span class="k">WHERE</span> a.class_id = <span class="n">42</span> <span class="k">AND</span> s.score <span class="k">IS</span> <span class="k">NOT</span> <span class="k">NULL</span>
+<span class="k">GROUP</span> <span class="k">BY</span> s.student_id
+<span class="k">HAVING</span> <span class="k">avg</span>(s.score) &lt; <span class="n">5</span>;   <span class="c">-- HAVING lọc SAU khi gom, WHERE lọc TRƯỚC</span></code></pre></div>
+
+<h2 id="null-khong-phai-0-khong-phai-chuoi-rong"><a href="#null-khong-phai-0-khong-phai-chuoi-rong" class="anchor" aria-hidden="true">#</a>NULL: không phải 0, không phải chuỗi rỗng</h2>
+<ul>
+<li><code>NULL</code> nghĩa là "không biết / không có". <code>score = NULL</code> luôn ra "không biết", không bao giờ đúng. Phải viết <code>score IS NULL</code>.</li>
+<li><code>avg</code>, <code>sum</code>, <code>count(cột)</code> bỏ qua NULL. <code>count(*)</code> đếm mọi dòng.</li>
+<li>Trong Go, đọc cột có thể NULL vào kiểu con trỏ (<code>*float64</code>) hoặc kiểu riêng của driver (<code>pgtype.Numeric</code>). Đọc NULL vào <code>float64</code> thường sẽ báo lỗi.</li>
+</ul>
+
+<h2 id="chuan-hoa-moi-thong-tin-nam-mot-cho"><a href="#chuan-hoa-moi-thong-tin-nam-mot-cho" class="anchor" aria-hidden="true">#</a>Chuẩn hoá: mỗi thông tin nằm một chỗ</h2>
+<div class="code"><div class="code-h"><span>Thiết kế chưa chuẩn hoá</span><button class="copy" type="button">Sao chép</button></div><pre><code>submissions: student_id | student_name | student_email | class_name | score</code></pre></div>
+<p>Học sinh đổi tên: phải sửa hàng trăm dòng, sót một dòng là dữ liệu mâu thuẫn. Chuẩn hoá nghĩa là tách thông tin về đúng bảng của nó (tên học sinh ở <code>users</code>), các bảng khác chỉ giữ khoá ngoại.</p>
+<p>Ngoài thực tế đôi khi người ta <b>cố tình</b> chép dữ liệu (phi chuẩn hoá) để đọc nhanh, ví dụ lưu sẵn <code>submission_count</code> trong <code>assignments</code> thay vì đếm mỗi lần. Đổi lại phải giữ nó đồng bộ. Hãy bắt đầu bằng thiết kế chuẩn hoá, chỉ phi chuẩn hoá khi đo được là chậm.</p>
+<aside class="real"><p>Một ví dụ phi chuẩn hoá có chủ đích: <b>đơn hàng lưu lại giá tại thời điểm mua</b> (<code>order_items.unit_price</code>), dù bảng sản phẩm đã có giá. Vì giá sản phẩm sẽ đổi, nhưng hoá đơn đã thanh toán thì không được đổi theo. Ghi nhận lịch sử khác với chép trùng.</p></aside>
+
+<h2 id="thoi-gian-trong-database"><a href="#thoi-gian-trong-database" class="anchor" aria-hidden="true">#</a>Thời gian trong database</h2>
+<ul>
+<li>Thời điểm (lúc tạo, lúc nộp): <code>timestamptz</code>. Postgres lưu dạng UTC và đổi theo múi giờ của phiên kết nối khi hiển thị.</li>
+<li>Ngày theo lịch (hạn nộp, ngày điểm danh): <code>date</code>. Nhớ quy đổi "hôm nay" theo giờ Việt Nam (<code>Asia/Ho_Chi_Minh</code>) chứ không theo UTC: từ 0 giờ tới 7 giờ sáng ở Việt Nam, ngày UTC vẫn là hôm qua.</li>
+</ul>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Bạn muốn liệt kê <b>mọi</b> học sinh trong lớp kèm điểm bài 9, kể cả em chưa nộp. Viết <code>LEFT JOIN submissions s ON s.student_id = e.student_id WHERE s.assignment_id = 9</code>. Kết quả?</p><div class="qo"><button type="button" class="opt">Đúng như mong muốn</button><button type="button" class="opt" data-ok>Mất các em chưa nộp, vì WHERE loại các dòng có s.assignment_id là NULL</button><button type="button" class="opt">Lỗi cú pháp</button></div><p class="why" hidden>Điều kiện trên bảng bên phải của LEFT JOIN phải đặt trong ON. Đặt trong WHERE thì LEFT JOIN thành JOIN thường.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Viết các truy vấn báo cáo</summary>
+<p>Với 5 bảng ở trên, viết SQL cho:</p>
+<ol>
+<li>Danh sách học sinh lớp 42 <b>chưa nộp</b> bài tập 9.</li>
+<li>Với mỗi bài tập của lớp 42: tiêu đề, số em đã nộp, sĩ số lớp.</li>
+<li>Năm học sinh có điểm trung bình cao nhất lớp 42 (chỉ tính bài đã chấm).</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- 1. Chưa nộp: LEFT JOIN rồi lấy dòng không khớp</span>
+<span class="k">SELECT</span> u.id, u.name
+<span class="k">FROM</span> enrollments e
+<span class="k">JOIN</span> users u <span class="k">ON</span> u.id = e.student_id
+<span class="k">LEFT</span> <span class="k">JOIN</span> submissions s <span class="k">ON</span> s.student_id = e.student_id <span class="k">AND</span> s.assignment_id = <span class="n">9</span>
+<span class="k">WHERE</span> e.class_id = <span class="n">42</span> <span class="k">AND</span> s.student_id <span class="k">IS</span> <span class="k">NULL</span>;
+
+<span class="c">-- Cách khác, thường dễ đọc hơn: NOT EXISTS</span>
+<span class="k">SELECT</span> u.id, u.name
+<span class="k">FROM</span> enrollments e
+<span class="k">JOIN</span> users u <span class="k">ON</span> u.id = e.student_id
+<span class="k">WHERE</span> e.class_id = <span class="n">42</span>
+  <span class="k">AND</span> <span class="k">NOT</span> <span class="k">EXISTS</span> (<span class="k">SELECT</span> <span class="n">1</span> <span class="k">FROM</span> submissions s <span class="k">WHERE</span> s.assignment_id = <span class="n">9</span> <span class="k">AND</span> s.student_id = e.student_id);
+
+<span class="c">-- 2. Số bài nộp mỗi bài tập + sĩ số</span>
+<span class="k">SELECT</span> a.id, a.title,
+       (<span class="k">SELECT</span> <span class="k">count</span>(*) <span class="k">FROM</span> submissions s <span class="k">WHERE</span> s.assignment_id = a.id) <span class="k">AS</span> submitted,
+       (<span class="k">SELECT</span> <span class="k">count</span>(*) <span class="k">FROM</span> enrollments e <span class="k">WHERE</span> e.class_id = a.class_id) <span class="k">AS</span> total
+<span class="k">FROM</span> assignments a
+<span class="k">WHERE</span> a.class_id = <span class="n">42</span>
+<span class="k">ORDER</span> <span class="k">BY</span> a.due_date <span class="k">DESC</span>;
+
+<span class="c">-- 3. Top 5 điểm trung bình</span>
+<span class="k">SELECT</span> u.id, u.name, round(<span class="k">avg</span>(s.score), <span class="n">2</span>) <span class="k">AS</span> avg_score
+<span class="k">FROM</span> submissions s
+<span class="k">JOIN</span> assignments a <span class="k">ON</span> a.id = s.assignment_id
+<span class="k">JOIN</span> users u <span class="k">ON</span> u.id = s.student_id
+<span class="k">WHERE</span> a.class_id = <span class="n">42</span> <span class="k">AND</span> s.score <span class="k">IS</span> <span class="k">NOT</span> <span class="k">NULL</span>
+<span class="k">GROUP</span> <span class="k">BY</span> u.id, u.name
+<span class="k">ORDER</span> <span class="k">BY</span> avg_score <span class="k">DESC</span>
+<span class="k">LIMIT</span> <span class="n">5</span>;</code></pre></div>
+</details>
+</details>
+<details class="ex"><summary>Thêm tính năng vào lược đồ</summary>
+<p>Thêm: giáo viên đính kèm nhiều file vào bài tập (tên file, kích thước, đường dẫn lưu trữ), và mỗi lớp có nhiều môn học, bài tập thuộc một môn. Viết <code>CREATE TABLE</code> / <code>ALTER TABLE</code> với đủ ràng buộc.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">CREATE</span> <span class="k">TABLE</span> subjects (
+    id        <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    class_id  <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> classes(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    name      <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (char_length(name) <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">40</span>),
+    <span class="k">UNIQUE</span> (class_id, name)                 <span class="c">-- một lớp không có hai môn trùng tên</span>
+);
+
+<span class="k">ALTER</span> <span class="k">TABLE</span> assignments <span class="k">ADD</span> <span class="k">COLUMN</span> subject_id <span class="t">bigint</span> <span class="k">REFERENCES</span> subjects(id) <span class="k">ON</span> <span class="k">DELETE</span> RESTRICT;
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> assignment_files (
+    id             <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    assignment_id  <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> assignments(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    file_name      <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    size_bytes     <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (size_bytes <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">26214400</span>), <span class="c">-- tối đa 25 MB</span>
+    storage_key    <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">UNIQUE</span>
+);</code></pre></div>
+<p><code>ON DELETE RESTRICT</code> ở <code>subject_id</code>: không cho xoá môn khi còn bài tập thuộc môn đó, buộc giáo viên xử lý bài tập trước. Chọn CASCADE hay RESTRICT là quyết định nghiệp vụ, hãy hỏi người làm sản phẩm. Thêm cột vào bảng đã có dữ liệu thì cột mới phải cho phép NULL hoặc có DEFAULT.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="sql">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="kien-truc.html"><small>Bài trước</small>Middleware, log và cấu trúc phân lớp</a><a class="next" href="go-postgres.html"><small>Bài tiếp theo</small>Go làm việc với PostgreSQL</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#vi-sao-van-la-sql">Vì sao vẫn là SQL</a><a href="#thiet-ke-bang-cho-so-bai-tap">Thiết kế bảng cho &quot;Sổ bài tập&quot;</a><a href="#rang-buoc-de-database-giu-du-lieu-dung">Ràng buộc: để database giữ dữ liệu đúng</a><a href="#crud-co-ban">CRUD cơ bản</a><a href="#join-ghep-du-lieu-tu-nhieu-bang">JOIN: ghép dữ liệu từ nhiều bảng</a><a href="#gom-nhom-group-by">Gom nhóm: GROUP BY</a><a href="#null-khong-phai-0-khong-phai-chuoi-rong">NULL: không phải 0, không phải chuỗi rỗng</a><a href="#chuan-hoa-moi-thong-tin-nam-mot-cho">Chuẩn hoá: mỗi thông tin nằm một chỗ</a><a href="#thoi-gian-trong-database">Thời gian trong database</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

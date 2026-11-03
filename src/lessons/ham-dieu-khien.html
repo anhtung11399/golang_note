@@ -1,0 +1,285 @@
+<h2>if: không cần ngoặc tròn, bắt buộc ngoặc nhọn</h2>
+<pre lang="go">
+if score >= 8 {
+    fmt.Println("Giỏi")
+} else if score >= 6.5 {
+    fmt.Println("Khá")
+} else {
+    fmt.Println("Cần cố gắng")
+}
+</pre>
+<p>Điểm đặc biệt: <code>if</code> có thể kèm một câu lệnh khởi tạo trước dấu <code>;</code>. Biến tạo ra chỉ sống trong khối if/else đó. Mẫu này xuất hiện ở <b>mọi</b> code Go:</p>
+<pre lang="go">
+if n, err := strconv.Atoi(input); err != nil {
+    fmt.Println("không phải số:", err)
+} else {
+    fmt.Println("số là", n)
+}
+// n và err không còn tồn tại ở đây
+</pre>
+
+<h2>for: vòng lặp duy nhất</h2>
+<p>Go không có <code>while</code>, <code>do</code>, <code>forEach</code>. Chỉ có <code>for</code>, với nhiều dạng:</p>
+<pre lang="go">
+// 1. Kiểu C
+for i := 0; i < 3; i++ { }
+
+// 2. Kiểu while
+for balance > 0 { balance -= 10 }
+
+// 3. Vô hạn (thoát bằng break hoặc return)
+for {
+    if done() {
+        break
+    }
+}
+
+// 4. range trên slice: chỉ số và giá trị
+names := []string{"An", "Bình", "Chi"}
+for i, name := range names {
+    fmt.Println(i, name)
+}
+for _, name := range names { }   // bỏ chỉ số bằng _
+
+// 5. range trên map: thứ tự NGẪU NHIÊN (bài 04)
+for key, value := range ages { }
+
+// 6. range trên số nguyên (Go 1.22+): 0, 1, 2
+for i := range 3 { }
+</pre>
+<table>
+<tr><th>JavaScript</th><th>Go</th></tr>
+<tr><td><code>arr.forEach((x, i) =&gt; ...)</code></td><td><code>for i, x := range arr { ... }</code></td></tr>
+<tr><td><code>for (const x of arr)</code></td><td><code>for _, x := range arr</code></td></tr>
+<tr><td><code>while (cond)</code></td><td><code>for cond</code></td></tr>
+<tr><td><code>arr.map(f)</code>, <code>arr.filter(f)</code></td><td>Viết vòng for (Go ưa code rõ ràng hơn chuỗi hàm). Từ Go 1.21 có package <code>slices</code> với <code>slices.Contains</code>, <code>slices.Index</code>, <code>slices.Sort</code>...</td></tr>
+</table>
+<aside class="warn"><p>Biến trong <code>for _, x := range</code> là <b>bản sao</b> của phần tử. Sửa <code>x.Score = 10</code> không làm thay đổi phần tử trong slice. Muốn sửa, dùng chỉ số: <code>items[i].Score = 10</code>.</p></aside>
+
+<h2>switch: không cần break</h2>
+<pre lang="go">
+switch method {
+case "GET", "HEAD":
+    fmt.Println("đọc")
+case "POST":
+    fmt.Println("tạo")
+default:
+    fmt.Println("khác")
+}
+</pre>
+<p>Mỗi <code>case</code> tự dừng sau khi chạy xong (ngược với JavaScript, nơi quên <code>break</code> là lỗi). Muốn chạy tiếp case dưới thì phải viết rõ <code>fallthrough</code>, rất hiếm khi dùng.</p>
+<p>switch không có biểu thức là cách viết gọn cho chuỗi if/else:</p>
+<pre lang="go">
+switch {
+case score >= 8:
+    grade = "Giỏi"
+case score >= 6.5:
+    grade = "Khá"
+default:
+    grade = "Trung bình"
+}
+</pre>
+
+<h2>Hàm</h2>
+<pre lang="go">
+// kiểu viết SAU tên tham số, kiểu trả về ở cuối
+func add(a int, b int) int {
+    return a + b
+}
+
+// các tham số cùng kiểu có thể viết gộp
+func area(w, h float64) float64 { return w * h }
+</pre>
+
+<h3>Trả về nhiều giá trị</h3>
+<p>Đây là tính năng làm nên phong cách Go. Hàm có thể lỗi thì trả về <code>(kết quả, error)</code>, và người gọi <b>phải</b> nhận cả hai.</p>
+<pre lang="go">
+func divide(a, b float64) (float64, error) {
+    if b == 0 {
+        return 0, errors.New("không chia được cho 0")
+    }
+    return a / b, nil
+}
+
+result, err := divide(10, 0)
+if err != nil {
+    fmt.Println("lỗi:", err)
+    return
+}
+fmt.Println(result)
+</pre>
+<aside class="fe"><p>Thay cho <code>try { ... } catch (e) { ... }</code>, lỗi trong Go là một giá trị trả về bình thường. Không có lỗi nào "bay" lên qua nhiều tầng mà bạn không thấy. Bài 07 nói kỹ về cách này.</p></aside>
+
+<h3>Guard clause: thoát sớm, giữ luồng chính sát lề trái</h3>
+<p>Phong cách Go: xử lý trường hợp lỗi trước rồi <code>return</code>, đoạn code "đường thẳng" nằm sát lề trái. Tránh lồng if nhiều tầng.</p>
+<pre lang="go" mark="bad">
+func process(u *User) error {
+    if u != nil {
+        if u.Active {
+            if u.Email != "" {
+                return send(u.Email)
+            } else {
+                return errors.New("thiếu email")
+            }
+        }
+    }
+    return nil
+}
+</pre>
+<pre lang="go" mark="good">
+func process(u *User) error {
+    if u == nil || !u.Active {
+        return nil
+    }
+    if u.Email == "" {
+        return errors.New("thiếu email")
+    }
+    return send(u.Email)
+}
+</pre>
+
+<h3>Hàm có số tham số thay đổi (variadic)</h3>
+<pre lang="go">
+func sum(nums ...int) int {   // nums là []int
+    total := 0
+    for _, n := range nums {
+        total += n
+    }
+    return total
+}
+
+sum(1, 2, 3)
+list := []int{4, 5}
+sum(list...)                  // trải slice ra, giống ...spread trong JS
+</pre>
+
+<h2>Hàm là giá trị, closure</h2>
+<p>Giống JavaScript, hàm có thể gán vào biến, truyền làm tham số, trả về từ hàm khác, và "nhớ" biến bên ngoài (closure).</p>
+<pre lang="go">
+func counter() func() int {
+    n := 0
+    return func() int {
+        n++
+        return n
+    }
+}
+
+next := counter()
+next() // 1
+next() // 2
+
+// Hàm làm tham số: rất hay gặp ở middleware HTTP (bài 13)
+func retry(times int, fn func() error) error {
+    var err error
+    for range times {
+        if err = fn(); err == nil {
+            return nil
+        }
+    }
+    return err
+}
+</pre>
+<aside class="tip"><p>Từ Go 1.22, mỗi vòng lặp <code>for</code> tạo biến lặp <b>mới</b> cho mỗi lần lặp. Lỗi kinh điển "mọi goroutine / closure đều thấy giá trị cuối cùng của i" (giống lỗi <code>var</code> trong vòng for của JavaScript thời trước <code>let</code>) đã hết. Bạn vẫn sẽ thấy dòng <code>i := i</code> trong code cũ: đó là cách sửa lỗi này trước Go 1.22.</p></aside>
+
+<h2>defer: dọn dẹp khi hàm kết thúc</h2>
+<p><code>defer</code> hẹn một lời gọi hàm để chạy <b>ngay trước khi hàm hiện tại trả về</b>, kể cả khi trả về sớm hay khi panic. Dùng để đóng file, đóng kết nối, mở khoá, rollback giao dịch.</p>
+<pre lang="go">
+func readConfig(path string) ([]byte, error) {
+    f, err := os.Open(path)
+    if err != nil {
+        return nil, err
+    }
+    defer f.Close() // dù return ở đâu bên dưới, file vẫn được đóng
+
+    return io.ReadAll(f)
+}
+</pre>
+<p>Nhiều <code>defer</code> chạy theo thứ tự <b>ngược lại</b> (vào sau ra trước, như một chồng đĩa):</p>
+<pre lang="go">
+func main() {
+    defer fmt.Println("1")
+    defer fmt.Println("2")
+    defer fmt.Println("3")
+    fmt.Println("thân hàm")
+}
+// thân hàm
+// 3
+// 2
+// 1
+</pre>
+<fig type="stack" caption="Thứ tự chạy: thân hàm trước, rồi các defer từ dưới lên">
+[go] Thân hàm chạy :: fmt.Println("thân hàm")
+[cache] defer 3 :: đăng ký cuối, chạy đầu tiên
+[cache] defer 2 ::
+[cache] defer 1 :: đăng ký đầu, chạy cuối cùng
+</fig>
+<aside class="warn"><p>Tham số của lời gọi defer được tính <b>ngay lúc gặp dòng defer</b>, không phải lúc chạy:</p>
+<pre lang="go">
+start := time.Now()
+defer fmt.Println("mất", time.Since(start))          // sai: time.Since tính ngay, luôn ~0
+defer func() { fmt.Println("mất", time.Since(start)) }() // đúng: bọc trong hàm
+</pre>
+<p>Và đừng <code>defer</code> trong vòng lặp dài (ví dụ mở 10.000 file): các defer chỉ chạy khi <b>hàm</b> kết thúc, nên file mở chồng chất. Hãy tách thân vòng lặp ra một hàm riêng.</p></aside>
+<aside class="real"><p>Mẫu đo thời gian xử lý bằng defer có ở hầu hết middleware ghi log của các dịch vụ Go: ghi <code>start</code> ở đầu, <code>defer</code> một hàm ghi log thời gian khi request xong. Bạn sẽ tự viết nó ở bài 13.</p></aside>
+
+<quiz q="Đoạn code sau in ra gì? <code>x := 1; defer fmt.Println(x); x = 2</code>">
++ 1
+- 2
+- Không in gì cả
+? Tham số x được tính ngay lúc dòng defer chạy (lúc đó x = 1). Gán x = 2 sau đó không ảnh hưởng.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>FizzBuzz phiên bản Việt và đếm thời gian</summary>
+<p>In từ 1 đến 30: chia hết cho 3 in "Lẻ", chia hết cho 5 in "Chẵn", chia hết cho cả hai in "Tròn", còn lại in số. Dùng <code>switch</code> không biểu thức, và dùng <code>defer</code> để in tổng thời gian chạy khi hàm main kết thúc.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go">
+package main
+
+import (
+    "fmt"
+    "time"
+)
+
+func main() {
+    start := time.Now()
+    defer func() { fmt.Println("xong sau", time.Since(start)) }()
+
+    for i := 1; i <= 30; i++ {
+        switch {
+        case i%15 == 0:
+            fmt.Println("Tròn")
+        case i%3 == 0:
+            fmt.Println("Lẻ")
+        case i%5 == 0:
+            fmt.Println("Chẵn")
+        default:
+            fmt.Println(i)
+        }
+    }
+}
+</pre>
+</details>
+</details>
+<details class="ex"><summary>Hàm thử lại có chờ tăng dần</summary>
+<p>Viết <code>retry(attempts int, base time.Duration, fn func() error) error</code>: gọi <code>fn</code>, lỗi thì chờ <code>base</code>, rồi <code>base*2</code>, <code>base*4</code>... cho tới khi hết lượt. Đây chính là <i>exponential backoff</i>, thứ bạn sẽ dùng khi gọi API bên thứ ba (bài 20).</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go">
+func retry(attempts int, base time.Duration, fn func() error) error {
+    var err error
+    wait := base
+    for i := range attempts {
+        if err = fn(); err == nil {
+            return nil
+        }
+        if i < attempts-1 {
+            time.Sleep(wait)
+            wait *= 2
+        }
+    }
+    return fmt.Errorf("hết %d lần thử: %w", attempts, err)
+}
+</pre>
+<p>Ngoài thực tế người ta còn thêm <b>jitter</b> (cộng một khoảng ngẫu nhiên vào thời gian chờ) để hàng nghìn client không cùng thử lại vào đúng một thời điểm. Bài viết "Exponential Backoff And Jitter" trên blog kiến trúc của AWS giải thích rất rõ điều này.</p>
+</details>
+</details>

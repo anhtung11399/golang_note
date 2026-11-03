@@ -1,0 +1,345 @@
+<h2>HTTP nhìn từ phía máy chủ</h2>
+<p>Ở frontend bạn gửi request bằng <code>fetch</code> và nhận một object <code>Response</code> đã được trình duyệt dọn sẵn. Thật ra trên đường truyền, HTTP/1.1 chỉ là văn bản:</p>
+<pre lang="http" file="Request client gửi lên">
+POST /api/classes/5/assignments?notify=1 HTTP/1.1
+Host: api.sobaitap.vn
+Content-Type: application/json
+Cookie: session=6f1c...
+Content-Length: 58
+
+{"title":"Bài 3 trang 12","dueDate":"2026-11-10","count":3}
+</pre>
+<pre lang="http" file="Response máy chủ trả về">
+HTTP/1.1 201 Created
+Content-Type: application/json
+Location: /api/assignments/9001
+
+{"id":9001,"title":"Bài 3 trang 12","dueDate":"2026-11-10"}
+</pre>
+<p>Việc của backend là đọc từng phần của request (method, đường dẫn, query, header, cookie, body), quyết định và viết ra từng phần của response (status, header, body). HTTP/2 và HTTP/3 truyền dạng nhị phân, nhưng các phần này vẫn y nguyên, và Go xử lý chúng giúp bạn.</p>
+
+<h2>Server nhỏ nhất</h2>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "fmt"
+    "log"
+    "net/http"
+)
+
+func main() {
+    http.HandleFunc("GET /hello", func(w http.ResponseWriter, r *http.Request) {
+        name := r.URL.Query().Get("name")
+        if name == "" {
+            name = "bạn"
+        }
+        fmt.Fprintf(w, "Xin chào, %s!", name)
+    })
+    log.Println("chạy ở http://localhost:8080")
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
+</pre>
+<pre lang="sh">
+go run .
+curl "localhost:8080/hello?name=Lan"     # Xin chào, Lan!
+curl -X POST localhost:8080/hello        # 405 Method Not Allowed (Go tự trả)
+</pre>
+<p>Hai nhân vật chính:</p>
+<ul>
+<li><code>r *http.Request</code>: mọi thứ client gửi lên. <code>r.Method</code>, <code>r.URL.Path</code>, <code>r.URL.Query()</code>, <code>r.Header</code>, <code>r.Body</code>, <code>r.Context()</code>.</li>
+<li><code>w http.ResponseWriter</code>: nơi bạn viết response. <code>w.Header().Set(...)</code>, <code>w.WriteHeader(status)</code>, <code>w.Write(body)</code>.</li>
+</ul>
+
+<h2>Handler: một interface một method</h2>
+<p>Mọi thứ trong <code>net/http</code> xoay quanh interface này:</p>
+<pre lang="go">
+type Handler interface {
+    ServeHTTP(ResponseWriter, *Request)
+}
+</pre>
+<p>Bộ định tuyến (<code>ServeMux</code>) là một Handler. Middleware là hàm nhận Handler và trả về Handler. Ứng dụng của bạn là một Handler. Toàn bộ hệ sinh thái HTTP của Go ghép với nhau được nhờ interface này.</p>
+<fig type="seq" caption="Một request trong server Go: mỗi kết nối chạy trên goroutine riêng">
+actors: [fe] Client, [go] http.Server, [go] ServeMux, [go] Handler của bạn
+Client -> http.Server: GET /classes/5
+note http.Server: tạo goroutine mới cho kết nối
+http.Server -> ServeMux: ServeHTTP(w, r)
+ServeMux -> Handler của bạn: khớp "GET /classes/{id}"
+note Handler của bạn: r.PathValue("id") = "5"
+Handler của bạn --> Client: 200 + JSON
+</fig>
+
+<h2>Định tuyến kiểu Go 1.22</h2>
+<p>Từ Go 1.22, <code>ServeMux</code> của thư viện chuẩn hỗ trợ method và tham số đường dẫn, đủ cho đa số API mà không cần framework:</p>
+<pre lang="go">
+mux := http.NewServeMux()
+
+mux.HandleFunc("GET /classes", listClasses)
+mux.HandleFunc("POST /classes", createClass)
+mux.HandleFunc("GET /classes/{id}", getClass)
+mux.HandleFunc("PATCH /classes/{id}", updateClass)
+mux.HandleFunc("GET /classes/{id}/assignments", listAssignments)
+mux.HandleFunc("GET /files/{path...}", serveFile) // {path...} khớp phần còn lại, kể cả dấu /
+mux.HandleFunc("GET /{$}", home)                  // {$}: chỉ khớp đúng "/", không khớp mọi đường dẫn
+
+func getClass(w http.ResponseWriter, r *http.Request) {
+    id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+    if err != nil {
+        http.Error(w, "id không hợp lệ", http.StatusBadRequest)
+        return
+    }
+    // ...
+}
+</pre>
+<ul>
+<li>Mẫu cụ thể hơn thắng: <code>GET /classes/new</code> thắng <code>GET /classes/{id}</code> khi đường dẫn là <code>/classes/new</code>.</li>
+<li>Đường dẫn đúng nhưng sai method → Go tự trả <code>405</code> kèm header <code>Allow</code>.</li>
+<li>Mẫu <code>GET</code> cũng khớp <code>HEAD</code>.</li>
+</ul>
+<aside class="real"><p>Trước Go 1.22, gần như ai cũng phải dùng thư viện router: <code>gorilla/mux</code>, <code>go-chi/chi</code>, hoặc framework <code>gin</code>, <code>echo</code>. Bạn vẫn sẽ gặp chúng rất nhiều trong code công ty. Tin tốt: <b>chi</b> dùng đúng kiểu <code>http.Handler</code> chuẩn, nên những gì bạn học ở đây dùng y nguyên. <b>gin</b> và <b>echo</b> có kiểu context riêng (<code>*gin.Context</code>), cú pháp khác chút nhưng khái niệm giống hệt.</p></aside>
+
+<h2>Đọc JSON an toàn</h2>
+<p>Đọc body là chỗ người mới hay để lỗ hổng. Một client xấu có thể gửi body 10GB, JSON lồng sâu, hay trường lạ. Hàm đọc JSON chuẩn nên trông như sau:</p>
+<pre lang="go" file="internal/httpx/json.go">
+const maxBody = 1 << 20 // 1 MB
+
+func DecodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+    if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+        return &ValidationError{Field: "body", Message: "Cần Content-Type: application/json"}
+    }
+    r.Body = http.MaxBytesReader(w, r.Body, maxBody) // chặn body quá lớn
+    dec := json.NewDecoder(r.Body)
+    dec.DisallowUnknownFields() // trường lạ → lỗi, bắt được lỗi gõ sai tên trường
+
+    if err := dec.Decode(dst); err != nil {
+        var tooBig *http.MaxBytesError
+        if errors.As(err, &tooBig) {
+            return &ValidationError{Field: "body", Message: "Dữ liệu quá lớn"}
+        }
+        return &ValidationError{Field: "body", Message: "JSON không hợp lệ"}
+    }
+    if dec.More() { // còn dữ liệu sau object đầu tiên: {"a":1}{"b":2}
+        return &ValidationError{Field: "body", Message: "Chỉ gửi một object JSON"}
+    }
+    return nil
+}
+</pre>
+
+<h2>Trả JSON đúng thứ tự</h2>
+<pre lang="go">
+func WriteJSON(w http.ResponseWriter, status int, v any) {
+    w.Header().Set("Content-Type", "application/json; charset=utf-8") // 1. header
+    w.WriteHeader(status)                                             // 2. status
+    if err := json.NewEncoder(w).Encode(v); err != nil {              // 3. body
+        slog.Error("ghi JSON", "err", err)
+    }
+}
+</pre>
+<aside class="warn"><p>Thứ tự <b>bắt buộc</b>: header → status → body. Gọi <code>w.Write</code> trước <code>WriteHeader</code> thì Go tự gửi status 200 ngay lúc đó. Đặt header sau khi đã ghi body thì không có tác dụng (header đã được gửi đi rồi). Đây là lỗi hay gặp: "sao tôi set 404 mà client vẫn nhận 200?".</p></aside>
+<aside class="warn"><p>Sau khi gọi <code>http.Error</code> hoặc <code>WriteJSON</code> để báo lỗi, phải <code>return</code> ngay. Quên <code>return</code> thì code phía dưới vẫn chạy và ghi thêm vào response.</p></aside>
+
+<h2>http.Server với timeout: bắt buộc ở production</h2>
+<p><code>http.ListenAndServe(":8080", mux)</code> dùng một server <b>không có timeout nào</b>. Kẻ tấn công có thể mở hàng nghìn kết nối rồi gửi header thật chậm, mỗi giây một byte (kiểu tấn công Slowloris), giữ hết tài nguyên của bạn.</p>
+<pre lang="go" mark="good">
+srv := &http.Server{
+    Addr:              ":8080",
+    Handler:           mux,
+    ReadHeaderTimeout: 5 * time.Second,  // thời gian tối đa đọc header
+    ReadTimeout:       15 * time.Second, // đọc cả request (header + body)
+    WriteTimeout:      30 * time.Second, // từ lúc đọc xong request tới lúc ghi xong response
+    IdleTimeout:       60 * time.Second, // giữ kết nối keep-alive rảnh bao lâu
+    MaxHeaderBytes:    1 << 20,
+}
+log.Fatal(srv.ListenAndServe())
+</pre>
+<p><code>go vet</code> không cảnh báo chỗ này, nhưng công cụ quét bảo mật <code>gosec</code> có (luật G112). Bài 13 bổ sung phần tắt server an toàn.</p>
+
+<h2>Gọi API khác: http.Client cũng cần timeout</h2>
+<pre lang="go" mark="bad">
+resp, err := http.Get("https://api.ben-thu-ba.vn/rates") // DefaultClient: KHÔNG có timeout
+</pre>
+<p>Nếu dịch vụ bên kia treo, goroutine của bạn chờ mãi, và mỗi request mới lại thêm một goroutine chờ. Sau vài phút server hết tài nguyên.</p>
+<pre lang="go" mark="good">
+var client = &http.Client{Timeout: 10 * time.Second} // tạo MỘT lần, dùng lại (có pool kết nối bên trong)
+
+func fetchRates(ctx context.Context) (Rates, error) {
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.ben-thu-ba.vn/rates", nil)
+    if err != nil {
+        return Rates{}, err
+    }
+    resp, err := client.Do(req)
+    if err != nil {
+        return Rates{}, fmt.Errorf("gọi dịch vụ tỷ giá: %w", err)
+    }
+    defer resp.Body.Close() // luôn đóng, nếu không kết nối bị rò
+
+    if resp.StatusCode != http.StatusOK {
+        return Rates{}, fmt.Errorf("dịch vụ tỷ giá trả %d", resp.StatusCode)
+    }
+    var out Rates
+    err = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out) // giới hạn cả dữ liệu đọc về
+    return out, err
+}
+</pre>
+<aside class="fe"><p><code>fetch</code> của trình duyệt cũng không có timeout mặc định, nhưng ở frontend hậu quả là một spinner quay mãi cho một người. Ở backend, hậu quả là cả server chết dần cho tất cả mọi người.</p></aside>
+
+<h2>Ghép lại: API ghi chú trong bộ nhớ</h2>
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "encoding/json"
+    "log"
+    "net/http"
+    "strconv"
+    "strings"
+    "sync"
+    "time"
+)
+
+type Note struct {
+    ID        int64     `json:"id"`
+    Text      string    `json:"text"`
+    CreatedAt time.Time `json:"createdAt"`
+}
+
+type store struct {
+    mu     sync.Mutex // mỗi request một goroutine → dữ liệu dùng chung phải khoá
+    nextID int64
+    notes  map[int64]Note
+}
+
+func (s *store) list(w http.ResponseWriter, r *http.Request) {
+    s.mu.Lock()
+    out := make([]Note, 0, len(s.notes))
+    for _, n := range s.notes {
+        out = append(out, n)
+    }
+    s.mu.Unlock()
+    writeJSON(w, http.StatusOK, out)
+}
+
+func (s *store) create(w http.ResponseWriter, r *http.Request) {
+    var req struct {
+        Text string `json:"text"`
+    }
+    r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeJSON(w, http.StatusBadRequest, map[string]string{"error": "JSON không hợp lệ"})
+        return
+    }
+    req.Text = strings.TrimSpace(req.Text)
+    if req.Text == "" || len([]rune(req.Text)) > 500 {
+        writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Nội dung từ 1 đến 500 ký tự"})
+        return
+    }
+    s.mu.Lock()
+    s.nextID++
+    n := Note{ID: s.nextID, Text: req.Text, CreatedAt: time.Now()}
+    s.notes[n.ID] = n
+    s.mu.Unlock()
+    writeJSON(w, http.StatusCreated, n)
+}
+
+func (s *store) get(w http.ResponseWriter, r *http.Request) {
+    id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+    if err != nil {
+        writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id không hợp lệ"})
+        return
+    }
+    s.mu.Lock()
+    n, ok := s.notes[id]
+    s.mu.Unlock()
+    if !ok {
+        writeJSON(w, http.StatusNotFound, map[string]string{"error": "Không tìm thấy"})
+        return
+    }
+    writeJSON(w, http.StatusOK, n)
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+    w.Header().Set("Content-Type", "application/json; charset=utf-8")
+    w.WriteHeader(status)
+    json.NewEncoder(w).Encode(v)
+}
+
+func main() {
+    s := &store{notes: map[int64]Note{}}
+    mux := http.NewServeMux()
+    mux.HandleFunc("GET /notes", s.list)
+    mux.HandleFunc("POST /notes", s.create)
+    mux.HandleFunc("GET /notes/{id}", s.get)
+
+    srv := &http.Server{Addr: ":8080", Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+    log.Println("http://localhost:8080")
+    log.Fatal(srv.ListenAndServe())
+}
+</pre>
+<pre lang="sh">
+curl -X POST localhost:8080/notes -H 'Content-Type: application/json' -d '{"text":"Học Go"}'
+curl localhost:8080/notes
+curl localhost:8080/notes/1
+curl -i localhost:8080/notes/abc    # -i để xem cả status và header
+</pre>
+<p>Để ý: method <code>s.list</code> được truyền thẳng làm handler (method value). Đây là cách gọn để handler dùng chung dữ liệu với nhau mà không cần biến toàn cục.</p>
+
+<quiz q="Handler gọi <code>w.Write([]byte(&quot;lỗi&quot;))</code> rồi mới gọi <code>w.WriteHeader(500)</code>. Client nhận status gì?">
++ 200, và Go ghi cảnh báo "superfluous response.WriteHeader call" vào log
+- 500
+- Lỗi biên dịch
+? Lần Write đầu tiên tự gửi header với status 200. Gọi WriteHeader sau đó không còn tác dụng.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Hoàn thiện API ghi chú</summary>
+<p>Thêm vào API trên: <code>DELETE /notes/{id}</code> trả <code>204</code>, <code>PATCH /notes/{id}</code> sửa nội dung, <code>GET /notes?q=go</code> lọc theo từ khoá (không phân biệt hoa thường), và danh sách trả về sắp xếp theo id tăng dần (nhớ là map duyệt ngẫu nhiên).</p>
+<details class="sol"><summary>Gợi ý</summary>
+<pre lang="go">
+func (s *store) remove(w http.ResponseWriter, r *http.Request) {
+    id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+    if err != nil {
+        writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id không hợp lệ"})
+        return
+    }
+    s.mu.Lock()
+    _, ok := s.notes[id]
+    delete(s.notes, id)
+    s.mu.Unlock()
+    if !ok {
+        writeJSON(w, http.StatusNotFound, map[string]string{"error": "Không tìm thấy"})
+        return
+    }
+    w.WriteHeader(http.StatusNoContent) // 204: không có body
+}
+
+// trong list: lọc rồi sắp xếp
+q := strings.ToLower(r.URL.Query().Get("q"))
+// ... if q == "" || strings.Contains(strings.ToLower(n.Text), q) { out = append(out, n) }
+slices.SortFunc(out, func(a, b Note) int { return cmp.Compare(a.ID, b.ID) })
+</pre>
+</details>
+</details>
+<details class="ex"><summary>Viết test cho handler</summary>
+<p>Dùng <code>httptest</code> viết test: tạo ghi chú rỗng bị 400, tạo đúng được 201 và lấy lại được bằng id, lấy id không tồn tại bị 404. Chạy với <code>-race</code>.</p>
+<details class="sol"><summary>Gợi ý</summary>
+<pre lang="go">
+func TestCreateAndGet(t *testing.T) {
+    s := &store{notes: map[int64]Note{}}
+    mux := http.NewServeMux()
+    mux.HandleFunc("POST /notes", s.create)
+    mux.HandleFunc("GET /notes/{id}", s.get) // test qua mux để PathValue hoạt động
+
+    rec := httptest.NewRecorder()
+    mux.ServeHTTP(rec, httptest.NewRequest("POST", "/notes", strings.NewReader(`{"text":"a"}`)))
+    if rec.Code != http.StatusCreated {
+        t.Fatalf("tạo: %d", rec.Code)
+    }
+    rec = httptest.NewRecorder()
+    mux.ServeHTTP(rec, httptest.NewRequest("GET", "/notes/1", nil))
+    if rec.Code != http.StatusOK {
+        t.Fatalf("lấy: %d", rec.Code)
+    }
+}
+</pre>
+</details>
+</details>

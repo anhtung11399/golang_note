@@ -1,0 +1,143 @@
+<h2>Ba trụ cột quan sát</h2>
+<p>Ở frontend, khi có lỗi bạn mở DevTools trên chính máy mình. Trên production không có DevTools: server chạy ở đâu đó, phục vụ hàng nghìn người, và lỗi xảy ra lúc bạn đang ngủ. Bạn chỉ biết chuyện gì xảy ra qua những gì hệ thống <b>tự ghi lại</b>.</p>
+<table>
+<tr><th></th><th>Logs</th><th>Metrics</th><th>Traces</th></tr>
+<tr><td>Là gì</td><td>Bản ghi từng sự kiện</td><td>Con số tổng hợp theo thời gian</td><td>Hành trình của một request qua các thành phần</td></tr>
+<tr><td>Trả lời</td><td>Chuyện gì đã xảy ra với request X?</td><td>Hệ thống đang khoẻ không? Có xu hướng gì?</td><td>Request chậm này chậm ở đâu?</td></tr>
+<tr><td>Ví dụ</td><td><code>{"msg":"gửi email lỗi","user_id":7}</code></td><td>Số request mỗi giây, tỉ lệ lỗi, độ trễ p99</td><td>API 320ms = database 280ms + Redis 2ms + ...</td></tr>
+<tr><td>Công cụ</td><td>Loki, Elasticsearch, Cloud Logging, Datadog</td><td>Prometheus + Grafana</td><td>OpenTelemetry + Jaeger / Tempo</td></tr>
+</table>
+<aside class="fe"><p>Bạn có thể đã dùng Sentry hoặc Datadog RUM ở frontend để bắt lỗi JavaScript của người dùng thật. Backend dùng cùng ý tưởng, chỉ là dữ liệu đến từ server. Sentry cũng có SDK cho Go.</p></aside>
+
+<h2>Logs: đã học ở bài 13</h2>
+<ul>
+<li>Log có cấu trúc (JSON), mỗi dòng có <code>request_id</code>, <code>user_id</code> khi có.</li>
+<li>Mức log: <code>ERROR</code> cho thứ cần người xem, <code>WARN</code> cho bất thường tự phục hồi được, <code>INFO</code> cho sự kiện nghiệp vụ quan trọng, <code>DEBUG</code> tắt trên production.</li>
+<li>Ghi log ra stdout, để nền tảng thu gom. Không tự ghi vào file trên server.</li>
+<li>Không log dữ liệu nhạy cảm.</li>
+</ul>
+
+<h2>Metrics với Prometheus</h2>
+<p>Prometheus (ra đời ở SoundCloud, nay là dự án của CNCF) định kỳ gọi endpoint <code>/metrics</code> của server để lấy các con số, lưu theo thời gian. Grafana vẽ biểu đồ từ đó.</p>
+<pre lang="go">
+import (
+    "github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/promauto"
+    "github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+var (
+    httpRequests = promauto.NewCounterVec(prometheus.CounterOpts{
+        Name: "http_requests_total",
+        Help: "Số request HTTP",
+    }, []string{"method", "route", "status"})
+
+    httpDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+        Name:    "http_request_duration_seconds",
+        Help:    "Thời gian xử lý request",
+        Buckets: prometheus.DefBuckets,
+    }, []string{"method", "route"})
+)
+
+// Trong middleware Logger (bài 13), sau next.ServeHTTP:
+route := r.Pattern // Go 1.23+: mẫu route đã khớp, ví dụ "GET /classes/{id}"
+httpRequests.WithLabelValues(r.Method, route, strconv.Itoa(rec.status)).Inc()
+httpDuration.WithLabelValues(r.Method, route).Observe(time.Since(start).Seconds())
+
+// Mở /metrics ở cổng NỘI BỘ, không công khai
+internal := http.NewServeMux()
+internal.Handle("GET /metrics", promhttp.Handler())
+go http.ListenAndServe("127.0.0.1:9090", internal)
+</pre>
+<aside class="warn"><p>Nhãn (label) của metric phải có <b>số giá trị hữu hạn</b>. Dùng mẫu route <code>/classes/{id}</code>, không dùng đường dẫn thật <code>/classes/12345</code>, không dùng user id. Mỗi tổ hợp nhãn là một chuỗi số liệu riêng, nhãn vô hạn sẽ làm Prometheus hết bộ nhớ.</p></aside>
+
+<h3>Đo cái gì: phương pháp RED</h3>
+<p>Với mỗi dịch vụ, theo dõi ba con số:</p>
+<ul>
+<li><b>R</b>ate: số request mỗi giây.</li>
+<li><b>E</b>rrors: tỉ lệ request lỗi (5xx).</li>
+<li><b>D</b>uration: thời gian xử lý, xem theo <b>phân vị</b> (p50, p95, p99), không xem trung bình.</li>
+</ul>
+<p>Vì sao không dùng trung bình? 99 request mất 10ms và 1 request mất 5 giây có trung bình 60ms, trông ổn. Nhưng p99 là 5 giây: cứ 100 người thì 1 người chờ 5 giây. Người dùng nhiều thao tác nhất (giáo viên chấm bài cả lớp) gần như chắc chắn gặp request chậm đó.</p>
+<p>Với tài nguyên (CPU, bộ nhớ, pool kết nối database, hàng đợi), dùng phương pháp <b>USE</b>: Utilization (đang dùng bao nhiêu phần trăm), Saturation (bao nhiêu thứ đang phải xếp hàng chờ), Errors.</p>
+
+<h2>Traces: request chậm ở đâu</h2>
+<fig type="seq" caption="Một trace gồm nhiều span lồng nhau, cùng mang một trace id">
+actors: [fe] Client, [go] API, [cache] Redis, [db] Postgres, [ext] Dịch vụ AI
+Client -> API: GET /reports/42 (trace id: abc)
+API -> Redis: span "cache get" 1ms
+API -> Postgres: span "query scores" 35ms
+API -> Dịch vụ AI: span "generate summary" 2.400ms
+note API: nhìn trace là thấy ngay: chậm vì dịch vụ AI, không phải database
+API --> Client: tổng 2.450ms
+</fig>
+<p><b>OpenTelemetry</b> là chuẩn mở (cũng thuộc CNCF) để tạo và gửi trace, metrics, logs, được hầu hết các nhà cung cấp hỗ trợ. Trong Go, các thư viện bọc sẵn cho <code>net/http</code>, pgx, go-redis tự tạo span. Trace id được truyền giữa các dịch vụ qua header chuẩn <code>traceparent</code> (W3C Trace Context), và qua <code>ctx</code> bên trong một dịch vụ: thêm một lý do để truyền ctx đi mọi nơi.</p>
+
+<h2>Health check</h2>
+<pre lang="go">
+// Liveness: tiến trình còn sống không? Không kiểm database (database chết thì khởi động lại server cũng vô ích)
+mux.HandleFunc("GET /livez", func(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(http.StatusOK)
+})
+
+// Readiness: sẵn sàng nhận request chưa? Kiểm những thứ bắt buộc phải có
+mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+    ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+    defer cancel()
+    if err := db.Ping(ctx); err != nil {
+        http.Error(w, "database", http.StatusServiceUnavailable)
+        return
+    }
+    w.WriteHeader(http.StatusOK)
+})
+</pre>
+<p>Load balancer và Kubernetes gọi các endpoint này: bản nào không "ready" thì không nhận request mới, bản nào không "live" thì bị khởi động lại. Lúc graceful shutdown (bài 13), cho <code>/readyz</code> trả 503 trước để load balancer ngừng gửi request mới tới.</p>
+
+<h2>pprof: xem bên trong chương trình đang chạy</h2>
+<p>Go có sẵn công cụ profiling cực mạnh. Bật nó ở cổng nội bộ:</p>
+<pre lang="go">
+import _ "net/http/pprof" // đăng ký /debug/pprof/* vào http.DefaultServeMux
+
+go http.ListenAndServe("127.0.0.1:6060", nil) // chỉ nghe ở localhost
+</pre>
+<pre lang="sh">
+go tool pprof -http=:8000 http://localhost:6060/debug/pprof/profile?seconds=30  # CPU: hàm nào tốn nhiều nhất
+go tool pprof -http=:8000 http://localhost:6060/debug/pprof/heap                # bộ nhớ: ai cấp phát nhiều
+curl "http://localhost:6060/debug/pprof/goroutine?debug=1"                        # đang có bao nhiêu goroutine, kẹt ở đâu
+</pre>
+<p>Lệnh đầu mở giao diện web có biểu đồ <i>flame graph</i>: hàm nào càng rộng càng tốn thời gian. Số goroutine tăng mãi theo thời gian là dấu hiệu rò rỉ goroutine (bài 09).</p>
+<aside class="warn"><p>Không bao giờ để <code>/debug/pprof</code> mở ra Internet: nó lộ thông tin bên trong và có thể bị dùng để làm chậm server. Chỉ nghe ở <code>127.0.0.1</code> hoặc cổng nội bộ, truy cập qua SSH / VPN.</p></aside>
+
+<h2>SLO và cảnh báo</h2>
+<p>Hệ thống không cần "không bao giờ lỗi", mà cần <b>đủ tốt</b> theo một mục tiêu rõ ràng. Cách làm phổ biến từ sách <i>Site Reliability Engineering</i> của Google:</p>
+<ul>
+<li><b>SLI</b> (chỉ số): tỉ lệ request thành công và nhanh hơn 300ms.</li>
+<li><b>SLO</b> (mục tiêu): 99,5% request trong 30 ngày đạt chỉ số trên.</li>
+<li><b>Error budget</b>: 0,5% còn lại là "ngân sách lỗi". Còn ngân sách thì cứ deploy tính năng mới, sắp hết thì tập trung sửa độ ổn định.</li>
+</ul>
+<p>99,9% nghe rất cao nhưng vẫn là khoảng 43 phút sự cố mỗi tháng. Mỗi số 9 thêm vào đắt hơn rất nhiều.</p>
+<aside class="prod"><p>Đặt cảnh báo theo <b>triệu chứng người dùng thấy</b> (tỉ lệ lỗi tăng, p99 tăng, hàng đợi ứ đọng quá 10 phút), không theo nguyên nhân (CPU 80%). CPU 80% mà người dùng không bị ảnh hưởng thì không đáng đánh thức ai lúc 3 giờ sáng. Mỗi cảnh báo phải dẫn tới một hành động cụ thể, nếu không mọi người sẽ quen bỏ qua cảnh báo.</p></aside>
+
+<quiz q="Độ trễ trung bình của API là 80ms, p99 là 4 giây. Kết luận nào đúng?">
+- Hệ thống nhanh, không cần làm gì
++ Khoảng 1% request mất tới 4 giây. Người dùng gọi nhiều request sẽ thường xuyên gặp chậm, cần dùng trace để tìm nguyên nhân
+- p99 không quan trọng vì chỉ là 1%
+? Một trang gọi 10 API thì xác suất ít nhất một API rơi vào nhóm 1% chậm nhất là khoảng 10%. Đuôi phân phối mới là thứ người dùng cảm nhận.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Thêm khả năng quan sát cho API ghi chú</summary>
+<p>Thêm vào API: <code>/livez</code>, <code>/readyz</code> (ping database), metrics RED ở <code>127.0.0.1:9090/metrics</code>, pprof ở <code>127.0.0.1:6060</code>. Chạy Prometheus + Grafana bằng Docker Compose, vẽ biểu đồ số request mỗi giây theo route và p95 thời gian xử lý. Dùng công cụ tạo tải như <code>hey</code> hoặc <code>k6</code> để có số liệu, chỉ chạy trên máy của bạn.</p>
+<details class="sol"><summary>Truy vấn PromQL gợi ý</summary>
+<pre lang="text" file="PromQL">
+# request mỗi giây theo route
+sum by (route) (rate(http_requests_total[1m]))
+
+# tỉ lệ lỗi 5xx
+sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))
+
+# p95 thời gian xử lý
+histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))
+</pre>
+</details>
+</details>

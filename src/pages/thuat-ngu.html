@@ -1,0 +1,110 @@
+<p>Sắp xếp theo chủ đề. Cột cuối chỉ bài học nói kỹ về thuật ngữ đó.</p>
+
+<h2>Go</h2>
+<table>
+<tr><th>Thuật ngữ</th><th>Nghĩa</th><th>Gần giống ở FE</th><th>Bài</th></tr>
+<tr><td>module / package</td><td>Module là cả dự án (<code>go.mod</code>), package là một thư mục code</td><td>package npm / file module ES</td><td>08</td></tr>
+<tr><td>zero value</td><td>Giá trị mặc định của biến chưa gán: 0, "", false, nil</td><td>thay cho undefined</td><td>02</td></tr>
+<tr><td>slice</td><td>Mảng động, là "cửa sổ" nhìn vào một mảng nền</td><td>Array</td><td>04</td></tr>
+<tr><td>struct</td><td>Kiểu gom nhiều trường dữ liệu</td><td>interface / type của TS</td><td>05</td></tr>
+<tr><td>pointer</td><td>Địa chỉ của một giá trị, cho phép sửa bản gốc</td><td>tham chiếu object</td><td>05</td></tr>
+<tr><td>method, receiver</td><td>Hàm gắn với một kiểu</td><td>method của class</td><td>05</td></tr>
+<tr><td>interface</td><td>Tập method, được thoả ngầm định</td><td>interface TS (structural)</td><td>06</td></tr>
+<tr><td>embedding</td><td>Nhúng kiểu này vào kiểu khác để dùng lại</td><td>composition</td><td>06</td></tr>
+<tr><td>generics</td><td>Hàm / kiểu có tham số kiểu <code>[T any]</code></td><td><code>&lt;T&gt;</code> trong TS</td><td>06</td></tr>
+<tr><td>error wrapping</td><td>Bọc lỗi kèm ngữ cảnh bằng <code>%w</code></td><td><code>new Error(msg, { cause })</code></td><td>07</td></tr>
+<tr><td>panic / recover</td><td>Dừng khẩn cấp / chặn dừng khẩn cấp</td><td>throw không ai catch / error boundary</td><td>07</td></tr>
+<tr><td>goroutine</td><td>Luồng nhẹ do runtime Go quản lý</td><td>gần với async task, nhưng chạy song song thật</td><td>09</td></tr>
+<tr><td>channel</td><td>Hàng đợi có kiểu để goroutine trao đổi dữ liệu</td><td>gần với stream / MessageChannel</td><td>09</td></tr>
+<tr><td>select</td><td>Chờ nhiều channel, cái nào sẵn trước chạy cái đó</td><td>Promise.race</td><td>09</td></tr>
+<tr><td>WaitGroup / errgroup</td><td>Chờ một nhóm goroutine xong</td><td>Promise.all</td><td>09</td></tr>
+<tr><td>mutex</td><td>Khoá để chỉ một goroutine truy cập dữ liệu tại một thời điểm</td><td>(không có, vì JS một luồng)</td><td>09</td></tr>
+<tr><td>data race</td><td>Nhiều goroutine cùng đọc ghi một biến không đồng bộ</td><td></td><td>09</td></tr>
+<tr><td>context</td><td>Mang tín hiệu huỷ, hạn chót, dữ liệu của request</td><td>AbortSignal</td><td>10</td></tr>
+<tr><td>table-driven test</td><td>Test liệt kê các trường hợp trong một bảng</td><td><code>test.each</code></td><td>10</td></tr>
+<tr><td>GC (garbage collector)</td><td>Bộ thu gom rác: tự giải phóng bộ nhớ không dùng</td><td>giống JS</td><td>23</td></tr>
+</table>
+
+<h2>HTTP và API</h2>
+<table>
+<tr><th>Thuật ngữ</th><th>Nghĩa</th><th>Bài</th></tr>
+<tr><td>handler</td><td>Hàm xử lý một request</td><td>11</td></tr>
+<tr><td>router / mux</td><td>Bộ chọn handler theo method và đường dẫn</td><td>11</td></tr>
+<tr><td>middleware</td><td>Lớp bọc quanh handler, chạy cho nhiều route</td><td>13</td></tr>
+<tr><td>REST</td><td>Phong cách thiết kế API theo tài nguyên + method HTTP</td><td>12</td></tr>
+<tr><td>idempotent</td><td>Gọi nhiều lần có kết quả như gọi một lần</td><td>12, 20</td></tr>
+<tr><td>idempotency key</td><td>Khoá client gửi kèm để server nhận ra request gửi lại</td><td>12, 20</td></tr>
+<tr><td>DTO</td><td>Struct riêng cho dữ liệu vào / ra API, tách khỏi struct database</td><td>19</td></tr>
+<tr><td>pagination (offset / cursor)</td><td>Chia danh sách thành trang theo số trang hoặc theo con trỏ</td><td>12, 16</td></tr>
+<tr><td>rate limit</td><td>Giới hạn số lần gọi trong một khoảng thời gian</td><td>17</td></tr>
+<tr><td>webhook</td><td>Hệ thống khác gọi vào API của bạn để báo sự kiện</td><td>20</td></tr>
+<tr><td>graceful shutdown</td><td>Tắt server sau khi xử lý xong request dở dang</td><td>13</td></tr>
+<tr><td>CORS</td><td>Cơ chế trình duyệt cho trang tên miền khác đọc response</td><td>19</td></tr>
+<tr><td>OpenAPI / Swagger</td><td>Chuẩn mô tả API bằng file, sinh tài liệu và code</td><td>12</td></tr>
+</table>
+
+<h2>Dữ liệu</h2>
+<table>
+<tr><th>Thuật ngữ</th><th>Nghĩa</th><th>Bài</th></tr>
+<tr><td>primary key / foreign key</td><td>Khoá định danh dòng / cột trỏ tới khoá của bảng khác</td><td>14</td></tr>
+<tr><td>constraint</td><td>Ràng buộc database tự thực thi: NOT NULL, UNIQUE, CHECK...</td><td>14</td></tr>
+<tr><td>JOIN / LEFT JOIN</td><td>Ghép dòng của nhiều bảng / giữ cả dòng không có bên ghép</td><td>14</td></tr>
+<tr><td>normalization</td><td>Chuẩn hoá: mỗi thông tin chỉ nằm một chỗ</td><td>14</td></tr>
+<tr><td>migration</td><td>File đổi cấu trúc database theo phiên bản</td><td>15</td></tr>
+<tr><td>connection pool</td><td>Nhóm kết nối database dùng chung</td><td>15</td></tr>
+<tr><td>transaction</td><td>Nhóm câu lệnh cùng thành công hoặc cùng huỷ</td><td>15</td></tr>
+<tr><td>ACID</td><td>Nguyên tử, nhất quán, cô lập, bền vững: bốn tính chất của transaction</td><td>15, 16</td></tr>
+<tr><td>index (B-tree)</td><td>Cấu trúc giúp tìm nhanh theo cột</td><td>16</td></tr>
+<tr><td>EXPLAIN</td><td>Xem kế hoạch database định chạy truy vấn</td><td>16</td></tr>
+<tr><td>N+1</td><td>Một truy vấn danh sách + N truy vấn cho từng phần tử</td><td>16</td></tr>
+<tr><td>lost update</td><td>Hai thao tác đọc rồi ghi đè lên nhau</td><td>16</td></tr>
+<tr><td>row lock / FOR UPDATE</td><td>Khoá dòng tới hết transaction</td><td>16</td></tr>
+<tr><td>isolation level</td><td>Mức cô lập giữa các transaction đồng thời</td><td>16</td></tr>
+<tr><td>optimistic concurrency</td><td>Không khoá, kiểm phiên bản lúc ghi, xung đột thì báo</td><td>12, 16</td></tr>
+<tr><td>ORM</td><td>Thư viện đổi object thành câu SQL</td><td>15</td></tr>
+<tr><td>cache-aside</td><td>Đọc cache, không có thì đọc database rồi ghi cache</td><td>17</td></tr>
+<tr><td>TTL</td><td>Thời gian sống của một mục trong cache</td><td>17</td></tr>
+<tr><td>cache stampede</td><td>Nhiều request cùng tính lại khi cache hết hạn</td><td>17</td></tr>
+<tr><td>read replica</td><td>Bản sao database chỉ để đọc, giảm tải cho bản chính</td><td>23</td></tr>
+</table>
+
+<h2>Bảo mật</h2>
+<table>
+<tr><th>Thuật ngữ</th><th>Nghĩa</th><th>Bài</th></tr>
+<tr><td>authentication / authorization</td><td>Bạn là ai / bạn được làm gì</td><td>18</td></tr>
+<tr><td>hashing / salt</td><td>Băm một chiều / chuỗi ngẫu nhiên thêm vào trước khi băm</td><td>18</td></tr>
+<tr><td>session / JWT</td><td>Phiên lưu ở server / token tự chứa thông tin có chữ ký</td><td>18</td></tr>
+<tr><td>OAuth 2.0 / OIDC / PKCE</td><td>Chuẩn uỷ quyền / chuẩn đăng nhập trên OAuth / cơ chế chống đánh cắp mã</td><td>18</td></tr>
+<tr><td>RBAC</td><td>Phân quyền theo vai trò</td><td>18</td></tr>
+<tr><td>BOLA / IDOR</td><td>Truy cập dữ liệu người khác bằng cách đổi id</td><td>19</td></tr>
+<tr><td>mass assignment</td><td>Client gửi thêm trường không được phép sửa</td><td>19</td></tr>
+<tr><td>SQL injection</td><td>Dữ liệu người dùng bị chạy như code SQL</td><td>15, 19</td></tr>
+<tr><td>SSRF</td><td>Lừa server gọi tới địa chỉ nội bộ</td><td>19</td></tr>
+<tr><td>CSRF</td><td>Trang khác lợi dụng cookie của người dùng để gửi request</td><td>18</td></tr>
+<tr><td>XSS</td><td>Chèn script chạy trên trang của người khác</td><td>18, 19</td></tr>
+<tr><td>HMAC</td><td>Chữ ký dùng khoá bí mật chung, để xác minh webhook</td><td>20</td></tr>
+<tr><td>OWASP</td><td>Tổ chức công bố các danh sách lỗ hổng phổ biến</td><td>19</td></tr>
+</table>
+
+<h2>Vận hành</h2>
+<table>
+<tr><th>Thuật ngữ</th><th>Nghĩa</th><th>Bài</th></tr>
+<tr><td>queue / worker / job</td><td>Hàng đợi / tiến trình xử lý / một việc trong hàng đợi</td><td>20</td></tr>
+<tr><td>at-least-once</td><td>Việc được giao ít nhất một lần, có thể nhiều hơn</td><td>20</td></tr>
+<tr><td>backoff / jitter</td><td>Chờ tăng dần giữa các lần thử lại / thêm ngẫu nhiên vào thời gian chờ</td><td>03, 20</td></tr>
+<tr><td>dead letter</td><td>Việc lỗi quá số lần, để người xem xét</td><td>20</td></tr>
+<tr><td>outbox</td><td>Ghi sự kiện cùng transaction với dữ liệu, gửi đi sau</td><td>20</td></tr>
+<tr><td>logs / metrics / traces</td><td>Ba trụ cột quan sát hệ thống</td><td>21</td></tr>
+<tr><td>p50 / p95 / p99</td><td>Phân vị: 99% request nhanh hơn giá trị p99</td><td>21</td></tr>
+<tr><td>SLI / SLO / error budget</td><td>Chỉ số / mục tiêu / phần lỗi được phép</td><td>21</td></tr>
+<tr><td>liveness / readiness</td><td>Còn sống không / sẵn sàng nhận request chưa</td><td>21</td></tr>
+<tr><td>pprof</td><td>Công cụ đo CPU, bộ nhớ, goroutine của Go</td><td>21</td></tr>
+<tr><td>container / image</td><td>Gói chạy độc lập / bản đóng gói để tạo container</td><td>22</td></tr>
+<tr><td>CI / CD</td><td>Tự động kiểm tra / tự động triển khai</td><td>22</td></tr>
+<tr><td>stateless</td><td>Server không giữ dữ liệu riêng, bản nào cũng như nhau</td><td>22</td></tr>
+<tr><td>horizontal scaling</td><td>Mở rộng bằng cách thêm máy</td><td>22</td></tr>
+<tr><td>rolling update / rollback</td><td>Thay dần bản cũ bằng bản mới / quay lại bản trước</td><td>22</td></tr>
+<tr><td>12-factor</td><td>Bộ nguyên tắc xây ứng dụng chạy trên đám mây</td><td>13, 22</td></tr>
+<tr><td>monolith / microservice</td><td>Một ứng dụng lớn / nhiều dịch vụ nhỏ</td><td>23</td></tr>
+<tr><td>postmortem</td><td>Bài viết phân tích sự cố sau khi xảy ra, không đổ lỗi cá nhân</td><td>23</td></tr>
+</table>

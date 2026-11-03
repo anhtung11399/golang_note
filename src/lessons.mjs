@@ -1,0 +1,168 @@
+// Lộ trình: thứ tự trong LESSONS = thứ tự học. File nội dung: src/lessons/<slug>.html
+export const PHASES = [
+  { id: 0, name: 'Khởi động', color: '#64748b', desc: 'Backend làm gì, khác frontend ở đâu, và bạn sẽ đi qua những chặng nào.' },
+  { id: 1, name: 'Ngôn ngữ Go', color: '#00ADD8', desc: 'Nắm chắc ngôn ngữ: kiểu dữ liệu, struct, interface, xử lý lỗi, goroutine, kiểm thử.' },
+  { id: 2, name: 'Xây API', color: '#7c3aed', desc: 'HTTP từ gốc, thiết kế REST, cấu trúc một dự án backend thật.' },
+  { id: 3, name: 'Dữ liệu', color: '#059669', desc: 'SQL, PostgreSQL với Go, tối ưu truy vấn, giao dịch, cache với Redis.' },
+  { id: 4, name: 'Bảo mật', color: '#dc2626', desc: 'Xác thực, phân quyền và những lỗ hổng API hay gặp nhất ngoài đời.' },
+  { id: 5, name: 'Vận hành hệ thống thật', color: '#d97706', desc: 'Hàng đợi, webhook, theo dõi hệ thống, Docker, triển khai, các hệ thống lớn chạy ra sao.' },
+  { id: 6, name: 'Dự án cuối', color: '#0f766e', desc: 'Tự xây một API hoàn chỉnh đạt chuẩn production từ đầu đến cuối.' },
+];
+
+export const LESSONS = [
+  {
+    slug: 'lo-trinh', phase: 0, mins: 25,
+    title: 'Backend là gì: góc nhìn cho dân Frontend',
+    desc: 'Một request đi qua những đâu, backend chịu trách nhiệm những gì, vì sao chọn Go, và cách học lộ trình này.',
+    goals: ['Vẽ được đường đi của một request từ trình duyệt tới database và quay về', 'Biết backend chịu trách nhiệm những gì mà frontend không làm được', 'Hiểu vì sao Go được dùng nhiều cho backend'],
+  },
+  {
+    slug: 'cai-dat', phase: 1, mins: 30,
+    title: 'Cài Go và chương trình đầu tiên',
+    desc: 'Cài đặt, go mod, go run / build / test / fmt / vet, và đối chiếu với thế giới npm.',
+    goals: ['Cài Go và tạo được một module', 'Dùng thành thạo các lệnh go cơ bản', 'Hiểu một chương trình Go được biên dịch và chạy thế nào'],
+  },
+  {
+    slug: 'bien-kieu', phase: 1, mins: 40,
+    title: 'Biến, kiểu dữ liệu và zero value',
+    desc: 'Kiểu tĩnh, khai báo biến, hằng, chuyển kiểu, string và rune, đối chiếu từng thứ với TypeScript.',
+    goals: ['Khai báo biến bằng var và :=', 'Hiểu zero value thay cho undefined / null', 'Xử lý chuỗi tiếng Việt đúng cách (byte và rune)'],
+  },
+  {
+    slug: 'ham-dieu-khien', phase: 1, mins: 45,
+    title: 'Hàm, rẽ nhánh, vòng lặp và defer',
+    desc: 'if / for / switch kiểu Go, hàm trả nhiều giá trị, closure, defer và thứ tự chạy của nó.',
+    goals: ['Viết hàm trả về (giá trị, lỗi)', 'Dùng for cho mọi kiểu vòng lặp', 'Dùng defer để dọn tài nguyên'],
+  },
+  {
+    slug: 'slice-map', phase: 1, mins: 45,
+    title: 'Array, slice và map',
+    desc: 'Slice hoạt động bên trong ra sao, vì sao append có thể làm bạn mất dữ liệu, và map dùng thế nào cho đúng.',
+    goals: ['Hiểu slice = (con trỏ, len, cap)', 'Tránh lỗi chia sẻ mảng nền khi append', 'Dùng map an toàn (nil map, thứ tự duyệt)'],
+  },
+  {
+    slug: 'struct-con-tro', phase: 1, mins: 50,
+    title: 'Struct, con trỏ và method',
+    desc: 'Struct thay cho object / class, con trỏ là gì, khi nào dùng pointer receiver.',
+    goals: ['Mô hình hoá dữ liệu bằng struct', 'Hiểu truyền giá trị và truyền con trỏ', 'Chọn đúng value receiver hay pointer receiver'],
+  },
+  {
+    slug: 'interface', phase: 1, mins: 50,
+    title: 'Interface, embedding và generics',
+    desc: 'Interface ngầm định (không cần implements), cách Go dùng interface để thay thế kế thừa, và generics cơ bản.',
+    goals: ['Định nghĩa và dùng interface nhỏ', 'Hiểu "nhận interface, trả struct"', 'Viết hàm generic đơn giản'],
+  },
+  {
+    slug: 'xu-ly-loi', phase: 1, mins: 40,
+    title: 'Xử lý lỗi kiểu Go',
+    desc: 'Lỗi là giá trị: if err != nil, bọc lỗi với %w, errors.Is / errors.As, lỗi nghiệp vụ, panic và recover.',
+    goals: ['Trả và kiểm tra lỗi đúng cách', 'Bọc lỗi để giữ ngữ cảnh', 'Phân biệt lỗi người dùng và lỗi hệ thống'],
+  },
+  {
+    slug: 'package-module', phase: 1, mins: 35,
+    title: 'Package, module và cấu trúc dự án',
+    desc: 'Chia code thành package, quy tắc viết hoa để public, cài thư viện, cấu trúc thư mục dự án Go thực tế.',
+    goals: ['Tổ chức code thành nhiều package', 'Cài và quản lý thư viện bằng go get', 'Biết cấu trúc cmd/ và internal/'],
+  },
+  {
+    slug: 'dong-thoi', phase: 1, mins: 60,
+    title: 'Goroutine, channel và đồng thời',
+    desc: 'Sức mạnh lớn nhất của Go: chạy hàng nghìn việc cùng lúc. So sánh với event loop của JavaScript.',
+    goals: ['Chạy việc song song bằng goroutine + WaitGroup', 'Giao tiếp giữa goroutine bằng channel', 'Phát hiện và sửa data race'],
+  },
+  {
+    slug: 'context-test', phase: 1, mins: 50,
+    title: 'Context và kiểm thử',
+    desc: 'context để huỷ / đặt thời hạn cho công việc, viết test dạng bảng, test HTTP, đo hiệu năng.',
+    goals: ['Truyền context xuyên suốt một request', 'Viết test dạng bảng (table-driven)', 'Chạy test với -race và đo coverage'],
+  },
+  {
+    slug: 'http', phase: 2, mins: 60,
+    title: 'HTTP từ gốc với net/http',
+    desc: 'HTTP nhìn từ phía máy chủ, viết server bằng thư viện chuẩn, định tuyến kiểu Go 1.22, đọc và trả JSON an toàn.',
+    goals: ['Viết server JSON không cần framework', 'Đọc tham số đường dẫn, query, body', 'Đặt timeout và giới hạn kích thước request'],
+  },
+  {
+    slug: 'rest', phase: 2, mins: 50,
+    title: 'Thiết kế REST API chuẩn',
+    desc: 'Đặt tên endpoint, chọn method và status code, định dạng lỗi, phân trang, lọc, idempotency, version.',
+    goals: ['Thiết kế endpoint cho một tài nguyên', 'Trả status code và lỗi nhất quán', 'Phân trang đúng cách'],
+  },
+  {
+    slug: 'kien-truc', phase: 2, mins: 60,
+    title: 'Middleware, log và cấu trúc phân lớp',
+    desc: 'Middleware, log có cấu trúc với slog, tách handler / service / repository, cấu hình và tắt máy chủ an toàn.',
+    goals: ['Viết middleware log, recover, request id', 'Tách code theo lớp, tiêm phụ thuộc', 'Tắt server không làm rơi request (graceful shutdown)'],
+  },
+  {
+    slug: 'sql', phase: 3, mins: 60,
+    title: 'SQL và thiết kế cơ sở dữ liệu',
+    desc: 'Bảng, khoá chính, khoá ngoại, quan hệ 1-n và n-n, chuẩn hoá, JOIN, GROUP BY: nền tảng mọi backend.',
+    goals: ['Thiết kế bảng cho một nghiệp vụ thật', 'Viết SELECT có JOIN, GROUP BY', 'Hiểu ràng buộc giúp dữ liệu luôn đúng'],
+  },
+  {
+    slug: 'go-postgres', phase: 3, mins: 60,
+    title: 'Go làm việc với PostgreSQL',
+    desc: 'pgx và connection pool, truy vấn có tham số, migration, sqlc sinh code, giao dịch (transaction).',
+    goals: ['Kết nối Postgres qua pool', 'Viết repository an toàn với SQL injection', 'Dùng transaction cho thao tác nhiều bước'],
+  },
+  {
+    slug: 'toi-uu-query', phase: 3, mins: 60,
+    title: 'Index, tối ưu truy vấn và tranh chấp dữ liệu',
+    desc: 'Index hoạt động ra sao, đọc EXPLAIN, lỗi N+1, phân trang keyset, lost update và cách khoá dữ liệu.',
+    goals: ['Đặt index đúng cho truy vấn', 'Đọc kế hoạch truy vấn', 'Chống bán quá số lượng tồn kho khi nhiều người mua cùng lúc'],
+  },
+  {
+    slug: 'cache', phase: 3, mins: 45,
+    title: 'Cache và Redis',
+    desc: 'Khi nào cần cache, cache-aside, TTL, xoá cache, cache stampede, giới hạn tần suất bằng Redis.',
+    goals: ['Áp dụng cache-aside với Redis', 'Biết các cách cache làm sai dữ liệu', 'Chặn hàng nghìn request trùng bằng singleflight'],
+  },
+  {
+    slug: 'xac-thuc', phase: 4, mins: 60,
+    title: 'Xác thực và phân quyền',
+    desc: 'Băm mật khẩu, session và JWT, cookie an toàn, đăng nhập bằng Google (OAuth), phân quyền theo vai trò và chủ sở hữu.',
+    goals: ['Lưu mật khẩu đúng chuẩn', 'Chọn session hay JWT có lý do', 'Kiểm quyền ở mọi endpoint'],
+  },
+  {
+    slug: 'bao-mat-api', phase: 4, mins: 60,
+    title: 'Bảo mật API: các lỗ hổng hay gặp nhất',
+    desc: 'OWASP API Top 10 bằng ví dụ Go: truy cập dữ liệu người khác, SQL injection, gán trường bừa, SSRF, lộ bí mật, CORS.',
+    goals: ['Nhận ra lỗi BOLA / IDOR trong code', 'Chống tiêu tốn tài nguyên không giới hạn', 'Có checklist bảo mật trước khi lên production'],
+  },
+  {
+    slug: 'bat-dong-bo', phase: 5, mins: 55,
+    title: 'Hàng đợi, việc chạy nền và webhook',
+    desc: 'Đưa việc chậm ra khỏi request, hàng đợi, thử lại có backoff, idempotency key, outbox, nhận webhook thanh toán an toàn.',
+    goals: ['Biết khi nào cần hàng đợi', 'Thiết kế việc chạy nền an toàn khi chạy lại', 'Xác minh chữ ký webhook'],
+  },
+  {
+    slug: 'quan-sat', phase: 5, mins: 45,
+    title: 'Theo dõi hệ thống: log, metrics, tracing',
+    desc: 'Ba trụ cột quan sát hệ thống, health check, Prometheus, OpenTelemetry, pprof, SLO và cảnh báo.',
+    goals: ['Biết hệ thống đang khoẻ hay ốm', 'Lần ra request chậm ở đâu', 'Đặt cảnh báo có ý nghĩa'],
+  },
+  {
+    slug: 'trien-khai', phase: 5, mins: 55,
+    title: 'Docker, CI/CD và triển khai',
+    desc: 'Đóng gói bằng Docker nhiều giai đoạn, cấu hình 12-factor, CI chạy test, triển khai không gián đoạn, mở rộng theo chiều ngang.',
+    goals: ['Viết Dockerfile cho Go nhỏ và an toàn', 'Dựng CI chạy test + build', 'Hiểu các lựa chọn hosting cho backend Go'],
+  },
+  {
+    slug: 'he-thong-that', phase: 5, mins: 60,
+    title: 'Các hệ thống thật hoạt động ra sao',
+    desc: 'Go ở Google, Uber, Cloudflare, Discord. Thiết kế dịch vụ rút gọn link, bán vé giờ cao điểm, gửi thông báo cho triệu người.',
+    goals: ['Ước lượng tải cho một hệ thống', 'Biết các mẫu thiết kế lặp lại ở hệ thống lớn', 'Đọc được bài viết kỹ thuật của các công ty lớn'],
+  },
+  {
+    slug: 'du-an', phase: 6, mins: 240,
+    title: 'Dự án: API "Sổ bài tập" chuẩn production',
+    desc: 'Tự xây API cho giáo viên và phụ huynh: đăng nhập, lớp, bài tập, nộp bài, phân quyền, phân trang, việc chạy nền, Docker, test.',
+    goals: ['Ghép mọi kiến thức thành một dịch vụ hoàn chỉnh', 'Có một dự án để đưa vào CV', 'Tự tin nhận task backend Go'],
+  },
+];
+
+export const EXTRA = [
+  { slug: 'thuat-ngu', title: 'Từ điển thuật ngữ backend', desc: 'Các từ bạn sẽ gặp hằng ngày khi làm backend, giải thích bằng ngôn ngữ của dân frontend.' },
+  { slug: 'nguyen-tac', title: 'Nguyên tắc làm backend', desc: 'Những quy tắc người làm backend lâu năm luôn giữ, gom lại thành checklist trước khi gộp code và trước khi lên production.' },
+];

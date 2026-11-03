@@ -1,0 +1,59 @@
+<div class="home">
+<section class="hero">
+  <div>
+    <h1>Từ Frontend sang <em>Backend Go</em>, đi từng bước một</h1>
+    <p class="lead">Lộ trình viết riêng cho người đã quen React / Angular / TypeScript nhưng chưa từng làm backend. Mỗi bài đối chiếu với thứ bạn đã biết ở frontend, có sơ đồ, code chạy được, ví dụ từ hệ thống thật và bài tập.</p>
+    <div class="stats">
+      <div><b>{{COUNT}}</b><span>bài học</span></div>
+      <div><b>~{{HOURS}} giờ</b><span>đọc và thực hành</span></div>
+      <div><b>1</b><span>dự án production để đưa vào CV</span></div>
+    </div>
+    <div class="cta"><a class="btn continue" href="lo-trinh.html">Bắt đầu từ bài 00</a><a class="btn ghost" href="#lo-trinh">Xem lộ trình</a></div>
+  </div>
+  <figure class="dg" style="margin:0">
+    <svg viewBox="0 0 520 430" role="img" aria-label="Bản đồ 7 chặng học">
+      <path d="M60 50 H420 Q470 50 470 100 Q470 150 420 150 H100 Q50 150 50 200 Q50 250 100 250 H420 Q470 250 470 300 Q470 350 420 350 H120" class="ln" style="stroke-width:5;stroke-dasharray:2 10;stroke-linecap:round"/>
+      <g>
+        <circle cx="60" cy="50" r="22" fill="#64748b"/><text x="60" y="56" class="tw" text-anchor="middle">0</text>
+        <text x="92" y="38" class="tl" style="font-weight:700">Khởi động</text><text x="92" y="76" class="ts">Backend là gì</text>
+        <circle cx="300" cy="50" r="22" fill="#00ADD8"/><text x="300" y="56" class="tw" text-anchor="middle">1</text>
+        <text x="330" y="38" class="tl" style="font-weight:700">Ngôn ngữ Go</text><text x="330" y="80" class="ts">10 bài nền tảng</text>
+        <circle cx="400" cy="150" r="22" fill="#7c3aed"/><text x="400" y="156" class="tw" text-anchor="middle">2</text>
+        <text x="300" y="138" class="tl" style="font-weight:700" text-anchor="end">Xây API</text><text x="300" y="180" class="ts" text-anchor="end">HTTP, REST, kiến trúc</text>
+        <circle cx="140" cy="150" r="22" fill="#059669"/><text x="140" y="156" class="tw" text-anchor="middle">3</text>
+        <text x="110" y="190" class="tl" style="font-weight:700">Dữ liệu</text><text x="110" y="208" class="ts">SQL, Postgres, Redis</text>
+        <circle cx="260" cy="250" r="22" fill="#dc2626"/><text x="260" y="256" class="tw" text-anchor="middle">4</text>
+        <text x="290" y="238" class="tl" style="font-weight:700">Bảo mật</text><text x="290" y="282" class="ts">Xác thực, OWASP</text>
+        <circle cx="430" cy="300" r="22" fill="#d97706"/><text x="430" y="306" class="tw" text-anchor="middle">5</text>
+        <text x="400" y="315" class="tl" style="font-weight:700" text-anchor="end">Vận hành</text><text x="400" y="333" class="ts" text-anchor="end">Hàng đợi, Docker, giám sát</text>
+        <circle cx="120" cy="350" r="26" fill="#0f766e"/><text x="120" y="356" class="tw" text-anchor="middle">6</text>
+        <text x="156" y="380" class="tl" style="font-weight:700">Dự án cuối</text><text x="156" y="398" class="ts">API production hoàn chỉnh</text>
+      </g>
+    </svg>
+  </figure>
+</section>
+
+<h2 id="lo-trinh">Lộ trình</h2>
+<p>Học theo thứ tự. Mỗi chặng dựa trên chặng trước. Tiến độ được lưu trên trình duyệt của bạn: bấm "Đánh dấu đã học xong" ở cuối mỗi bài.</p>
+{{PHASES}}
+
+<h2>Cách học để thật sự làm được</h2>
+<div class="how">
+  <div><b>Gõ lại, đừng chép</b><p>Mỗi đoạn code hãy tự gõ và chạy. Sai chính tả, quên import, trình biên dịch báo lỗi: đó chính là lúc bạn học.</p></div>
+  <div><b>Làm bài tập trước khi xem lời giải</b><p>Bí 15 phút mới mở lời giải. Mở rồi thì đóng lại và tự viết lại từ đầu.</p></div>
+  <div><b>Mỗi chặng một dự án nhỏ</b><p>Hết chặng 2 bạn có API chạy được, hết chặng 3 có database, hết chặng 4 có đăng nhập. Chặng 6 ghép thành sản phẩm hoàn chỉnh.</p></div>
+  <div><b>Dùng chỗ mạnh của dân FE</b><p>Bạn đã hiểu HTTP, JSON, async, state, component. Backend chỉ là nhìn những thứ đó từ phía bên kia.</p></div>
+  <div><b>Đọc code thật</b><p>Thư viện chuẩn của Go viết rất dễ đọc. Khi thắc mắc một hàm chạy ra sao, mở mã nguồn trên pkg.go.dev.</p></div>
+  <div><b>Khoảng 1 giờ mỗi ngày</b><p>Học đều đặn khoảng 8 đến 10 tuần là đủ để nhận task backend Go ở công ty.</p></div>
+</div>
+
+<h2>Tài liệu chính thức nên đánh dấu</h2>
+<ul>
+  <li><a href="https://go.dev/tour/" target="_blank" rel="noopener">A Tour of Go</a>: chạy thử Go ngay trên trình duyệt.</li>
+  <li><a href="https://go.dev/play/" target="_blank" rel="noopener">Go Playground</a>: dán code trong bài vào để chạy, không cần cài đặt.</li>
+  <li><a href="https://go.dev/doc/effective_go" target="_blank" rel="noopener">Effective Go</a> và <a href="https://go.dev/wiki/CodeReviewComments" target="_blank" rel="noopener">Go Code Review Comments</a>: phong cách viết Go chuẩn.</li>
+  <li><a href="https://pkg.go.dev/std" target="_blank" rel="noopener">pkg.go.dev/std</a>: tài liệu thư viện chuẩn.</li>
+  <li><a href="https://gobyexample.com/" target="_blank" rel="noopener">Go by Example</a>: tra cứu nhanh theo ví dụ.</li>
+  <li><a href="https://github.com/uber-go/guide" target="_blank" rel="noopener">Uber Go Style Guide</a>: quy tắc viết Go của một công ty có hàng nghìn dịch vụ Go.</li>
+</ul>
+</div>

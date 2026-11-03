@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 13: Middleware, log và cấu trúc phân lớp · Go cho dân Frontend</title>
+<meta name="description" content="Middleware, log có cấu trúc với slog, tách handler / service / repository, cấu hình và tắt máy chủ an toàn.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc" aria-current="page"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="kien-truc">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#7c3aed">Chặng 2 · Xây API</span><span>Bài 13</span><span>60 phút đọc + làm bài</span></div>
+    <h1>Middleware, log và cấu trúc phân lớp</h1>
+    <p class="lead">Middleware, log có cấu trúc với slog, tách handler / service / repository, cấu hình và tắt máy chủ an toàn.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Viết middleware log, recover, request id</li><li>Tách code theo lớp, tiêm phụ thuộc</li><li>Tắt server không làm rơi request (graceful shutdown)</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="middleware-nhung-lop-vo-quanh-handler"><a href="#middleware-nhung-lop-vo-quanh-handler" class="anchor" aria-hidden="true">#</a>Middleware: những lớp vỏ quanh handler</h2>
+<p>Có những việc mọi request đều cần: ghi log, gắn request id, chặn panic, kiểm tra đăng nhập, giới hạn tần suất. Thay vì chép vào từng handler, ta bọc handler trong các <b>middleware</b>.</p>
+<p>Trong Go, middleware chỉ là một hàm nhận <code>http.Handler</code> và trả về <code>http.Handler</code> mới:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Middleware <span class="k">func</span>(http.Handler) http.Handler</code></pre></div>
+<figure class="dg"><svg viewBox="0 0 535.76 360" style="min-width:535.76px;max-width:535.76px" role="img" aria-label="Request đi vào qua từng lớp, response đi ra theo thứ tự ngược lại"><g class="nd ext"><rect x="10" y="10" width="170" height="52" rx="10"/><text x="95" y="41" class="tt" text-anchor="middle">RequestID</text></g><text x="200" y="41" class="tl" text-anchor="start">gắn mã cho request, đưa vào ctx và header</text><line x1="95" y1="62" x2="95" y2="80" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><g class="nd ext"><rect x="10" y="82" width="170" height="52" rx="10"/><text x="95" y="113" class="tt" text-anchor="middle">Logger</text></g><text x="200" y="113" class="tl" text-anchor="start">đo thời gian, ghi status khi response xong</text><line x1="95" y1="134" x2="95" y2="152" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><g class="nd warn"><rect x="10" y="154" width="170" height="52" rx="10"/><text x="95" y="185" class="tt" text-anchor="middle">Recover</text></g><text x="200" y="185" class="tl" text-anchor="start">chặn panic, trả 500 tử tế</text><line x1="95" y1="206" x2="95" y2="224" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><g class="nd q"><rect x="10" y="226" width="170" height="52" rx="10"/><text x="95" y="257" class="tt" text-anchor="middle">Auth</text></g><text x="200" y="257" class="tl" text-anchor="start">đọc cookie phiên, đưa người dùng vào ctx</text><line x1="95" y1="278" x2="95" y2="296" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><g class="nd go"><rect x="10" y="298" width="170" height="52" rx="10"/><text x="95" y="329" class="tt" text-anchor="middle">Handler</text></g><text x="200" y="329" class="tl" text-anchor="start">nghiệp vụ của endpoint</text></svg><figcaption>Request đi vào qua từng lớp, response đi ra theo thứ tự ngược lại</figcaption></figure>
+<aside class="fe"><p>Giống hệt interceptor của Angular <code>HttpClient</code> hay middleware của Express / Next.js, chỉ là ở phía server. Nếu bạn từng viết <code>app.use((req, res, next) =&gt; ...)</code> trong Express, thì <code>next.ServeHTTP(w, r)</code> chính là <code>next()</code>.</p></aside>
+
+<h3>Request ID</h3>
+<div class="code"><div class="code-h"><span>internal/httpapi/middleware.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">RequestID</span>(next http.Handler) http.Handler {
+    <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        id := r.Header.<span class="f">Get</span>(<span class="s">&quot;X-Request-ID&quot;</span>)
+        <span class="k">if</span> id == <span class="s">&quot;&quot;</span> || <span class="b">len</span>(id) &gt; <span class="n">64</span> {
+            id = <span class="f">newID</span>() <span class="c">// ví dụ 16 byte ngẫu nhiên dạng hex</span>
+        }
+        w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;X-Request-ID&quot;</span>, id)
+        ctx := <span class="f">WithRequestID</span>(r.<span class="f">Context</span>(), id) <span class="c">// hàm ở bài 10</span>
+        next.<span class="f">ServeHTTP</span>(w, r.<span class="f">WithContext</span>(ctx))
+    })
+}</code></pre></div>
+<p>Khi người dùng báo lỗi kèm mã request (hiện trên màn hình lỗi), bạn tìm đúng dòng log của request đó trong hàng triệu dòng.</p>
+
+<h3>Logger: cần biết status code</h3>
+<p><code>http.ResponseWriter</code> không cho đọc lại status đã ghi. Mẹo chuẩn: bọc nó trong một struct ghi nhớ status.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> statusRecorder <span class="k">struct</span> {
+    http.ResponseWriter <span class="c">// nhúng: mọi method khác giữ nguyên</span>
+    status <span class="t">int</span>
+    bytes  <span class="t">int</span>
+}
+
+<span class="k">func</span> (s *statusRecorder) <span class="f">WriteHeader</span>(code <span class="t">int</span>) {
+    s.status = code
+    s.ResponseWriter.<span class="f">WriteHeader</span>(code)
+}
+
+<span class="k">func</span> (s *statusRecorder) <span class="f">Write</span>(b []<span class="t">byte</span>) (<span class="t">int</span>, <span class="t">error</span>) {
+    <span class="k">if</span> s.status == <span class="n">0</span> {
+        s.status = http.StatusOK
+    }
+    n, err := s.ResponseWriter.<span class="f">Write</span>(b)
+    s.bytes += n
+    <span class="k">return</span> n, err
+}
+
+<span class="k">func</span> <span class="f">Logger</span>(log *slog.Logger) Middleware {
+    <span class="k">return</span> <span class="k">func</span>(next http.Handler) http.Handler {
+        <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+            start := time.<span class="f">Now</span>()
+            rec := &amp;statusRecorder{ResponseWriter: w}
+            next.<span class="f">ServeHTTP</span>(rec, r)
+            log.<span class="f">InfoContext</span>(r.<span class="f">Context</span>(), <span class="s">&quot;http&quot;</span>,
+                <span class="s">&quot;method&quot;</span>, r.Method,
+                <span class="s">&quot;path&quot;</span>, r.URL.Path,
+                <span class="s">&quot;status&quot;</span>, rec.status,
+                <span class="s">&quot;bytes&quot;</span>, rec.bytes,
+                <span class="s">&quot;duration_ms&quot;</span>, time.<span class="f">Since</span>(start).<span class="f">Milliseconds</span>(),
+                <span class="s">&quot;request_id&quot;</span>, <span class="f">RequestIDFrom</span>(r.<span class="f">Context</span>()),
+            )
+        })
+    }
+}</code></pre></div>
+
+<h3>Ghép các middleware</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">Chain</span>(h http.Handler, mws ...Middleware) http.Handler {
+    <span class="k">for</span> i := <span class="b">len</span>(mws) - <span class="n">1</span>; i &gt;= <span class="n">0</span>; i-- { <span class="c">// bọc từ trong ra ngoài</span>
+        h = mws[i](h)
+    }
+    <span class="k">return</span> h
+}
+
+handler := <span class="f">Chain</span>(mux, RequestID, <span class="f">Logger</span>(logger), Recover)
+<span class="c">// thứ tự chạy khi có request: RequestID → Logger → Recover → mux</span></code></pre></div>
+<aside class="tip"><p>Middleware chỉ áp dụng cho một số route (ví dụ yêu cầu đăng nhập) thì bọc riêng route đó: <code>mux.Handle("GET /v1/me", RequireAuth(http.HandlerFunc(me)))</code>. Thư viện <code>chi</code> có cú pháp nhóm route tiện hơn (<code>r.Group</code>, <code>r.With</code>), một lý do khiến nó vẫn được dùng nhiều.</p></aside>
+
+<h2 id="log-co-cau-truc-voi-slog"><a href="#log-co-cau-truc-voi-slog" class="anchor" aria-hidden="true">#</a>Log có cấu trúc với slog</h2>
+<p>Log dạng chữ tự do (<code>log.Printf("user %d tạo lớp %s", ...)</code>) đọc bằng mắt thì được, nhưng không lọc được khi có hàng triệu dòng. Log có cấu trúc ghi từng trường riêng, thường dạng JSON, để hệ thống log (Grafana Loki, Elasticsearch, Datadog, Cloud Logging...) tìm kiếm và đếm.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>logger := slog.<span class="f">New</span>(slog.<span class="f">NewJSONHandler</span>(os.Stdout, &amp;slog.HandlerOptions{Level: slog.LevelInfo}))
+slog.<span class="f">SetDefault</span>(logger)
+
+slog.<span class="f">Info</span>(<span class="s">&quot;tạo lớp&quot;</span>, <span class="s">&quot;class_id&quot;</span>, <span class="n">42</span>, <span class="s">&quot;teacher_id&quot;</span>, <span class="n">7</span>)
+slog.<span class="f">Error</span>(<span class="s">&quot;gửi email thất bại&quot;</span>, <span class="s">&quot;err&quot;</span>, err, <span class="s">&quot;user_id&quot;</span>, <span class="n">7</span>)</code></pre></div>
+<div class="code"><div class="code-h"><span>stdout</span><button class="copy" type="button">Sao chép</button></div><pre><code>{<span class="s">&quot;time&quot;</span>:<span class="s">&quot;2026-11-03T08:30:00.123Z&quot;</span>,<span class="s">&quot;level&quot;</span>:<span class="s">&quot;INFO&quot;</span>,<span class="s">&quot;msg&quot;</span>:<span class="s">&quot;tạo lớp&quot;</span>,<span class="s">&quot;class_id&quot;</span>:<span class="n">42</span>,<span class="s">&quot;teacher_id&quot;</span>:<span class="n">7</span>}</code></pre></div>
+<aside class="warn"><p>Không bao giờ ghi vào log: mật khẩu, token phiên, mã OTP, số thẻ, nội dung body đầy đủ của request đăng nhập / thanh toán. Log thường được nhiều người đọc hơn database và lưu ở nhiều nơi hơn. Rò rỉ qua log là một kiểu sự cố bảo mật rất phổ biến.</p></aside>
+
+<h2 id="tach-lop-handler-service-store"><a href="#tach-lop-handler-service-store" class="anchor" aria-hidden="true">#</a>Tách lớp: handler, service, store</h2>
+<p>Khi handler vừa đọc JSON, vừa kiểm quyền, vừa viết SQL, vừa gửi email, nó dài 200 dòng và không test được. Cách tổ chức phổ biến nhất ở backend Go:</p>
+<table>
+<tr><th>Lớp</th><th>Làm gì</th><th>Không làm gì</th></tr>
+<tr><td><b>Handler</b> (httpapi)</td><td>Đọc request, gọi service, đổi kết quả / lỗi thành response</td><td>Không viết SQL, không chứa quy tắc nghiệp vụ</td></tr>
+<tr><td><b>Service</b></td><td>Quy tắc nghiệp vụ: quyền, giới hạn, tính toán, điều phối nhiều store</td><td>Không biết HTTP (không có <code>http.Request</code>), không viết SQL</td></tr>
+<tr><td><b>Store</b> (repository)</td><td>Đọc / ghi database, Redis</td><td>Không quyết định nghiệp vụ</td></tr>
+</table>
+<div class="code"><div class="code-h"><span>internal/service/classes.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> ClassStore <span class="k">interface</span> {
+    <span class="f">CountByTeacher</span>(ctx context.Context, teacherID <span class="t">int64</span>) (<span class="t">int</span>, <span class="t">error</span>)
+    <span class="f">Create</span>(ctx context.Context, c domain.Class) (domain.Class, <span class="t">error</span>)
+}
+
+<span class="k">type</span> Classes <span class="k">struct</span> {
+    store ClassStore
+    clock <span class="k">func</span>() time.Time <span class="c">// tiêm được thời gian → test được các trường hợp theo ngày</span>
+}
+
+<span class="k">func</span> <span class="f">NewClasses</span>(s ClassStore) *Classes {
+    <span class="k">return</span> &amp;Classes{store: s, clock: time.Now}
+}
+
+<span class="k">const</span> FreeClassQuota = <span class="n">1</span>
+
+<span class="k">func</span> (s *Classes) <span class="f">Create</span>(ctx context.Context, teacherID <span class="t">int64</span>, in CreateClassInput) (domain.Class, <span class="t">error</span>) {
+    <span class="k">if</span> err := in.<span class="f">Validate</span>(); err != <span class="b">nil</span> {
+        <span class="k">return</span> domain.Class{}, err
+    }
+    n, err := s.store.<span class="f">CountByTeacher</span>(ctx, teacherID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> domain.Class{}, fmt.<span class="f">Errorf</span>(<span class="s">&quot;đếm lớp: %w&quot;</span>, err)
+    }
+    <span class="k">if</span> n &gt;= FreeClassQuota {
+        <span class="k">return</span> domain.Class{}, domain.ErrQuotaExceeded
+    }
+    <span class="k">return</span> s.store.<span class="f">Create</span>(ctx, domain.Class{TeacherID: teacherID, Name: in.Name, CreatedAt: s.<span class="f">clock</span>()})
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>internal/httpapi/classes.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *Handler) <span class="f">createClass</span>(w http.ResponseWriter, r *http.Request) {
+    user := <span class="f">MustUser</span>(r.<span class="f">Context</span>()) <span class="c">// middleware Auth đã đưa vào ctx</span>
+    <span class="k">var</span> in service.CreateClassInput
+    <span class="k">if</span> err := <span class="f">DecodeJSON</span>(w, r, &amp;in); err != <span class="b">nil</span> {
+        <span class="f">WriteError</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    c, err := h.classes.<span class="f">Create</span>(r.<span class="f">Context</span>(), user.ID, in)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="f">WriteError</span>(w, r, err) <span class="c">// ErrQuotaExceeded → 402 hoặc 409 tuỳ quy ước, ở MỘT chỗ</span>
+        <span class="k">return</span>
+    }
+    <span class="f">WriteJSON</span>(w, http.StatusCreated, <span class="f">toClassDTO</span>(c))
+}</code></pre></div>
+<aside class="warn"><p>Đoạn service trên có lỗi tranh chấp: hai request "tạo lớp" tới cùng lúc, cả hai đều đếm được 0 rồi cùng tạo, giáo viên có 2 lớp miễn phí. Bài 16 sửa nó bằng cách đưa điều kiện vào chính câu SQL. Bạn sẽ gặp kiểu lỗi "kiểm tra rồi mới làm" này ở mọi nơi.</p></aside>
+<aside class="tip"><p>Đừng tách lớp cho có. Endpoint chỉ đọc một bảng và trả về thì handler gọi thẳng store là đủ. Cấu trúc ba lớp đáng giá khi có quy tắc nghiệp vụ thật.</p></aside>
+
+<h2 id="cau-hinh-qua-bien-moi-truong"><a href="#cau-hinh-qua-bien-moi-truong" class="anchor" aria-hidden="true">#</a>Cấu hình qua biến môi trường</h2>
+<p>Theo nguyên tắc <i>12-factor app</i>, cấu hình (địa chỉ database, khoá bí mật, cổng) đến từ biến môi trường, không nằm trong code. Cùng một file chạy, đổi biến môi trường là chạy được ở máy bạn, staging hay production.</p>
+<div class="code"><div class="code-h"><span>internal/config/config.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Config <span class="k">struct</span> {
+    Addr        <span class="t">string</span>
+    DatabaseURL <span class="t">string</span>
+    RedisURL    <span class="t">string</span>
+    SessionKey  []<span class="t">byte</span>
+    Env         <span class="t">string</span> <span class="c">// &quot;dev&quot; | &quot;prod&quot;</span>
+}
+
+<span class="k">func</span> <span class="f">Load</span>() (Config, <span class="t">error</span>) {
+    c := Config{
+        Addr:        <span class="f">getenv</span>(<span class="s">&quot;ADDR&quot;</span>, <span class="s">&quot;:8080&quot;</span>),
+        DatabaseURL: os.<span class="f">Getenv</span>(<span class="s">&quot;DATABASE_URL&quot;</span>),
+        RedisURL:    os.<span class="f">Getenv</span>(<span class="s">&quot;REDIS_URL&quot;</span>),
+        Env:         <span class="f">getenv</span>(<span class="s">&quot;APP_ENV&quot;</span>, <span class="s">&quot;dev&quot;</span>),
+    }
+    <span class="k">var</span> missing []<span class="t">string</span>
+    <span class="k">if</span> c.DatabaseURL == <span class="s">&quot;&quot;</span> {
+        missing = <span class="b">append</span>(missing, <span class="s">&quot;DATABASE_URL&quot;</span>)
+    }
+    key := os.<span class="f">Getenv</span>(<span class="s">&quot;SESSION_KEY&quot;</span>)
+    <span class="k">if</span> <span class="b">len</span>(key) &lt; <span class="n">32</span> {
+        missing = <span class="b">append</span>(missing, <span class="s">&quot;SESSION_KEY (ít nhất 32 ký tự)&quot;</span>)
+    }
+    c.SessionKey = []<span class="t">byte</span>(key)
+    <span class="k">if</span> <span class="b">len</span>(missing) &gt; <span class="n">0</span> {
+        <span class="k">return</span> c, fmt.<span class="f">Errorf</span>(<span class="s">&quot;thiếu cấu hình: %s&quot;</span>, strings.<span class="f">Join</span>(missing, <span class="s">&quot;, &quot;</span>))
+    }
+    <span class="k">return</span> c, <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">getenv</span>(k, def <span class="t">string</span>) <span class="t">string</span> {
+    <span class="k">if</span> v := os.<span class="f">Getenv</span>(k); v != <span class="s">&quot;&quot;</span> {
+        <span class="k">return</span> v
+    }
+    <span class="k">return</span> def
+}</code></pre></div>
+<aside class="prod"><p><b>Hỏng sớm.</b> Thiếu cấu hình thì dừng ngay lúc khởi động với thông báo rõ ràng, thay vì chạy được rồi lỗi ở request đầu tiên lúc 2 giờ sáng. Bí mật (khoá, mật khẩu database) không bao giờ commit vào git: dùng tính năng secrets của nơi triển khai.</p></aside>
+
+<h2 id="ghep-moi-thu-trong-main"><a href="#ghep-moi-thu-trong-main" class="anchor" aria-hidden="true">#</a>Ghép mọi thứ trong main</h2>
+<p>Hàm <code>main</code> là nơi duy nhất biết mọi thành phần cụ thể: đọc cấu hình, tạo kết nối, "tiêm" chúng vào service và handler qua các hàm <code>New...</code>. Không cần framework dependency injection.</p>
+<div class="code"><div class="code-h"><span>cmd/api/main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">if</span> err := <span class="f">run</span>(); err != <span class="b">nil</span> {
+        slog.<span class="f">Error</span>(<span class="s">&quot;dừng&quot;</span>, <span class="s">&quot;err&quot;</span>, err)
+        os.<span class="f">Exit</span>(<span class="n">1</span>)
+    }
+}
+
+<span class="k">func</span> <span class="f">run</span>() <span class="t">error</span> {
+    cfg, err := config.<span class="f">Load</span>()
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    logger := slog.<span class="f">New</span>(slog.<span class="f">NewJSONHandler</span>(os.Stdout, <span class="b">nil</span>))
+
+    <span class="c">// Huỷ ctx khi nhận Ctrl+C (SIGINT) hoặc lệnh dừng của Docker / Kubernetes (SIGTERM)</span>
+    ctx, stop := signal.<span class="f">NotifyContext</span>(context.<span class="f">Background</span>(), os.Interrupt, syscall.SIGTERM)
+    <span class="k">defer</span> <span class="f">stop</span>()
+
+    db, err := pgxpool.<span class="f">New</span>(ctx, cfg.DatabaseURL)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;kết nối database: %w&quot;</span>, err)
+    }
+    <span class="k">defer</span> db.<span class="f">Close</span>()
+
+    store := postgres.<span class="f">NewStore</span>(db)
+    classes := service.<span class="f">NewClasses</span>(store)
+    h := httpapi.<span class="f">New</span>(classes, logger)
+
+    srv := &amp;http.Server{
+        Addr:              cfg.Addr,
+        Handler:           h.<span class="f">Routes</span>(),
+        ReadHeaderTimeout: <span class="n">5</span> * time.Second,
+        ReadTimeout:       <span class="n">15</span> * time.Second,
+        WriteTimeout:      <span class="n">30</span> * time.Second,
+        IdleTimeout:       <span class="n">60</span> * time.Second,
+    }
+
+    errCh := <span class="b">make</span>(<span class="k">chan</span> <span class="t">error</span>, <span class="n">1</span>)
+    <span class="k">go</span> <span class="k">func</span>() {
+        logger.<span class="f">Info</span>(<span class="s">&quot;bắt đầu&quot;</span>, <span class="s">&quot;addr&quot;</span>, cfg.Addr)
+        errCh &lt;- srv.<span class="f">ListenAndServe</span>()
+    }()
+
+    <span class="k">select</span> {
+    <span class="k">case</span> err := &lt;-errCh: <span class="c">// server không mở được cổng, v.v.</span>
+        <span class="k">return</span> err
+    <span class="k">case</span> &lt;-ctx.<span class="f">Done</span>(): <span class="c">// nhận tín hiệu dừng</span>
+    }
+
+    logger.<span class="f">Info</span>(<span class="s">&quot;đang tắt, chờ các request dở dang&quot;</span>)
+    shutdownCtx, cancel := context.<span class="f">WithTimeout</span>(context.<span class="f">Background</span>(), <span class="n">20</span>*time.Second)
+    <span class="k">defer</span> <span class="f">cancel</span>()
+    <span class="k">return</span> srv.<span class="f">Shutdown</span>(shutdownCtx)
+}</code></pre></div>
+
+<h2 id="tat-server-an-toan-graceful-shutdown"><a href="#tat-server-an-toan-graceful-shutdown" class="anchor" aria-hidden="true">#</a>Tắt server an toàn (graceful shutdown)</h2>
+<p>Mỗi lần deploy bản mới, bản cũ bị dừng. Nếu dừng ngay lập tức, những request đang xử lý dở (một người đang nộp bài, một giao dịch đang ghi) bị cắt ngang.</p>
+<figure class="dg"><svg viewBox="0 0 568.4 360" style="min-width:568.4px;max-width:568.4px" role="img" aria-label="srv.Shutdown: ngừng nhận kết nối mới, chờ request đang chạy xong, rồi mới thoát"><line x1="101.4" y1="66" x2="101.4" y2="350" class="lf"/><g class="nd ext"><rect x="20" y="10" width="162.8" height="54" rx="10"/><text x="101.4" y="42" class="tt" text-anchor="middle">Nền tảng chạy</text></g><line x1="284.20000000000005" y1="66" x2="284.20000000000005" y2="350" class="lf"/><g class="nd go"><rect x="202.80000000000004" y="10" width="162.8" height="54" rx="10"/><text x="284.20000000000005" y="42" class="tt" text-anchor="middle">Server cũ</text></g><line x1="467" y1="66" x2="467" y2="350" class="lf"/><g class="nd fe"><rect x="385.6" y="10" width="162.8" height="54" rx="10"/><text x="467" y="42" class="tt" text-anchor="middle">Request đang chạy</text></g><line x1="101.4" y1="106" x2="280.20000000000005" y2="106" class="ln" marker-end="url(#ar)"/><text x="192.8" y="83" class="tl" text-anchor="middle">SIGTERM (bản mới đã</text><text x="192.8" y="99" class="tl" text-anchor="middle">sẵn sàng)</text><rect x="64.72000000000003" y="136" width="438.96000000000004" height="28" rx="6" class="nt"/><text x="284.20000000000005" y="154" class="tn" text-anchor="middle">ngừng nhận kết nối mới, load balancer chuyển sang bản mới</text><line x1="467" y1="206" x2="288.20000000000005" y2="206" class="ln ds" marker-end="url(#ar)"/><text x="375.6" y="183" class="tl" text-anchor="middle">xử lý nốt, trả</text><text x="375.6" y="199" class="tl" text-anchor="middle">response</text><path d="M284.20000000000005 248 h36 v20 h-32" class="ln" fill="none" marker-end="url(#ar)"/><text x="328.20000000000005" y="262" class="tl" text-anchor="start">hết request → đóng database</text><line x1="101.4" y1="308" x2="280.20000000000005" y2="308" class="ln" marker-end="url(#ar)"/><text x="192.8" y="285" class="tl" text-anchor="middle">quá thời gian chờ thì</text><text x="192.8" y="301" class="tl" text-anchor="middle">SIGKILL</text></svg><figcaption>srv.Shutdown: ngừng nhận kết nối mới, chờ request đang chạy xong, rồi mới thoát</figcaption></figure>
+<aside class="real"><p>Kubernetes gửi <code>SIGTERM</code>, chờ mặc định 30 giây (<code>terminationGracePeriodSeconds</code>), rồi mới gửi <code>SIGKILL</code>. Docker <code>stop</code> chờ 10 giây. Vì vậy thời gian chờ Shutdown trong code (20 giây ở trên) phải ngắn hơn thời gian chờ của nền tảng.</p></aside>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Middleware Logger ghi log <b>trước khi</b> gọi <code>next.ServeHTTP</code>. Thông tin nào nó sẽ không có?</p><div class="qo"><button type="button" class="opt">Method và đường dẫn</button><button type="button" class="opt" data-ok>Status code và thời gian xử lý</button><button type="button" class="opt">Request ID</button></div><p class="why" hidden>Status và thời gian chỉ biết sau khi handler chạy xong, nên phải ghi log sau next.ServeHTTP (hoặc trong defer).</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Nâng cấp API ghi chú của bài 11</summary>
+<p>Tổ chức lại API ghi chú: tách <code>internal/notes</code> (service + store trong bộ nhớ có interface), <code>internal/httpapi</code> (handler + middleware RequestID, Logger, Recover), <code>cmd/api/main.go</code> đọc <code>ADDR</code> từ biến môi trường và tắt an toàn. Thêm một route <code>GET /panic</code> chỉ để thử: gọi nó phải nhận 500 và server vẫn chạy.</p>
+<details class="sol"><summary>Tiêu chí tự kiểm tra</summary>
+<ul>
+<li><code>internal/notes</code> không import <code>net/http</code>.</li>
+<li>Test service chạy được không cần HTTP, test handler dùng <code>httptest</code> với store giả.</li>
+<li>Mỗi dòng log có <code>request_id</code>, <code>status</code>, <code>duration_ms</code>, và response có header <code>X-Request-ID</code> trùng giá trị đó.</li>
+<li>Chạy <code>curl</code> một request chậm (thêm <code>time.Sleep(5*time.Second)</code> vào một handler), bấm Ctrl+C khi nó đang chạy: request vẫn nhận được response rồi server mới thoát.</li>
+</ul>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="kien-truc">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="rest.html"><small>Bài trước</small>Thiết kế REST API chuẩn</a><a class="next" href="sql.html"><small>Bài tiếp theo</small>SQL và thiết kế cơ sở dữ liệu</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#middleware-nhung-lop-vo-quanh-handler">Middleware: những lớp vỏ quanh handler</a><a href="#log-co-cau-truc-voi-slog">Log có cấu trúc với slog</a><a href="#tach-lop-handler-service-store">Tách lớp: handler, service, store</a><a href="#cau-hinh-qua-bien-moi-truong">Cấu hình qua biến môi trường</a><a href="#ghep-moi-thu-trong-main">Ghép mọi thứ trong main</a><a href="#tat-server-an-toan-graceful-shutdown">Tắt server an toàn (graceful shutdown)</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

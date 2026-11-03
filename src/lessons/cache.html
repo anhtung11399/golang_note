@@ -1,0 +1,213 @@
+<h2>Khi nào cần cache</h2>
+<p>Cache là giữ sẵn kết quả của một việc tốn kém để lần sau trả ngay. Nhưng cache cũng là nguồn gốc của rất nhiều lỗi "dữ liệu cũ". Câu đùa nổi tiếng của Phil Karlton: <i>"Chỉ có hai việc khó trong khoa học máy tính: xoá cache cho đúng và đặt tên."</i></p>
+<p>Chỉ cache khi <b>đo được</b> là cần:</p>
+<ul>
+<li>Dữ liệu được đọc nhiều hơn ghi rất nhiều (cấu hình, danh mục, trang chủ, hồ sơ công khai).</li>
+<li>Tính toán đắt (báo cáo tổng hợp, gọi API bên ngoài có tính phí hoặc chậm).</li>
+<li>Chấp nhận được việc dữ liệu cũ đi vài giây / vài phút.</li>
+</ul>
+<aside class="tip"><p>Trước khi thêm cache, hãy thử thêm index hoặc sửa N+1 (bài 16). Một truy vấn 0,1ms có index thì không cần cache. Cache che đi một truy vấn chậm, nhưng không sửa được nó.</p></aside>
+
+<h2>Các tầng cache trong một hệ thống</h2>
+<fig type="flow" caption="Càng gần người dùng càng nhanh, nhưng càng khó xoá khi dữ liệu đổi">
+[fe] Trình duyệt / Cache-Control, ETag
+->
+[ext] CDN / file tĩnh, trang công khai
+->
+[go] Bộ nhớ trong server / dữ liệu rất nóng, ít đổi
+->
+[cache] Redis / dùng chung mọi bản server
+->
+[db] Database / nguồn sự thật
+</fig>
+<aside class="fe"><p>Bạn đã quen với tầng đầu: <code>Cache-Control: max-age=31536000, immutable</code> cho file JS có hash trong tên, và React Query / SWR giữ dữ liệu API trong bộ nhớ của tab. Backend thêm các tầng phía sau.</p></aside>
+
+<h2>Redis</h2>
+<p>Redis là một kho key-value chạy trong RAM, mỗi lệnh thường mất dưới 1ms. Ngoài làm cache, nó còn được dùng cho: phiên đăng nhập, đếm giới hạn tần suất, khoá phân tán, hàng đợi đơn giản, bảng xếp hạng.</p>
+<pre lang="sh">
+docker run -d --name redis -p 6379:6379 redis:7
+docker exec -it redis redis-cli
+</pre>
+<pre lang="text" file="redis-cli">
+SET user:42:name "Lan" EX 60     # lưu, hết hạn sau 60 giây
+GET user:42:name                  # "Lan"
+TTL user:42:name                  # còn bao nhiêu giây
+INCR rl:login:1.2.3.4             # tăng bộ đếm (nguyên tử), trả về giá trị mới
+DEL user:42:name
+</pre>
+<pre lang="go">
+import "github.com/redis/go-redis/v9"
+
+rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+// Hoặc từ URL: opt, _ := redis.ParseURL(os.Getenv("REDIS_URL")); rdb := redis.NewClient(opt)
+
+err := rdb.Set(ctx, "user:42:name", "Lan", time.Minute).Err()
+name, err := rdb.Get(ctx, "user:42:name").Result()
+if errors.Is(err, redis.Nil) { // khoá không tồn tại
+    // ...
+}
+</pre>
+
+<h2>Cache-aside: mẫu dùng nhiều nhất</h2>
+<fig type="seq" caption="Đọc: thử cache trước, không có thì lấy từ database rồi ghi vào cache">
+actors: [go] Service, [cache] Redis, [db] Postgres
+Service -> Redis: GET class:42:summary
+Redis --> Service: không có (miss)
+Service -> Postgres: truy vấn tổng hợp (50ms)
+Postgres --> Service: kết quả
+Service -> Redis: SET class:42:summary ... EX 300
+== lần sau, trong 5 phút ==
+Service -> Redis: GET class:42:summary
+Redis --> Service: có (hit), 0,5ms
+</fig>
+<pre lang="go">
+func (s *Service) ClassSummary(ctx context.Context, classID int64) (Summary, error) {
+    key := fmt.Sprintf("class:%d:summary:v1", classID)
+
+    if b, err := s.rdb.Get(ctx, key).Bytes(); err == nil {
+        var sum Summary
+        if json.Unmarshal(b, &sum) == nil {
+            return sum, nil // hit
+        }
+    } else if !errors.Is(err, redis.Nil) {
+        // Redis lỗi: ghi log rồi đi tiếp vào database, KHÔNG làm hỏng request
+        slog.WarnContext(ctx, "redis get", "err", err)
+    }
+
+    sum, err := s.store.ComputeSummary(ctx, classID)
+    if err != nil {
+        return Summary{}, err
+    }
+    if b, err := json.Marshal(sum); err == nil {
+        s.rdb.Set(ctx, key, b, 5*time.Minute) // lỗi ghi cache cũng không làm hỏng request
+    }
+    return sum, nil
+}
+</pre>
+<aside class="prod"><p>Cache phải là thứ <b>có cũng được, mất cũng được</b>. Redis sập thì hệ thống chậm đi, không được chết theo. Và luôn có <b>TTL</b>: dù bạn quên xoá cache ở đâu đó, dữ liệu sai cũng chỉ tồn tại tối đa bằng TTL.</p></aside>
+<p>Hậu tố <code>:v1</code> trong khoá: khi đổi cấu trúc <code>Summary</code>, tăng lên <code>v2</code>, bản code mới không đọc nhầm dữ liệu cache dạng cũ.</p>
+
+<h2>Xoá cache khi dữ liệu đổi</h2>
+<pre lang="go">
+func (s *Service) Submit(ctx context.Context, sub Submission) error {
+    if err := s.store.Submit(ctx, sub); err != nil { // 1. ghi database trước
+        return err
+    }
+    s.rdb.Del(ctx, fmt.Sprintf("class:%d:summary:v1", sub.ClassID)) // 2. rồi xoá cache
+    return nil
+}
+</pre>
+<p>Vì sao <b>xoá</b> thay vì ghi giá trị mới vào cache? Vì hai request cập nhật cùng lúc có thể ghi cache theo thứ tự ngược với database, để lại giá trị cũ trong cache. Xoá thì lần đọc sau tự lấy giá trị đúng từ database.</p>
+<aside class="warn"><p>Vẫn còn một khe hở nhỏ: một request đọc lấy giá trị cũ từ database, request khác ghi và xoá cache, rồi request đọc kia mới ghi giá trị cũ vào cache. TTL giới hạn thời gian sai. Với dữ liệu tuyệt đối không được sai (số dư, tồn kho, quyền truy cập), <b>đừng cache</b>, hoặc chỉ dùng cache để hiển thị, còn quyết định thì luôn đọc từ database.</p></aside>
+
+<h2>Cache stampede: hàng nghìn request cùng tính lại</h2>
+<p>Trang chủ được cache 60 giây, 2.000 request mỗi giây. Đúng lúc cache hết hạn, 2.000 request cùng thấy "miss" và cùng chạy truy vấn nặng. Database quá tải, chậm lại, nhiều request hơn bị miss... Đây gọi là <i>cache stampede</i> (hay thundering herd).</p>
+<p>Cách chặn trong một tiến trình: <code>singleflight</code>. Các lời gọi cùng khoá đang chạy thì chờ và dùng chung kết quả của lời gọi đầu tiên.</p>
+<pre lang="go">
+import "golang.org/x/sync/singleflight"
+
+type Service struct {
+    group singleflight.Group
+    // ...
+}
+
+func (s *Service) HomeFeed(ctx context.Context) (Feed, error) {
+    v, err, _ := s.group.Do("home-feed", func() (any, error) {
+        return s.loadHomeFeed(ctx) // chỉ MỘT goroutine chạy, những cái khác chờ kết quả này
+    })
+    if err != nil {
+        return Feed{}, err
+    }
+    return v.(Feed), nil
+}
+</pre>
+<p>Các cách khác: thêm ngẫu nhiên vào TTL (<code>5 phút ± 30 giây</code>) để các khoá không hết hạn cùng lúc, và làm mới cache ở nền trước khi hết hạn.</p>
+<aside class="real"><p>Package singleflight vốn nằm trong mã nguồn của groupcache, thư viện cache do Brad Fitzpatrick viết khi ở Google, dùng cho dl.google.com. Nó gom các yêu cầu trùng nhau để chỉ một yêu cầu thật sự đi tới nguồn.</p></aside>
+
+<h2>Cache trong bộ nhớ của server</h2>
+<p>Với dữ liệu nhỏ, rất nóng, ít đổi (cấu hình, danh sách môn học mặc định), map trong bộ nhớ có mutex nhanh hơn Redis nhiều (không qua mạng). Nhược điểm: mỗi bản server có bản riêng, không xoá đồng loạt được. Chỉ dùng với TTL ngắn và dữ liệu chấp nhận lệch giữa các máy.</p>
+
+<h2>Giới hạn tần suất (rate limit)</h2>
+<p>Chặn dò mật khẩu, spam gửi OTP / email, một người dùng ngốn hết tài nguyên. Hai cách:</p>
+<h3>Trong một tiến trình: token bucket</h3>
+<pre lang="go">
+import "golang.org/x/time/rate"
+
+// Mỗi giây thêm 5 "vé", tối đa dồn 10 vé: cho phép bùng 10 request rồi 5 request mỗi giây
+lim := rate.NewLimiter(5, 10)
+if !lim.Allow() {
+    w.Header().Set("Retry-After", "1")
+    http.Error(w, "Quá nhiều yêu cầu", http.StatusTooManyRequests)
+    return
+}
+</pre>
+<h3>Dùng chung nhiều server: đếm trong Redis</h3>
+<pre lang="go">
+// Cửa sổ cố định: tối đa 5 lần đăng nhập sai mỗi 15 phút cho mỗi email
+func (s *Service) allowLogin(ctx context.Context, email string) (bool, error) {
+    key := "rl:login:" + email
+    n, err := s.rdb.Incr(ctx, key).Result() // INCR là nguyên tử
+    if err != nil {
+        return true, err // Redis lỗi: tuỳ chính sách, ở đây cho qua và ghi log
+    }
+    if n == 1 {
+        s.rdb.Expire(ctx, key, 15*time.Minute) // lần đầu trong cửa sổ thì đặt hạn
+    }
+    return n <= 5, nil
+}
+</pre>
+<aside class="warn"><p>Đoạn trên có điểm yếu nhỏ: nếu server chết giữa <code>INCR</code> và <code>EXPIRE</code>, khoá không bao giờ hết hạn và người đó bị khoá mãi. Cách chắc chắn là gộp hai lệnh vào một <b>script Lua</b> hoặc một <code>MULTI/EXEC</code> pipeline để Redis chạy nguyên khối. Đây chính là loại lỗi "hai bước rời nhau" bạn đã gặp ở database.</p></aside>
+<aside class="real"><p>Các dịch vụ lớn trả về header cho client biết giới hạn: GitHub API dùng <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code>. Có một bản nháp chuẩn IETF cho header <code>RateLimit</code> đang được nhiều nơi áp dụng.</p></aside>
+
+<h2>Cache HTTP cho client</h2>
+<pre lang="go">
+// Dữ liệu công khai, ít đổi: cho CDN và trình duyệt cache 5 phút
+w.Header().Set("Cache-Control", "public, max-age=300")
+
+// Dữ liệu riêng của người dùng: CDN không được cache
+w.Header().Set("Cache-Control", "private, no-store")
+</pre>
+<aside class="warn"><p>Một lỗi nghiêm trọng có thật: CDN cache nhầm response chứa dữ liệu cá nhân (vì thiếu <code>private</code> / <code>no-store</code>), và người dùng khác truy cập cùng URL nhận được trang của người khác. Mọi response cần đăng nhập nên mặc định <code>Cache-Control: no-store</code>.</p></aside>
+
+<quiz q="Redis bị sập 5 phút. Với mẫu cache-aside viết đúng, chuyện gì xảy ra?">
+- Toàn bộ API trả 500 trong 5 phút
++ Mọi request đọc thẳng từ database, chậm hơn nhưng vẫn đúng, và có thể tăng tải đáng kể cho database
+- Request trả về dữ liệu cũ đã cache
+? Cache lỗi thì bỏ qua và đọc nguồn sự thật. Đó là lý do cần theo dõi tải database và có rate limit, phòng khi cache biến mất đột ngột.
+</quiz>
+
+<h2>Bài tập</h2>
+<details class="ex"><summary>Cache có singleflight và TTL lệch ngẫu nhiên</summary>
+<p>Viết hàm generic <code>GetOrLoad[T any](ctx, rdb, group, key, ttl, load func(ctx) (T, error)) (T, error)</code>: thử Redis, miss thì dùng singleflight gọi <code>load</code>, ghi vào Redis với TTL cộng thêm ngẫu nhiên tối đa 10%. Redis lỗi thì vẫn trả được kết quả từ <code>load</code>.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go">
+func GetOrLoad[T any](ctx context.Context, rdb *redis.Client, g *singleflight.Group,
+    key string, ttl time.Duration, load func(context.Context) (T, error)) (T, error) {
+
+    var zero T
+    if b, err := rdb.Get(ctx, key).Bytes(); err == nil {
+        var v T
+        if json.Unmarshal(b, &v) == nil {
+            return v, nil
+        }
+    }
+    v, err, _ := g.Do(key, func() (any, error) {
+        val, err := load(ctx)
+        if err != nil {
+            return nil, err
+        }
+        if b, err := json.Marshal(val); err == nil {
+            jitter := time.Duration(rand.Int64N(int64(ttl / 10))) // math/rand/v2
+            rdb.Set(ctx, key, b, ttl+jitter)
+        }
+        return val, nil
+    })
+    if err != nil {
+        return zero, err
+    }
+    return v.(T), nil
+}
+</pre>
+<p>Lưu ý: hàm <code>load</code> chạy với <code>ctx</code> của request đầu tiên. Nếu request đó bị huỷ, các request đang chờ cũng nhận lỗi theo. Ở hệ thống thật người ta dùng <code>context.WithoutCancel(ctx)</code> (Go 1.21+) kèm timeout riêng cho việc tải chung.</p>
+</details>
+</details>

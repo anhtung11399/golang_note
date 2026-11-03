@@ -1,0 +1,268 @@
+<h2>Đề bài</h2>
+<p>Xây API cho ứng dụng <b>"Sổ bài tập"</b>: giáo viên giao bài về nhà cho lớp, học sinh nộp bài, giáo viên chấm. Đây là một sản phẩm có thật trên thị trường, đủ các bài toán bạn đã học: phân quyền theo sở hữu, giới hạn, tranh chấp, việc chạy nền, upload file.</p>
+<table>
+<tr><th>Vai trò</th><th>Làm được gì</th></tr>
+<tr><td>Giáo viên</td><td>Tạo lớp (miễn phí tối đa 2 lớp), xem mã lớp, xem danh sách học sinh, giao bài, xem ai đã nộp / chưa nộp, chấm điểm và nhận xét</td></tr>
+<tr><td>Học sinh</td><td>Vào lớp bằng mã lớp (không vượt sĩ số), xem bài tập của các lớp mình học, nộp bài (văn bản), xem điểm của chính mình, nộp lại khi chưa được chấm</td></tr>
+</table>
+<p>Yêu cầu phi chức năng: chỉ dùng Go + PostgreSQL (+ Redis tuỳ chọn), có test, chạy được bằng một lệnh <code>docker compose up</code>, đạt checklist bảo mật ở bài 19.</p>
+
+<h2>Kiến trúc</h2>
+<fig type="flow" caption="Một repo, hai chương trình: API và worker dùng chung database">
+[fe] Client / web, app, curl
+-> HTTPS + cookie
+[go] cmd/api / handler → service → store
+-> SQL
+[db] PostgreSQL / dữ liệu + bảng jobs
+-> SKIP LOCKED
+[go] cmd/worker / gửi thông báo, nhắc hạn
+</fig>
+<pre lang="text" file="Cấu trúc thư mục">
+sobaitap/
+├── cmd/
+│   ├── api/main.go
+│   └── worker/main.go
+├── internal/
+│   ├── config/config.go
+│   ├── domain/            kiểu dữ liệu + lỗi: User, Class, Assignment, Submission, ErrNotFound...
+│   ├── store/             SQL bằng pgx (hoặc sqlc)
+│   ├── service/           auth.go, classes.go, assignments.go, submissions.go
+│   ├── httpapi/           routes.go, middleware.go, json.go, errors.go, handler theo tài nguyên
+│   └── jobs/              định nghĩa việc nền + worker
+├── migrations/
+├── compose.yaml
+├── Dockerfile
+└── Makefile
+</pre>
+
+<h2>Lược đồ database</h2>
+<pre lang="sql" file="migrations/00001_init.sql">
+-- +goose Up
+CREATE TABLE users (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    email         text NOT NULL UNIQUE CHECK (email = lower(email)),
+    name          text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
+    role          text NOT NULL CHECK (role IN ('teacher', 'student')),
+    password_hash text NOT NULL,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE sessions (
+    token_hash  bytea PRIMARY KEY,
+    user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at  timestamptz NOT NULL
+);
+CREATE INDEX ON sessions (user_id);
+
+CREATE TABLE classes (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    teacher_id  bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name        text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 60),
+    join_code   text NOT NULL UNIQUE,
+    capacity    int  NOT NULL CHECK (capacity BETWEEN 1 AND 80),
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX ON classes (teacher_id);
+
+CREATE TABLE enrollments (
+    class_id    bigint NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    student_id  bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at   timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (class_id, student_id)
+);
+CREATE INDEX ON enrollments (student_id);
+
+CREATE TABLE assignments (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    class_id    bigint NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    title       text NOT NULL CHECK (char_length(title) BETWEEN 1 AND 200),
+    due_date    date NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX ON assignments (class_id, due_date DESC, id DESC);
+
+CREATE TABLE submissions (
+    assignment_id bigint NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    student_id    bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content       text NOT NULL CHECK (char_length(content) BETWEEN 1 AND 5000),
+    score         numeric(4,2) CHECK (score BETWEEN 0 AND 10),
+    comment       text CHECK (char_length(comment) <= 500),
+    submitted_at  timestamptz NOT NULL DEFAULT now(),
+    graded_at     timestamptz,
+    PRIMARY KEY (assignment_id, student_id)
+);
+CREATE INDEX ON submissions (student_id);
+
+CREATE TABLE jobs (
+    id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    kind       text NOT NULL,
+    payload    jsonb NOT NULL,
+    run_at     timestamptz NOT NULL DEFAULT now(),
+    attempts   int NOT NULL DEFAULT 0,
+    last_error text,
+    status     text NOT NULL DEFAULT 'pending'
+);
+CREATE INDEX jobs_ready ON jobs (run_at) WHERE status = 'pending';
+
+-- +goose Down
+DROP TABLE jobs, submissions, assignments, enrollments, classes, sessions, users;
+</pre>
+
+<h2>Danh sách endpoint</h2>
+<table>
+<tr><th>Endpoint</th><th>Ai</th><th>Ghi chú</th></tr>
+<tr><td><code>POST /v1/auth/register</code></td><td>Mọi người</td><td>201. Trùng email 409. Rate limit theo IP</td></tr>
+<tr><td><code>POST /v1/auth/login</code></td><td>Mọi người</td><td>Đặt cookie. 5 lần sai / 15 phút / email → 429</td></tr>
+<tr><td><code>POST /v1/auth/logout</code></td><td>Đã đăng nhập</td><td>Xoá session, 204</td></tr>
+<tr><td><code>GET /v1/me</code></td><td>Đã đăng nhập</td><td></td></tr>
+<tr><td><code>POST /v1/classes</code></td><td>Giáo viên</td><td>Tối đa 2 lớp, an toàn khi gọi đồng thời → 409 <code>CLASS_QUOTA</code></td></tr>
+<tr><td><code>GET /v1/classes</code></td><td>Cả hai</td><td>Giáo viên: lớp mình dạy. Học sinh: lớp mình học</td></tr>
+<tr><td><code>GET /v1/classes/{id}/students?page=</code></td><td>Giáo viên của lớp</td><td>Không trả email học sinh</td></tr>
+<tr><td><code>POST /v1/classes/join</code></td><td>Học sinh</td><td>Body <code>{joinCode}</code>. Đủ sĩ số → 409 <code>CLASS_FULL</code>, an toàn khi gọi đồng thời</td></tr>
+<tr><td><code>POST /v1/classes/{id}/assignments</code></td><td>Giáo viên của lớp</td><td>Tạo việc nền "thông báo bài mới" trong cùng transaction</td></tr>
+<tr><td><code>GET /v1/classes/{id}/assignments?page=</code></td><td>Thành viên của lớp</td><td>Học sinh thấy kèm trạng thái nộp của chính mình</td></tr>
+<tr><td><code>PUT /v1/assignments/{id}/submission</code></td><td>Học sinh của lớp</td><td>Nộp / nộp lại. Đã chấm → 409 <code>GRADED</code>. PUT vì gửi lại là ghi đè</td></tr>
+<tr><td><code>GET /v1/assignments/{id}/submissions</code></td><td>Giáo viên của lớp</td><td>Mọi học sinh của lớp, kể cả em chưa nộp (LEFT JOIN)</td></tr>
+<tr><td><code>PUT /v1/assignments/{id}/submissions/{studentId}/grade</code></td><td>Giáo viên của lớp</td><td>Body <code>{score, comment}</code>. Em chưa nộp → 404</td></tr>
+</table>
+
+<h2>Lộ trình làm từng bước</h2>
+<p>Làm theo thứ tự. Mỗi bước có tiêu chí "xong" rõ ràng, commit sau mỗi bước.</p>
+
+<h3>Bước 1: khung dự án (bài 08, 11, 13)</h3>
+<ul>
+<li><code>go mod init</code>, cấu trúc thư mục, <code>config.Load()</code>, logger slog JSON.</li>
+<li><code>http.Server</code> có timeout, graceful shutdown, middleware RequestID / Logger / Recover / SecurityHeaders.</li>
+<li><code>GET /livez</code>, <code>GET /readyz</code>.</li>
+<li><b>Xong khi:</b> <code>go run ./cmd/api</code> chạy, Ctrl+C tắt sạch, mỗi request có một dòng log JSON.</li>
+</ul>
+
+<h3>Bước 2: database (bài 14, 15)</h3>
+<ul>
+<li>Compose với Postgres, migration bằng goose, pool pgx, <code>/readyz</code> ping database.</li>
+<li>Helper test: tạo database / schema riêng cho mỗi test.</li>
+<li><b>Xong khi:</b> <code>goose up</code> rồi <code>goose down</code> rồi <code>goose up</code> chạy sạch.</li>
+</ul>
+
+<h3>Bước 3: đăng ký, đăng nhập (bài 18)</h3>
+<pre lang="go" file="internal/service/auth.go (trích)">
+func (s *Auth) Login(ctx context.Context, email, password string) (token string, err error) {
+    email = strings.ToLower(strings.TrimSpace(email))
+    ok, err := s.limiter.Allow(ctx, "login:"+email) // 5 lần / 15 phút
+    if err != nil {
+        return "", err
+    }
+    if !ok {
+        return "", domain.ErrTooManyRequests
+    }
+    u, err := s.store.UserByEmail(ctx, email)
+    if errors.Is(err, domain.ErrNotFound) {
+        // Vẫn tốn thời gian như khi có tài khoản, để không lộ email nào đã đăng ký qua thời gian phản hồi
+        bcrypt.CompareHashAndPassword(s.dummyHash, []byte(password))
+        return "", domain.ErrBadCredentials
+    }
+    if err != nil {
+        return "", err
+    }
+    if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
+        return "", domain.ErrBadCredentials
+    }
+    token, hash, err := NewSessionToken()
+    if err != nil {
+        return "", err
+    }
+    return token, s.store.CreateSession(ctx, hash, u.ID, time.Now().Add(30*24*time.Hour))
+}
+</pre>
+<ul>
+<li><b>Xong khi:</b> có test cho: đăng ký trùng email (kể cả khác hoa thường), đăng nhập sai không lộ email tồn tại, quá 5 lần bị 429, đăng xuất thì cookie cũ bị 401.</li>
+</ul>
+
+<h3>Bước 4: lớp học và hạn mức (bài 16)</h3>
+<pre lang="sql" file="Vào lớp: kiểm sĩ số NGAY trong câu ghi">
+INSERT INTO enrollments (class_id, student_id)
+SELECT c.id, $2
+FROM classes c
+WHERE c.join_code = $1
+  AND (SELECT count(*) FROM enrollments e WHERE e.class_id = c.id) < c.capacity
+ON CONFLICT DO NOTHING
+RETURNING class_id;
+</pre>
+<aside class="warn"><p>Câu trên vẫn có khe hở ở mức cô lập Read Committed: hai học sinh vào lớp còn đúng 1 chỗ có thể cùng đếm thấy chỗ trống. Hãy khoá dòng lớp trước trong transaction (<code>SELECT ... FROM classes WHERE join_code = $1 FOR UPDATE</code>), giống cách khoá dòng giáo viên ở bài 16. Viết test 20 goroutine cùng vào lớp sĩ số 5 để chứng minh.</p></aside>
+<ul>
+<li>Mã lớp: 8 ký tự ngẫu nhiên từ <code>crypto/rand</code>, bỏ các ký tự dễ nhầm (0/O, 1/I/L), UNIQUE, trùng thì sinh lại.</li>
+<li><b>Xong khi:</b> test đồng thời chứng minh không vượt hạn mức 2 lớp và không vượt sĩ số.</li>
+</ul>
+
+<h3>Bước 5: bài tập, nộp bài, chấm bài (bài 12, 15, 19)</h3>
+<pre lang="sql" file="Nộp bài: học sinh phải thuộc lớp, bài chưa được chấm">
+INSERT INTO submissions (assignment_id, student_id, content)
+SELECT a.id, $2, $3
+FROM assignments a
+JOIN enrollments e ON e.class_id = a.class_id AND e.student_id = $2
+WHERE a.id = $1
+ON CONFLICT (assignment_id, student_id)
+DO UPDATE SET content = EXCLUDED.content, submitted_at = now()
+WHERE submissions.score IS NULL
+RETURNING submitted_at;
+-- 0 dòng: hoặc không thuộc lớp / không có bài (404), hoặc đã chấm (409).
+-- Phân biệt bằng một truy vấn kiểm tra sau khi thất bại.
+</pre>
+<pre lang="sql" file="Danh sách nộp bài cho giáo viên: kiểm quyền + LEFT JOIN">
+SELECT u.id, u.name, s.content, s.score, s.submitted_at
+FROM assignments a
+JOIN classes c      ON c.id = a.class_id AND c.teacher_id = $1
+JOIN enrollments en ON en.class_id = a.class_id
+JOIN users u        ON u.id = en.student_id
+LEFT JOIN submissions s ON s.assignment_id = a.id AND s.student_id = en.student_id
+WHERE a.id = $2
+ORDER BY u.name, u.id
+LIMIT $3 OFFSET $4;
+</pre>
+<ul>
+<li><b>Xong khi:</b> có bộ test phân quyền: giáo viên B không xem / chấm được bài của lớp giáo viên A, học sinh không thuộc lớp không nộp được, học sinh không xem được bài nộp của bạn khác, học sinh không gọi được endpoint chấm bài.</li>
+</ul>
+
+<h3>Bước 6: việc chạy nền (bài 20)</h3>
+<ul>
+<li>Giao bài → trong cùng transaction chèn job <code>assignment.created</code>.</li>
+<li><code>cmd/worker</code>: lấy việc bằng <code>SKIP LOCKED</code>, "gửi thông báo" (ghi log), bảng <code>notifications_sent</code> chống gửi trùng, thử lại có backoff, dừng an toàn.</li>
+<li>Việc định kỳ: 19 giờ mỗi ngày (giờ Việt Nam) nhắc học sinh có bài hạn ngày mai chưa nộp. Chạy 2 worker cùng lúc mà mỗi học sinh vẫn chỉ nhận một lời nhắc mỗi ngày.</li>
+</ul>
+
+<h3>Bước 7: quan sát và đóng gói (bài 21, 22)</h3>
+<ul>
+<li>Metrics RED ở cổng nội bộ, pprof ở localhost.</li>
+<li>Dockerfile nhiều giai đoạn, Compose chạy cả api + worker + postgres, GitHub Actions: vet, test -race, govulncheck, build.</li>
+<li><b>Xong khi:</b> clone repo về máy sạch, <code>docker compose up</code> là chạy, CI xanh.</li>
+</ul>
+
+<h3>Bước 8 (nâng cao, chọn làm)</h3>
+<ul>
+<li>Upload ảnh bài làm: presigned URL tới S3 / R2 / MinIO, giới hạn dung lượng và số file, kiểm quyền khi tải về.</li>
+<li>Cache tổng quan lớp bằng Redis + singleflight, xoá cache khi có bài nộp mới.</li>
+<li>Cursor pagination cho danh sách thông báo.</li>
+<li>OpenAPI cho toàn bộ API, sinh client TypeScript và làm một giao diện nhỏ bằng framework frontend bạn quen.</li>
+<li>Deploy lên Cloud Run hoặc Fly.io với Postgres có quản lý.</li>
+</ul>
+
+<h2>Lỗi người mới hay mắc ở dự án này</h2>
+<table>
+<tr><th>Lỗi</th><th>Đã học ở</th></tr>
+<tr><td>Trả nguyên struct User (có <code>password_hash</code>) ra JSON</td><td>Bài 19, API3</td></tr>
+<tr><td><code>GET /assignments/{id}</code> không kiểm người gọi có thuộc lớp</td><td>Bài 19, API1</td></tr>
+<tr><td>Đếm số lớp / sĩ số trong Go rồi mới INSERT</td><td>Bài 16</td></tr>
+<tr><td>Gửi thông báo ngay trong handler bằng <code>go func()</code></td><td>Bài 09, 20</td></tr>
+<tr><td>Danh sách rỗng trả <code>null</code></td><td>Bài 04</td></tr>
+<tr><td>Hạn nộp "hôm nay" tính theo UTC, lệch 7 giờ</td><td>Bài 14</td></tr>
+<tr><td>Quên <code>rows.Close()</code>, pool cạn sau vài giờ chạy</td><td>Bài 15</td></tr>
+<tr><td>Không có timeout ở server và client</td><td>Bài 11</td></tr>
+</table>
+
+<h2>Đưa vào CV</h2>
+<p>Khi xong, repo của bạn nên có một README trả lời được: hệ thống làm gì, chạy thế nào bằng một lệnh, kiến trúc (một sơ đồ), các quyết định thiết kế và vì sao (vì sao session thay vì JWT, vì sao hàng đợi trong Postgres, cách chống vượt sĩ số), và cách chạy test. Người phỏng vấn backend hỏi đúng những câu đó.</p>
+<aside class="real"><p>Phỏng vấn backend Go thường hỏi: goroutine khác thread thế nào, channel có đệm và không đệm, cách tránh data race, context dùng để làm gì, index hoạt động ra sao, transaction và mức cô lập, xử lý hai request đồng thời, thiết kế một hệ thống nhỏ (rút gọn link, hệ thống thông báo). Bạn đã làm tất cả những thứ đó trong dự án này.</p></aside>
+
+<h2>Bạn đã đi được tới đây</h2>
+<p>Nếu đã làm xong 8 bước, bạn có đủ nền tảng để nhận task backend Go ở công ty: đọc hiểu code hiện có, viết endpoint mới đúng chuẩn, thiết kế bảng, viết test, và biết những chỗ nguy hiểm cần hỏi người có kinh nghiệm hơn. Phần còn lại học qua công việc thật: mỗi sự cố, mỗi lần review code là một bài học mới.</p>
+<p>Giữ hai trang tra cứu bên cạnh khi làm việc: <a href="thuat-ngu.html">Từ điển thuật ngữ</a> và <a href="nguyen-tac.html">Nguyên tắc làm backend</a>.</p>

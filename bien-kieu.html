@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 02: Biến, kiểu dữ liệu và zero value · Go cho dân Frontend</title>
+<meta name="description" content="Kiểu tĩnh, khai báo biến, hằng, chuyển kiểu, string và rune, đối chiếu từng thứ với TypeScript.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu" aria-current="page"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="bien-kieu">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#00ADD8">Chặng 1 · Ngôn ngữ Go</span><span>Bài 02</span><span>40 phút đọc + làm bài</span></div>
+    <h1>Biến, kiểu dữ liệu và zero value</h1>
+    <p class="lead">Kiểu tĩnh, khai báo biến, hằng, chuyển kiểu, string và rune, đối chiếu từng thứ với TypeScript.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Khai báo biến bằng var và :=</li><li>Hiểu zero value thay cho undefined / null</li><li>Xử lý chuỗi tiếng Việt đúng cách (byte và rune)</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="khai-bao-bien"><a href="#khai-bao-bien" class="anchor" aria-hidden="true">#</a>Khai báo biến</h2>
+<p>Go có hai cách khai báo biến. Cách ngắn <code>:=</code> dùng nhiều nhất, nhưng chỉ dùng được bên trong hàm.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">var</span> appName = <span class="s">&quot;Sổ bài tập&quot;</span> <span class="c">// ngoài hàm: phải dùng var</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">var</span> age <span class="t">int</span> = <span class="n">30</span>      <span class="c">// đầy đủ: var tên kiểu = giá trị</span>
+    <span class="k">var</span> city = <span class="s">&quot;Hà Nội&quot;</span>   <span class="c">// bỏ kiểu, Go tự suy ra string</span>
+    <span class="k">var</span> score <span class="t">float64</span>     <span class="c">// không gán: nhận zero value là 0</span>
+    count := <span class="n">10</span>           <span class="c">// cách ngắn, hay dùng nhất trong hàm</span>
+    a, b := <span class="n">1</span>, <span class="s">&quot;hai&quot;</span>      <span class="c">// khai báo nhiều biến một lúc</span>
+
+    count = <span class="n">11</span>            <span class="c">// gán lại: dùng =, không dùng :=</span>
+    fmt.<span class="f">Println</span>(appName, age, city, score, count, a, b)
+}</code></pre></div>
+<table>
+<tr><th>TypeScript</th><th>Go</th></tr>
+<tr><td><code>let x = 5</code></td><td><code>x := 5</code></td></tr>
+<tr><td><code>let x: number</code></td><td><code>var x int</code> (có giá trị 0, không phải undefined)</td></tr>
+<tr><td><code>const PI = 3.14</code></td><td><code>const Pi = 3.14</code></td></tr>
+<tr><td><code>x = 6</code></td><td><code>x = 6</code></td></tr>
+</table>
+<aside class="warn"><p><code>:=</code> luôn tạo biến <b>mới</b>. Trong một khối lệnh con (if, for), <code>x := ...</code> sẽ tạo ra biến <code>x</code> mới che mất biến <code>x</code> bên ngoài (shadowing). Đây là lỗi hay gặp với <code>err</code>: bạn tưởng đã gán lỗi cho biến bên ngoài nhưng thật ra gán cho một biến khác. <code>go vet</code> với công cụ <code>shadow</code> có thể phát hiện giúp bạn.</p></aside>
+
+<h2 id="cac-kieu-co-ban"><a href="#cac-kieu-co-ban" class="anchor" aria-hidden="true">#</a>Các kiểu cơ bản</h2>
+<table>
+<tr><th>Kiểu Go</th><th>Dùng cho</th><th>Ghi chú</th></tr>
+<tr><td><code>int</code>, <code>int64</code>, <code>int32</code></td><td>Số nguyên</td><td><code>int</code> là 64 bit trên máy 64 bit. Dùng <code>int64</code> khi cần chắc chắn kích thước (id, tiền, thời gian).</td></tr>
+<tr><td><code>uint8</code> (= <code>byte</code>), <code>uint64</code></td><td>Số nguyên không âm</td><td>Ít dùng cho nghiệp vụ, hay dùng cho dữ liệu nhị phân.</td></tr>
+<tr><td><code>float64</code></td><td>Số thực</td><td>Không dùng cho tiền (xem dưới).</td></tr>
+<tr><td><code>bool</code></td><td>true / false</td><td>Không có "truthy": <code>if count</code> là lỗi biên dịch, phải viết <code>if count &gt; 0</code>.</td></tr>
+<tr><td><code>string</code></td><td>Chuỗi</td><td>Không đổi được (immutable), lưu dạng UTF-8.</td></tr>
+<tr><td><code>rune</code> (= <code>int32</code>)</td><td>Một ký tự Unicode</td><td>Viết bằng nháy đơn: <code>'ệ'</code>.</td></tr>
+<tr><td><code>time.Time</code>, <code>time.Duration</code></td><td>Thời gian</td><td>Từ package <code>time</code>, dùng ở mọi backend.</td></tr>
+</table>
+<aside class="fe"><p>JavaScript chỉ có một kiểu <code>number</code> (số thực 64 bit), nên số nguyên lớn hơn 2<sup>53</sup> bị mất chính xác. Go phân biệt số nguyên và số thực. Đây là lý do nhiều API trả id 64 bit dạng <b>chuỗi</b> trong JSON: Twitter / X từng phải thêm trường <code>id_str</code> vì JavaScript đọc sai id dạng số.</p></aside>
+
+<h3>Không bao giờ dùng float cho tiền</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>fmt.<span class="f">Println</span>(<span class="n">0.1</span> + <span class="n">0.2</span>)          <span class="c">// 0.30000000000000004, giống hệt JavaScript</span></code></pre></div>
+<p>Ngoài thực tế, tiền được lưu bằng <b>số nguyên ở đơn vị nhỏ nhất</b>: đồng với VND, cent với USD. Stripe API nhận <code>amount: 1999</code> nghĩa là 19,99 USD. Trong database dùng <code>bigint</code> hoặc <code>numeric</code>.</p>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> VND <span class="t">int64</span>
+
+price := <span class="f">VND</span>(<span class="n">49_000</span>)       <span class="c">// dấu _ chỉ để dễ đọc</span>
+total := price * <span class="n">3</span>         <span class="c">// 147000, luôn chính xác</span></code></pre></div>
+
+<h2 id="zero-value-khong-co-undefined"><a href="#zero-value-khong-co-undefined" class="anchor" aria-hidden="true">#</a>Zero value: không có undefined</h2>
+<p>Trong Go, biến khai báo mà chưa gán <b>luôn</b> có giá trị mặc định gọi là <i>zero value</i>. Không có <code>undefined</code>, không có biến "chưa khởi tạo".</p>
+<table>
+<tr><th>Kiểu</th><th>Zero value</th></tr>
+<tr><td>số (<code>int</code>, <code>float64</code>…)</td><td><code>0</code></td></tr>
+<tr><td><code>string</code></td><td><code>""</code> (chuỗi rỗng)</td></tr>
+<tr><td><code>bool</code></td><td><code>false</code></td></tr>
+<tr><td>con trỏ, slice, map, channel, hàm, interface</td><td><code>nil</code></td></tr>
+<tr><td>struct</td><td>struct với mọi trường là zero value</td></tr>
+</table>
+<p>Nhà thiết kế Go cố tình làm cho zero value hữu dụng: một <code>sync.Mutex</code> hay <code>bytes.Buffer</code> mới khai báo là dùng được ngay, không cần gọi hàm khởi tạo.</p>
+<aside class="warn"><p>Zero value gây ra một câu hỏi rất thật ở backend: client gửi <code>{"score": 0}</code> hay <b>không gửi</b> <code>score</code>? Với <code>int</code>, cả hai đều thành <code>0</code>. Khi cần phân biệt "không có" và "bằng 0" (ví dụ API cập nhật một phần, PATCH), người ta dùng con trỏ <code>*int</code> (nil = không gửi). Bài 05 và 12 sẽ dùng cách này.</p></aside>
+
+<h2 id="hang-so-va-iota"><a href="#hang-so-va-iota" class="anchor" aria-hidden="true">#</a>Hằng số và iota</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">const</span> MaxUploadMB = <span class="n">5</span>
+<span class="k">const</span> (
+    PageSize    = <span class="n">20</span>
+    MaxPageSize = <span class="n">100</span>
+)
+
+<span class="c">// iota: bộ đếm tự tăng trong một khối const, hay dùng để làm &quot;enum&quot;</span>
+<span class="k">type</span> Role <span class="t">int</span>
+
+<span class="k">const</span> (
+    RoleStudent Role = <span class="b">iota</span> <span class="c">// 0</span>
+    RoleParent              <span class="c">// 1</span>
+    RoleTeacher             <span class="c">// 2</span>
+)</code></pre></div>
+<aside class="tip"><p>Go không có từ khoá <code>enum</code>. Với giá trị sẽ lưu vào database hoặc gửi qua JSON, nhiều đội thích dùng kiểu chuỗi hơn vì đọc log và dữ liệu dễ hiểu, và không bị lệch khi ai đó chèn thêm hằng vào giữa khối iota:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Status <span class="t">string</span>
+
+<span class="k">const</span> (
+    StatusPending Status = <span class="s">&quot;pending&quot;</span>
+    StatusPaid    Status = <span class="s">&quot;paid&quot;</span>
+)</code></pre></div></aside>
+
+<h2 id="chuyen-kieu-luon-phai-viet-ro"><a href="#chuyen-kieu-luon-phai-viet-ro" class="anchor" aria-hidden="true">#</a>Chuyển kiểu: luôn phải viết rõ</h2>
+<p>Go không tự đổi kiểu, kể cả giữa <code>int</code> và <code>int64</code>.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> a <span class="t">int</span> = <span class="n">10</span>
+<span class="k">var</span> b <span class="t">int64</span> = <span class="n">20</span>
+<span class="c">// c := a + b          // lỗi: mismatched types int and int64</span>
+c := <span class="t">int64</span>(a) + b      <span class="c">// phải đổi rõ ràng</span>
+
+f := <span class="t">float64</span>(a) / <span class="n">3</span>    <span class="c">// 3.3333333333333335</span>
+n := <span class="t">int</span>(<span class="n">3.99</span>)         <span class="c">// 3: cắt phần thập phân, không làm tròn</span></code></pre></div>
+<p>Chuỗi và số đổi qua lại bằng package <code>strconv</code>, và việc này có thể lỗi:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;strconv&quot;</span>
+
+n, err := strconv.<span class="f">Atoi</span>(<span class="s">&quot;42&quot;</span>)        <span class="c">// 42, nil</span>
+_, err = strconv.<span class="f">Atoi</span>(<span class="s">&quot;abc&quot;</span>)        <span class="c">// 0, lỗi: invalid syntax</span>
+s := strconv.<span class="f">Itoa</span>(<span class="n">42</span>)               <span class="c">// &quot;42&quot;</span>
+id, err := strconv.<span class="f">ParseInt</span>(<span class="s">&quot;9001&quot;</span>, <span class="n">10</span>, <span class="n">64</span>) <span class="c">// cơ số 10, 64 bit</span></code></pre></div>
+<aside class="warn"><p><code>string(65)</code> cho ra <code>"A"</code> (ký tự mã 65), <b>không</b> phải <code>"65"</code>. <code>go vet</code> sẽ cảnh báo chỗ này. Muốn đổi số thành chuỗi số, luôn dùng <code>strconv.Itoa</code> hoặc <code>fmt.Sprint</code>.</p></aside>
+
+<h2 id="chuoi-tieng-viet-byte-va-rune"><a href="#chuoi-tieng-viet-byte-va-rune" class="anchor" aria-hidden="true">#</a>Chuỗi tiếng Việt: byte và rune</h2>
+<p>Đây là chỗ dân Việt hay vấp. Chuỗi Go là một dãy <b>byte</b> mã hoá UTF-8. Chữ có dấu chiếm nhiều byte.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>s := <span class="s">&quot;Việt&quot;</span>
+fmt.<span class="f">Println</span>(<span class="b">len</span>(s))                    <span class="c">// 6: số byte, không phải số ký tự</span>
+fmt.<span class="f">Println</span>(utf8.<span class="f">RuneCountInString</span>(s)) <span class="c">// 4: số ký tự (cần import &quot;unicode/utf8&quot;)</span>
+fmt.<span class="f">Println</span>(s[<span class="n">1</span>])                      <span class="c">// 105: byte thứ 2 (chữ 'i')</span>
+
+<span class="k">for</span> i, r := <span class="k">range</span> s {                  <span class="c">// range trên chuỗi đi theo từng rune</span>
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%d:%c &quot;</span>, i, r)         <span class="c">// 0:V 1:i 2:ệ 5:t</span>
+}</code></pre></div>
+<figure class="dg"><svg viewBox="0 0 694 86" style="min-width:600px;max-width:694px" role="img" aria-label="&amp;quot;Việt&amp;quot; trong bộ nhớ: 4 ký tự nhưng 6 byte, chữ ệ chiếm 3 byte"><g class="nd "><rect x="10" y="10" width="116" height="66" rx="10"/><text x="68" y="40" class="tt" text-anchor="middle">V</text><text x="68" y="58" class="ts" text-anchor="middle">byte 0</text></g><line x1="128" y1="43" x2="192" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd "><rect x="196" y="10" width="116" height="66" rx="10"/><text x="254" y="40" class="tt" text-anchor="middle">i</text><text x="254" y="58" class="ts" text-anchor="middle">byte 1</text></g><line x1="314" y1="43" x2="378" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd cache"><rect x="382" y="10" width="116" height="66" rx="10"/><text x="440" y="40" class="tt" text-anchor="middle">ệ</text><text x="440" y="58" class="ts" text-anchor="middle">byte 2, 3, 4</text></g><line x1="500" y1="43" x2="564" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd "><rect x="568" y="10" width="116" height="66" rx="10"/><text x="626" y="40" class="tt" text-anchor="middle">t</text><text x="626" y="58" class="ts" text-anchor="middle">byte 5</text></g></svg><figcaption>&quot;Việt&quot; trong bộ nhớ: 4 ký tự nhưng 6 byte, chữ ệ chiếm 3 byte</figcaption></figure>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Cắt chuỗi theo byte có thể cắt đôi một chữ có dấu, sinh ra ký tự lỗi</span>
+short := s[:<span class="n">3</span>] <span class="c">// &quot;Vi\xe1&quot;: hỏng chữ ệ</span></code></pre></div>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Giới hạn độ dài theo ký tự: đổi sang []rune</span>
+<span class="k">func</span> <span class="f">truncate</span>(s <span class="t">string</span>, <span class="b">max</span> <span class="t">int</span>) <span class="t">string</span> {
+    r := []<span class="t">rune</span>(s)
+    <span class="k">if</span> <span class="b">len</span>(r) &lt;= <span class="b">max</span> {
+        <span class="k">return</span> s
+    }
+    <span class="k">return</span> <span class="t">string</span>(r[:<span class="b">max</span>]) + <span class="s">&quot;…&quot;</span>
+}</code></pre></div>
+<aside class="real"><p>Khi API nói "tên tối đa 80 ký tự", hãy đếm bằng <code>utf8.RuneCountInString</code>. Nếu đếm bằng <code>len</code>, người dùng gõ tên tiếng Việt có dấu sẽ bị báo quá dài sớm hơn người gõ không dấu. Còn khi giới hạn dung lượng lưu trữ (cột database tính theo byte), thì mới dùng <code>len</code>.</p></aside>
+
+<h3>Làm việc với chuỗi</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;strings&quot;</span>
+
+strings.<span class="f">ToLower</span>(<span class="s">&quot;Email@Gmail.COM&quot;</span>)          <span class="c">// &quot;email@gmail.com&quot;</span>
+strings.<span class="f">TrimSpace</span>(<span class="s">&quot;  lan  &quot;</span>)                <span class="c">// &quot;lan&quot;</span>
+strings.<span class="f">Contains</span>(<span class="s">&quot;hotoedu&quot;</span>, <span class="s">&quot;edu&quot;</span>)          <span class="c">// true</span>
+strings.<span class="f">Split</span>(<span class="s">&quot;a,b,c&quot;</span>, <span class="s">&quot;,&quot;</span>)                 <span class="c">// []string{&quot;a&quot;, &quot;b&quot;, &quot;c&quot;}</span>
+strings.<span class="f">Join</span>([]<span class="t">string</span>{<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>}, <span class="s">&quot;-&quot;</span>)       <span class="c">// &quot;a-b&quot;</span>
+strings.<span class="f">HasPrefix</span>(<span class="s">&quot;/api/users&quot;</span>, <span class="s">&quot;/api/&quot;</span>)    <span class="c">// true</span>
+
+<span class="c">// Ghép nhiều chuỗi trong vòng lặp: dùng strings.Builder, không dùng +=</span>
+<span class="k">var</span> sb strings.Builder
+<span class="k">for</span> i := <span class="n">0</span>; i &lt; <span class="n">3</span>; i++ {
+    fmt.<span class="f">Fprintf</span>(&amp;sb, <span class="s">&quot;dòng %d\n&quot;</span>, i)
+}
+out := sb.<span class="f">String</span>()</code></pre></div>
+<p>Chuỗi trong Go không đổi được, nên <code>s += "x"</code> trong vòng lặp lớn sẽ tạo chuỗi mới mỗi lần. <code>strings.Builder</code> tránh việc đó.</p>
+
+<h2 id="in-va-dinh-dang-voi-fmt"><a href="#in-va-dinh-dang-voi-fmt" class="anchor" aria-hidden="true">#</a>In và định dạng với fmt</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> User <span class="k">struct</span> {
+    ID   <span class="t">int64</span>
+    Name <span class="t">string</span>
+}
+u := User{ID: <span class="n">1</span>, Name: <span class="s">&quot;Lan&quot;</span>}
+
+fmt.<span class="f">Printf</span>(<span class="s">&quot;%v\n&quot;</span>, u)   <span class="c">// {1 Lan}</span>
+fmt.<span class="f">Printf</span>(<span class="s">&quot;%+v\n&quot;</span>, u)  <span class="c">// {ID:1 Name:Lan}    hay dùng khi gỡ lỗi</span>
+fmt.<span class="f">Printf</span>(<span class="s">&quot;%T\n&quot;</span>, u)   <span class="c">// main.User          kiểu của giá trị</span>
+fmt.<span class="f">Printf</span>(<span class="s">&quot;%q\n&quot;</span>, <span class="s">&quot;a&quot;</span>) <span class="c">// &quot;a&quot;                chuỗi có nháy, thấy rõ khoảng trắng</span>
+fmt.<span class="f">Printf</span>(<span class="s">&quot;%d %.2f %s\n&quot;</span>, <span class="n">7</span>, <span class="n">3.14159</span>, <span class="s">&quot;x&quot;</span>)   <span class="c">// 7 3.14 x</span>
+msg := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;Đơn #%d&quot;</span>, <span class="n">9001</span>)            <span class="c">// tạo chuỗi, không in</span></code></pre></div>
+
+<h2 id="kieu-tu-dinh-nghia"><a href="#kieu-tu-dinh-nghia" class="anchor" aria-hidden="true">#</a>Kiểu tự định nghĩa</h2>
+<p>Bạn có thể tạo kiểu mới từ kiểu có sẵn. Go coi chúng là <b>khác nhau</b>, nên trình biên dịch giúp bạn không truyền nhầm.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> UserID <span class="t">int64</span>
+<span class="k">type</span> ClassID <span class="t">int64</span>
+
+<span class="k">func</span> <span class="f">GetUser</span>(id UserID) {}
+
+<span class="k">var</span> c ClassID = <span class="n">5</span>
+<span class="c">// GetUser(c)        // lỗi biên dịch: không thể dùng ClassID làm UserID</span>
+<span class="f">GetUser</span>(<span class="f">UserID</span>(<span class="n">7</span>))  <span class="c">// đúng</span></code></pre></div>
+<aside class="fe"><p>TypeScript dùng kiểu cấu trúc (structural), nên <code>type UserId = number</code> và <code>type ClassId = number</code> là một. Người ta phải dùng mẹo "branded types". Trong Go, kiểu đặt tên là khác nhau thật sự.</p></aside>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> <code>len(&quot;Học&quot;)</code> trả về bao nhiêu?</p><div class="qo"><button type="button" class="opt">3</button><button type="button" class="opt">4</button><button type="button" class="opt" data-ok>5</button></div><p class="why" hidden>len đếm byte. "H" và "c" mỗi chữ 1 byte, "ọ" (U+1ECD) chiếm 3 byte trong UTF-8. Tổng là 5 byte, dù chỉ có 3 ký tự.</p></div>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Một API nhận <code>{&quot;quantity&quot;: 0}</code> và một API khác không gửi <code>quantity</code>. Với struct có trường <code>Quantity int</code>, sau khi đọc JSON, giá trị là gì?</p><div class="qo"><button type="button" class="opt">Lần đầu là 0, lần sau là nil</button><button type="button" class="opt" data-ok>Cả hai đều là 0</button><button type="button" class="opt">Lần sau báo lỗi vì thiếu trường</button></div><p class="why" hidden>int không thể là nil. Trường không có trong JSON giữ zero value. Muốn phân biệt, dùng *int (nil nghĩa là không gửi) hoặc kiểm tra bắt buộc khi validate.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Chuẩn hoá email và kiểm tra độ dài tên</summary>
+<p>Viết hàm <code>normalizeEmail(s string) string</code> (bỏ khoảng trắng hai đầu, đổi về chữ thường) và <code>validName(s string) bool</code> (sau khi bỏ khoảng trắng, tên phải có từ 2 đến 80 <b>ký tự</b>). Thử với <code>"  Nguyễn Thị Ánh  "</code>.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+    <span class="s">&quot;unicode/utf8&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">normalizeEmail</span>(s <span class="t">string</span>) <span class="t">string</span> {
+    <span class="k">return</span> strings.<span class="f">ToLower</span>(strings.<span class="f">TrimSpace</span>(s))
+}
+
+<span class="k">func</span> <span class="f">validName</span>(s <span class="t">string</span>) <span class="t">bool</span> {
+    n := utf8.<span class="f">RuneCountInString</span>(strings.<span class="f">TrimSpace</span>(s))
+    <span class="k">return</span> n &gt;= <span class="n">2</span> &amp;&amp; n &lt;= <span class="n">80</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    fmt.<span class="f">Println</span>(<span class="f">normalizeEmail</span>(<span class="s">&quot;  Lan.Nguyen@Gmail.COM &quot;</span>)) <span class="c">// lan.nguyen@gmail.com</span>
+    fmt.<span class="f">Println</span>(<span class="f">validName</span>(<span class="s">&quot;  Nguyễn Thị Ánh  &quot;</span>))           <span class="c">// true</span>
+    fmt.<span class="f">Println</span>(<span class="f">validName</span>(<span class="s">&quot;A&quot;</span>))                            <span class="c">// false</span>
+}</code></pre></div>
+<p>Ngoài thực tế, email luôn được chuẩn hoá về chữ thường <b>trước khi lưu và trước khi tìm</b>, nếu không <code>Lan@gmail.com</code> và <code>lan@gmail.com</code> sẽ thành hai tài khoản.</p>
+</details>
+</details>
+<details class="ex"><summary>Định dạng tiền Việt</summary>
+<p>Viết hàm <code>formatVND(v int64) string</code>: <code>1234567</code> thành <code>"1.234.567đ"</code>, số âm có dấu trừ phía trước.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">formatVND</span>(v <span class="t">int64</span>) <span class="t">string</span> {
+    neg := v &lt; <span class="n">0</span>
+    <span class="k">if</span> neg {
+        v = -v
+    }
+    s := strconv.<span class="f">FormatInt</span>(v, <span class="n">10</span>)
+    <span class="k">var</span> sb strings.Builder
+    <span class="k">for</span> i, ch := <span class="k">range</span> s {
+        <span class="k">if</span> i &gt; <span class="n">0</span> &amp;&amp; (<span class="b">len</span>(s)-i)%<span class="n">3</span> == <span class="n">0</span> {
+            sb.<span class="f">WriteByte</span>(<span class="s">'.'</span>)
+        }
+        sb.<span class="f">WriteRune</span>(ch)
+    }
+    <span class="k">if</span> neg {
+        <span class="k">return</span> <span class="s">&quot;-&quot;</span> + sb.<span class="f">String</span>() + <span class="s">&quot;đ&quot;</span>
+    }
+    <span class="k">return</span> sb.<span class="f">String</span>() + <span class="s">&quot;đ&quot;</span>
+}</code></pre></div>
+<p>Ở đây dùng <code>len(s)</code> và chỉ số byte vẫn đúng vì chuỗi số chỉ có ký tự ASCII (mỗi ký tự 1 byte).</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="bien-kieu">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="cai-dat.html"><small>Bài trước</small>Cài Go và chương trình đầu tiên</a><a class="next" href="ham-dieu-khien.html"><small>Bài tiếp theo</small>Hàm, rẽ nhánh, vòng lặp và defer</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#khai-bao-bien">Khai báo biến</a><a href="#cac-kieu-co-ban">Các kiểu cơ bản</a><a href="#zero-value-khong-co-undefined">Zero value: không có undefined</a><a href="#hang-so-va-iota">Hằng số và iota</a><a href="#chuyen-kieu-luon-phai-viet-ro">Chuyển kiểu: luôn phải viết rõ</a><a href="#chuoi-tieng-viet-byte-va-rune">Chuỗi tiếng Việt: byte và rune</a><a href="#in-va-dinh-dang-voi-fmt">In và định dạng với fmt</a><a href="#kieu-tu-dinh-nghia">Kiểu tự định nghĩa</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

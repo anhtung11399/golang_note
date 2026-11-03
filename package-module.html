@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 08: Package, module và cấu trúc dự án · Go cho dân Frontend</title>
+<meta name="description" content="Chia code thành package, quy tắc viết hoa để public, cài thư viện, cấu trúc thư mục dự án Go thực tế.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module" aria-current="page"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="package-module">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#00ADD8">Chặng 1 · Ngôn ngữ Go</span><span>Bài 08</span><span>35 phút đọc + làm bài</span></div>
+    <h1>Package, module và cấu trúc dự án</h1>
+    <p class="lead">Chia code thành package, quy tắc viết hoa để public, cài thư viện, cấu trúc thư mục dự án Go thực tế.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Tổ chức code thành nhiều package</li><li>Cài và quản lý thư viện bằng go get</li><li>Biết cấu trúc cmd/ và internal/</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="package-mot-thu-muc"><a href="#package-mot-thu-muc" class="anchor" aria-hidden="true">#</a>Package = một thư mục</h2>
+<p>Mọi file <code>.go</code> trong cùng một thư mục thuộc cùng một package và nhìn thấy nhau hoàn toàn (không cần import lẫn nhau). Tên package khai báo ở dòng đầu mỗi file, thường trùng tên thư mục.</p>
+<div class="code"><div class="code-h"><span>Cấu trúc</span><button class="copy" type="button">Sao chép</button></div><pre><code>sobaitap/
+├── go.mod                      module github.com/lan/sobaitap
+├── main.go                     package main
+└── grade/
+    ├── grade.go                package grade
+    └── grade_test.go           package grade</code></pre></div>
+<div class="code"><div class="code-h"><span>grade/grade.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> grade
+
+<span class="c">// Classify: viết HOA chữ đầu → package khác dùng được (exported)</span>
+<span class="k">func</span> <span class="f">Classify</span>(score <span class="t">float64</span>) <span class="t">string</span> {
+    <span class="k">if</span> score &gt;= <span class="n">8</span> {
+        <span class="k">return</span> <span class="s">&quot;Giỏi&quot;</span>
+    }
+    <span class="k">if</span> <span class="f">isPass</span>(score) {
+        <span class="k">return</span> <span class="s">&quot;Đạt&quot;</span>
+    }
+    <span class="k">return</span> <span class="s">&quot;Chưa đạt&quot;</span>
+}
+
+<span class="c">// isPass: viết thường → chỉ dùng trong package grade</span>
+<span class="k">func</span> <span class="f">isPass</span>(score <span class="t">float64</span>) <span class="t">bool</span> { <span class="k">return</span> score &gt;= <span class="n">5</span> }</code></pre></div>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+
+    <span class="s">&quot;github.com/lan/sobaitap/grade&quot;</span> <span class="c">// đường dẫn = tên module + thư mục</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    fmt.<span class="f">Println</span>(grade.<span class="f">Classify</span>(<span class="n">8.5</span>)) <span class="c">// gọi qua tên package</span>
+    <span class="c">// grade.isPass(6)               // lỗi: isPass không được export</span>
+}</code></pre></div>
+<aside class="fe"><p>Thay cho <code>export</code> / không <code>export</code> trong ES module, Go dùng chữ hoa / chữ thường của <b>chính cái tên</b>. Quy tắc áp dụng cho mọi thứ: hàm, kiểu, hằng, biến, trường của struct, method. Vì vậy trường struct viết thường thì <code>encoding/json</code> (một package khác) không nhìn thấy (bài 05).</p></aside>
+
+<h2 id="dat-ten-package"><a href="#dat-ten-package" class="anchor" aria-hidden="true">#</a>Đặt tên package</h2>
+<ul>
+<li>Ngắn, chữ thường, một từ, không gạch dưới: <code>grade</code>, <code>auth</code>, <code>postgres</code>.</li>
+<li>Tên package là một phần khi gọi, nên tránh lặp: <code>http.Server</code> chứ không phải <code>http.HTTPServer</code>, <code>user.New</code> chứ không phải <code>user.NewUser</code>.</li>
+<li>Tránh package tên <code>utils</code>, <code>common</code>, <code>helpers</code>: chúng thành bãi rác chứa mọi thứ. Đặt tên theo việc nó làm: <code>money</code>, <code>pagination</code>, <code>httpx</code>.</li>
+</ul>
+
+<h2 id="khong-duoc-import-vong-tron"><a href="#khong-duoc-import-vong-tron" class="anchor" aria-hidden="true">#</a>Không được import vòng tròn</h2>
+<p>Package A import B thì B không được import A (kể cả gián tiếp qua C). Trình biên dịch từ chối ngay. Quy tắc này buộc bạn tổ chức phụ thuộc theo một chiều, từ ngoài vào trong:</p>
+<figure class="dg"><svg viewBox="0 0 649.36 360" style="min-width:600px;max-width:649.36px" role="img" aria-label="Phụ thuộc chỉ đi một chiều: tầng ngoài biết tầng trong, tầng trong không biết tầng ngoài"><g class="nd fe"><rect x="10" y="10" width="174.4" height="52" rx="10"/><text x="97.2" y="41" class="tt" text-anchor="middle">cmd/api (main)</text></g><text x="204.4" y="41" class="tl" text-anchor="start">đọc cấu hình, ghép mọi thứ lại, chạy server</text><line x1="97.2" y1="62" x2="97.2" y2="80" class="ln" marker-end="url(#ar)"/><g class="nd go"><rect x="10" y="82" width="174.4" height="52" rx="10"/><text x="97.2" y="113" class="tt" text-anchor="middle">internal/http</text></g><text x="204.4" y="113" class="tl" text-anchor="start">handler, middleware, định tuyến</text><line x1="97.2" y1="134" x2="97.2" y2="152" class="ln" marker-end="url(#ar)"/><g class="nd go"><rect x="10" y="154" width="174.4" height="52" rx="10"/><text x="97.2" y="185" class="tt" text-anchor="middle">internal/service</text></g><text x="204.4" y="185" class="tl" text-anchor="start">nghiệp vụ: quyền, quy tắc, tính toán</text><line x1="97.2" y1="206" x2="97.2" y2="224" class="ln" marker-end="url(#ar)"/><g class="nd db"><rect x="10" y="226" width="174.4" height="52" rx="10"/><text x="97.2" y="257" class="tt" text-anchor="middle">internal/store</text></g><text x="204.4" y="257" class="tl" text-anchor="start">SQL, Redis</text><line x1="97.2" y1="278" x2="97.2" y2="296" class="ln" marker-end="url(#ar)"/><g class="nd ok"><rect x="10" y="298" width="174.4" height="52" rx="10"/><text x="97.2" y="329" class="tt" text-anchor="middle">internal/domain</text></g><text x="204.4" y="329" class="tl" text-anchor="start">kiểu dữ liệu và lỗi dùng chung, không import gì của dự án</text></svg><figcaption>Phụ thuộc chỉ đi một chiều: tầng ngoài biết tầng trong, tầng trong không biết tầng ngoài</figcaption></figure>
+<aside class="tip"><p>Khi gặp lỗi <code>import cycle not allowed</code>, gần như luôn là dấu hiệu cần tách phần dùng chung (kiểu dữ liệu, interface) xuống một package ở tầng thấp hơn mà cả hai cùng import.</p></aside>
+
+<h2 id="thu-muc-internal-khoa-cua-tu-ben-ngoai"><a href="#thu-muc-internal-khoa-cua-tu-ben-ngoai" class="anchor" aria-hidden="true">#</a>Thư mục internal/: khoá cửa từ bên ngoài</h2>
+<p>Package nằm trong thư mục tên <code>internal</code> chỉ được import bởi code nằm trong thư mục cha của <code>internal</code>. Dự án khác không import được, kể cả khi repo công khai. Đây là quy tắc do chính công cụ <code>go</code> thực thi.</p>
+<p>Với ứng dụng backend (không phải thư viện cho người khác dùng), đặt gần như mọi thứ trong <code>internal/</code>.</p>
+
+<h2 id="cau-truc-mot-du-an-api-that"><a href="#cau-truc-mot-du-an-api-that" class="anchor" aria-hidden="true">#</a>Cấu trúc một dự án API thật</h2>
+<div class="code"><div class="code-h"><span>Cấu trúc gợi ý (dùng ở dự án cuối, bài 24)</span><button class="copy" type="button">Sao chép</button></div><pre><code>sobaitap/
+├── go.mod
+├── go.sum
+├── cmd/
+│   ├── api/main.go          chương trình API
+│   └── worker/main.go       chương trình chạy việc nền (cùng repo, khác file chạy)
+├── internal/
+│   ├── config/              đọc biến môi trường
+│   ├── domain/              User, Class, Assignment, các lỗi ErrNotFound...
+│   ├── service/             nghiệp vụ
+│   ├── store/postgres/      repository dùng SQL
+│   ├── httpapi/             handler, middleware, routes
+│   └── worker/              xử lý việc trong hàng đợi
+├── migrations/              file SQL đổi cấu trúc database
+├── Dockerfile
+└── Makefile</code></pre></div>
+<aside class="warn"><p>Trên mạng có repo "golang-standards/project-layout" rất nổi tiếng nhưng nó <b>không phải</b> chuẩn chính thức của đội Go, và quá phức tạp cho đa số dự án. Hướng dẫn chính thức ngắn gọn hơn nằm ở <a href="https://go.dev/doc/modules/layout" target="_blank" rel="noopener">go.dev/doc/modules/layout</a>. Bắt đầu đơn giản, tách package khi file bắt đầu dài và khó tìm.</p></aside>
+
+<h2 id="cai-va-quan-ly-thu-vien"><a href="#cai-va-quan-ly-thu-vien" class="anchor" aria-hidden="true">#</a>Cài và quản lý thư viện</h2>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> get github.com/jackc/pgx/v5@latest    <span class="c"># thêm / nâng cấp lên bản mới nhất</span>
+<span class="k">go</span> get github.com/redis/<span class="k">go</span>-redis/v9@v9.<span class="n">7.0</span> <span class="c"># chọn đúng phiên bản</span>
+<span class="k">go</span> get -u ./...                           <span class="c"># nâng cấp các phụ thuộc (cẩn thận)</span>
+<span class="k">go</span> mod tidy                               <span class="c"># thêm cái thiếu, xoá cái không dùng</span>
+<span class="k">go</span> list -m all                            <span class="c"># liệt kê mọi module đang dùng</span>
+<span class="k">go</span> mod why github.com/x/y                 <span class="c"># vì sao module này có trong dự án</span></code></pre></div>
+<p>Phiên bản theo semver. Điểm đặc biệt: từ phiên bản chính <b>v2 trở lên</b>, số phiên bản nằm luôn trong đường dẫn import (<code>.../pgx/v5</code>, <code>.../go-redis/v9</code>). Nhờ vậy một dự án có thể dùng v4 và v5 cùng lúc khi đang chuyển dần.</p>
+<aside class="prod"><p>Kiểm tra lỗ hổng bảo mật của các thư viện bạn dùng bằng công cụ chính thức <code>govulncheck</code>:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> install golang.org/x/vuln/cmd/govulncheck@latest
+govulncheck ./...</code></pre></div>
+<p>Nó chỉ báo những lỗ hổng mà code của bạn <b>thật sự gọi tới</b>, nên ít báo động giả hơn <code>npm audit</code> nhiều. Nên chạy trong CI (bài 22).</p></aside>
+
+<h2 id="thu-vien-hay-dung-cho-backend"><a href="#thu-vien-hay-dung-cho-backend" class="anchor" aria-hidden="true">#</a>Thư viện hay dùng cho backend</h2>
+<p>Văn hoá Go là dùng thư viện chuẩn trước, chỉ thêm thư viện ngoài khi thật cần. Đây là những cái gần như dự án backend nào cũng gặp:</p>
+<table>
+<tr><th>Việc</th><th>Thư viện chuẩn</th><th>Thư viện ngoài phổ biến</th></tr>
+<tr><td>HTTP server, định tuyến</td><td><code>net/http</code> (Go 1.22+ đủ dùng)</td><td><code>go-chi/chi</code>, <code>gin-gonic/gin</code>, <code>labstack/echo</code></td></tr>
+<tr><td>PostgreSQL</td><td><code>database/sql</code></td><td><code>jackc/pgx/v5</code> (driver + pool), <code>sqlc</code> (sinh code từ SQL)</td></tr>
+<tr><td>Migration</td><td></td><td><code>pressly/goose</code>, <code>golang-migrate/migrate</code></td></tr>
+<tr><td>Redis</td><td></td><td><code>redis/go-redis/v9</code></td></tr>
+<tr><td>Log</td><td><code>log/slog</code> (Go 1.21+)</td><td><code>uber-go/zap</code>, <code>rs/zerolog</code></td></tr>
+<tr><td>Băm mật khẩu</td><td></td><td><code>golang.org/x/crypto</code> (bcrypt, argon2)</td></tr>
+<tr><td>Giới hạn tần suất</td><td></td><td><code>golang.org/x/time/rate</code></td></tr>
+<tr><td>Đồng thời nâng cao</td><td><code>sync</code></td><td><code>golang.org/x/sync</code> (errgroup, singleflight)</td></tr>
+<tr><td>Validate</td><td></td><td><code>go-playground/validator</code></td></tr>
+<tr><td>Test</td><td><code>testing</code>, <code>net/http/httptest</code></td><td><code>stretchr/testify</code>, <code>testcontainers-go</code></td></tr>
+<tr><td>Theo dõi hệ thống</td><td><code>net/http/pprof</code></td><td><code>prometheus/client_golang</code>, OpenTelemetry</td></tr>
+</table>
+<p>Các package <code>golang.org/x/...</code> do chính đội Go duy trì, nằm ngoài thư viện chuẩn vì chúng được cập nhật thường xuyên hơn.</p>
+
+<h2 id="ham-init-dung-han-che"><a href="#ham-init-dung-han-che" class="anchor" aria-hidden="true">#</a>Hàm init: dùng hạn chế</h2>
+<p>Mỗi package có thể có hàm <code>init()</code>, tự chạy khi package được nạp, trước <code>main</code>. Nó khó test và chạy ngầm, nên chỉ dùng cho việc thật đơn giản. Đọc cấu hình, kết nối database thì làm tường minh trong <code>main</code>.</p>
+<p>Đôi khi bạn sẽ thấy import chỉ để chạy <code>init</code> của package đó:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> _ <span class="s">&quot;net/http/pprof&quot;</span> <span class="c">// đăng ký các đường dẫn /debug/pprof vào DefaultServeMux</span></code></pre></div>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Package <code>internal/store</code> cần gọi một hàm trong <code>internal/service</code>, trong khi <code>service</code> đã import <code>store</code>. Cách xử lý đúng?</p><div class="qo"><button type="button" class="opt">Import service vào store, Go sẽ tự xử lý vòng tròn</button><button type="button" class="opt">Chép hàm đó sang store</button><button type="button" class="opt" data-ok>Xem lại thiết kế: store không nên biết về service. Tách phần dùng chung xuống package thấp hơn (ví dụ domain)</button></div><p class="why" hidden>Go cấm import vòng tròn. Tầng lưu trữ không được phụ thuộc vào tầng nghiệp vụ.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Tách package</summary>
+<p>Tạo module <code>example.com/money</code> có package <code>vnd</code> với kiểu <code>VND int64</code>, method <code>String()</code> in dạng <code>1.234.000đ</code> (dùng lại lời giải bài 02) và hàm <code>Parse(s string) (VND, error)</code>. Viết <code>main.go</code> import và dùng nó. Thử gọi một hàm viết thường của <code>vnd</code> từ main để xem lỗi.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>vnd/vnd.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> vnd
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;strconv&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+)
+
+<span class="k">type</span> VND <span class="t">int64</span>
+
+<span class="k">func</span> (v VND) <span class="f">String</span>() <span class="t">string</span> { <span class="k">return</span> <span class="f">format</span>(<span class="t">int64</span>(v)) }
+
+<span class="c">// Parse nhận &quot;1.234.000&quot;, &quot;1234000&quot; hoặc &quot;1.234.000đ&quot;</span>
+<span class="k">func</span> <span class="f">Parse</span>(s <span class="t">string</span>) (VND, <span class="t">error</span>) {
+    s = strings.<span class="f">TrimSuffix</span>(strings.<span class="f">TrimSpace</span>(s), <span class="s">&quot;đ&quot;</span>)
+    s = strings.<span class="f">ReplaceAll</span>(s, <span class="s">&quot;.&quot;</span>, <span class="s">&quot;&quot;</span>)
+    n, err := strconv.<span class="f">ParseInt</span>(s, <span class="n">10</span>, <span class="n">64</span>)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="n">0</span>, fmt.<span class="f">Errorf</span>(<span class="s">&quot;số tiền không hợp lệ %q: %w&quot;</span>, s, err)
+    }
+    <span class="k">return</span> <span class="f">VND</span>(n), <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">format</span>(v <span class="t">int64</span>) <span class="t">string</span> { <span class="c">/* như lời giải bài 02 */</span> <span class="k">return</span> strconv.<span class="f">FormatInt</span>(v, <span class="n">10</span>) + <span class="s">&quot;đ&quot;</span> }</code></pre></div>
+<p>Vì <code>VND</code> có method <code>String()</code>, nó thoả <code>fmt.Stringer</code>: <code>fmt.Println(vnd.VND(1234000))</code> tự in dạng đẹp.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="package-module">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="xu-ly-loi.html"><small>Bài trước</small>Xử lý lỗi kiểu Go</a><a class="next" href="dong-thoi.html"><small>Bài tiếp theo</small>Goroutine, channel và đồng thời</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#package-mot-thu-muc">Package = một thư mục</a><a href="#dat-ten-package">Đặt tên package</a><a href="#khong-duoc-import-vong-tron">Không được import vòng tròn</a><a href="#thu-muc-internal-khoa-cua-tu-ben-ngoai">Thư mục internal/: khoá cửa từ bên ngoài</a><a href="#cau-truc-mot-du-an-api-that">Cấu trúc một dự án API thật</a><a href="#cai-va-quan-ly-thu-vien">Cài và quản lý thư viện</a><a href="#thu-vien-hay-dung-cho-backend">Thư viện hay dùng cho backend</a><a href="#ham-init-dung-han-che">Hàm init: dùng hạn chế</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

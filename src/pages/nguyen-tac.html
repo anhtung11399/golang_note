@@ -1,0 +1,65 @@
+<h2>Mười nguyên tắc</h2>
+<ol>
+<li><b>Không tin client.</b> Mọi dữ liệu từ request đều có thể bị sửa: id, giá, vai trò, số lượng. Danh tính lấy từ phiên do server xác minh, giá lấy từ database.</li>
+<li><b>Kiểm quyền ở mọi endpoint, tốt nhất ngay trong truy vấn.</b> <code>WHERE id = $1 AND owner_id = $2</code>. Mỗi quy tắc quyền có một test.</li>
+<li><b>Database là người gác cổng cuối cùng.</b> Ràng buộc NOT NULL, UNIQUE, CHECK, khoá ngoại. Điều kiện nghiệp vụ quan trọng nằm trong câu ghi, không nằm ở bước "kiểm tra rồi mới làm".</li>
+<li><b>Mọi thứ đều có giới hạn.</b> Kích thước body, file, chuỗi, trang, tần suất, thời gian, số lượng.</li>
+<li><b>Mọi thứ đều có thể lỗi.</b> Mạng, database, dịch vụ bên ngoài. Có timeout, thử lại có giới hạn, và hệ thống vẫn đúng khi lỗi xảy ra giữa chừng.</li>
+<li><b>Thiết kế để chạy lại được.</b> Người dùng bấm hai lần, webhook gửi lại, việc nền chạy lại: kết quả vẫn như một lần.</li>
+<li><b>Request nhanh, việc chậm ra nền.</b> Gửi email, xử lý ảnh, gọi AI đi qua hàng đợi.</li>
+<li><b>Server không giữ trạng thái.</b> Phiên, file, cache dùng chung nằm ngoài tiến trình. Tắt bất kỳ bản nào cũng không mất gì.</li>
+<li><b>Đo trước khi tối ưu.</b> Log, metrics, trace, EXPLAIN, pprof. Không đoán.</li>
+<li><b>Đơn giản trước.</b> Thư viện chuẩn trước framework, Postgres trước khi thêm hạ tầng mới, monolith trước microservice. Thêm độ phức tạp khi có số liệu chứng minh cần.</li>
+</ol>
+
+<h2>Checklist trước khi gộp code</h2>
+<details class="ex" open><summary>Mỗi pull request</summary>
+<ul>
+<li><code>go vet ./...</code> sạch, <code>go test -race ./...</code> xanh.</li>
+<li>Endpoint mới: có kiểm đăng nhập, kiểm quyền sở hữu, validate mọi trường, giới hạn kích thước.</li>
+<li>Có test cho trường hợp thành công, dữ liệu sai, và người không có quyền.</li>
+<li>Response dùng DTO, không lộ trường nội bộ. Danh sách rỗng trả <code>[]</code>.</li>
+<li>Lỗi được bọc kèm ngữ cảnh (<code>%w</code>), chỉ ghi log ở một chỗ, lỗi 500 không lộ chi tiết.</li>
+<li>Mọi hàm I/O nhận <code>ctx</code> và truyền tiếp.</li>
+<li>Câu SQL dùng tham số, có index cho điều kiện lọc mới, không có truy vấn trong vòng lặp.</li>
+<li><code>rows.Close()</code>, <code>resp.Body.Close()</code>, <code>defer tx.Rollback()</code> đầy đủ.</li>
+<li>Goroutine mới có đường thoát và có recover nếu chạy nền.</li>
+<li>Migration tương thích với code đang chạy, không đổi tên / xoá cột trong một bước.</li>
+<li>Không có bí mật, dữ liệu thật của người dùng trong code hay log.</li>
+</ul>
+</details>
+
+<h2>Checklist trước khi lên production</h2>
+<details class="ex" open><summary>Mỗi dịch vụ</summary>
+<ul>
+<li>HTTPS, header bảo mật, CORS chỉ cho tên miền của mình, cookie <code>HttpOnly; Secure; SameSite</code>.</li>
+<li><code>http.Server</code> đủ timeout, <code>http.Client</code> có timeout, graceful shutdown ngắn hơn thời gian chờ của nền tảng.</li>
+<li><code>/livez</code>, <code>/readyz</code>, metrics và pprof chỉ ở cổng nội bộ.</li>
+<li>Log JSON ra stdout có request id, cảnh báo theo tỉ lệ lỗi và p99.</li>
+<li>Cấu hình qua biến môi trường, thiếu thì dừng ngay lúc khởi động. Không có cờ dev nào bật.</li>
+<li>Pool kết nối database phù hợp với số bản server và giới hạn của database.</li>
+<li>Sao lưu database tự động, đã thử khôi phục.</li>
+<li>Rate limit cho đăng nhập, gửi OTP / email, mọi tính năng tốn tiền.</li>
+<li><code>govulncheck</code> và <code>gosec</code> chạy trong CI.</li>
+<li>Có cách rollback trong vài phút.</li>
+</ul>
+</details>
+
+<h2>Khi có sự cố</h2>
+<ol>
+<li><b>Giảm thiệt hại trước, tìm nguyên nhân sau.</b> Rollback bản deploy gần nhất, tắt tính năng bằng feature flag, chặn nguồn tải bất thường.</li>
+<li>Thông báo cho người liên quan: đang có sự cố, ảnh hưởng gì, dự kiến khi nào cập nhật tiếp.</li>
+<li>Dùng log, metrics, trace để tìm nguyên nhân. Ghi lại dòng thời gian.</li>
+<li>Sau khi ổn định: viết postmortem không đổ lỗi cá nhân. Chuyện gì xảy ra, vì sao hệ thống cho phép nó xảy ra, làm gì để không lặp lại (thường là thêm test, thêm cảnh báo, thêm ràng buộc).</li>
+</ol>
+
+<h2>Thói quen của người làm backend giỏi</h2>
+<ul>
+<li>Đọc code thư viện chuẩn và thư viện đang dùng khi không chắc nó hoạt động thế nào.</li>
+<li>Hỏi "nếu hai request này đến cùng lúc thì sao?" với mọi thao tác ghi.</li>
+<li>Hỏi "nếu bảng này có 100 triệu dòng thì sao?" với mọi truy vấn.</li>
+<li>Hỏi "nếu dịch vụ này chậm 30 giây thì sao?" với mọi lời gọi ra ngoài.</li>
+<li>Viết test tái hiện lỗi trước khi sửa.</li>
+<li>Đọc postmortem của các công ty khác.</li>
+<li>Xoá code không dùng, giữ mọi thứ đơn giản nhất có thể.</li>
+</ul>

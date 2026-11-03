@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 00: Backend là gì: góc nhìn cho dân Frontend · Go cho dân Frontend</title>
+<meta name="description" content="Một request đi qua những đâu, backend chịu trách nhiệm những gì, vì sao chọn Go, và cách học lộ trình này.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh" aria-current="page"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="lo-trinh">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#64748b">Chặng 0 · Khởi động</span><span>Bài 00</span><span>25 phút đọc + làm bài</span></div>
+    <h1>Backend là gì: góc nhìn cho dân Frontend</h1>
+    <p class="lead">Một request đi qua những đâu, backend chịu trách nhiệm những gì, vì sao chọn Go, và cách học lộ trình này.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Vẽ được đường đi của một request từ trình duyệt tới database và quay về</li><li>Biết backend chịu trách nhiệm những gì mà frontend không làm được</li><li>Hiểu vì sao Go được dùng nhiều cho backend</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="frontend-va-backend-cung-mot-san-pham-hai-phia"><a href="#frontend-va-backend-cung-mot-san-pham-hai-phia" class="anchor" aria-hidden="true">#</a>Frontend và backend: cùng một sản phẩm, hai phía</h2>
+<p>Bạn đã làm frontend 4 năm, nên thật ra bạn đã "dùng" backend hằng ngày: mỗi lần gọi <code>fetch('/api/orders')</code> là bạn đang nói chuyện với một chương trình chạy trên máy chủ. Lộ trình này dạy bạn viết chính chương trình đó.</p>
+<p>Khác biệt lớn nhất không nằm ở ngôn ngữ mà ở <b>trách nhiệm</b>:</p>
+<table>
+<tr><th>Chủ đề</th><th>Frontend (bạn đã quen)</th><th>Backend (bạn sẽ học)</th></tr>
+<tr><td>Chạy ở đâu</td><td>Trên máy của từng người dùng</td><td>Trên máy chủ của bạn, phục vụ <b>mọi</b> người dùng cùng lúc</td></tr>
+<tr><td>State</td><td>State của một người (store, signal, useState)</td><td>State chung của tất cả mọi người (database), sống nhiều năm</td></tr>
+<tr><td>Niềm tin</td><td>Tin dữ liệu từ API</td><td><b>Không tin bất cứ thứ gì</b> từ client: ai cũng có thể sửa request</td></tr>
+<tr><td>Lỗi</td><td>Một người thấy màn hình lỗi</td><td>Một lỗi có thể làm sai dữ liệu của hàng nghìn người, hoặc sập cho tất cả</td></tr>
+<tr><td>Đồng thời</td><td>Một luồng, event loop</td><td>Hàng nghìn request chạy song song, tranh nhau cùng một dòng dữ liệu</td></tr>
+<tr><td>Hiệu năng</td><td>Bundle size, render, LCP</td><td>Độ trễ mỗi request, số request mỗi giây, số câu truy vấn, chi phí máy chủ</td></tr>
+<tr><td>Triển khai</td><td>Đẩy file tĩnh lên CDN</td><td>Chạy tiến trình liên tục, thay bản mới mà không làm rơi request, đổi cấu trúc database</td></tr>
+</table>
+
+<aside class="fe"><p>Hãy nghĩ backend như một <b>component dùng chung cho cả thế giới</b>: props là request, state là database, và "re-render" là response. Chỉ khác là component này không bao giờ được tắt, và mọi người đều có thể gửi props bậy vào.</p></aside>
+
+<h2 id="mot-request-di-qua-nhung-dau"><a href="#mot-request-di-qua-nhung-dau" class="anchor" aria-hidden="true">#</a>Một request đi qua những đâu</h2>
+<p>Khi người dùng bấm "Đặt hàng" trên một trang thương mại điện tử, request thường đi qua chừng này lớp:</p>
+<figure class="dg"><svg viewBox="0 0 790.4000000000001 558" style="min-width:600px;max-width:790.4000000000001px" role="img" aria-label="Đường đi điển hình của một request trong hệ thống thật"><g class="nd fe"><rect x="10" y="10" width="439.20000000000005" height="66" rx="10"/><text x="229.60000000000002" y="40" class="tt" text-anchor="middle">Trình duyệt</text><text x="229.60000000000002" y="58" class="ts" text-anchor="middle">app / fetch('/api/orders')</text></g><line x1="229.60000000000002" y1="80" x2="229.60000000000002" y2="124" class="ln" marker-end="url(#ar)"/><text x="243.60000000000002" y="107" class="tl" text-anchor="start">DNS: shop.vn là IP nào?</text><g class="nd ext"><rect x="10" y="128" width="439.20000000000005" height="66" rx="10"/><text x="229.60000000000002" y="158" class="tt" text-anchor="middle">CDN</text><text x="229.60000000000002" y="176" class="ts" text-anchor="middle">WAF (ví dụ Cloudflare) / chặn tấn công, cache file tĩnh, TLS</text></g><line x1="229.60000000000002" y1="198" x2="229.60000000000002" y2="242" class="ln" marker-end="url(#ar)"/><text x="243.60000000000002" y="225" class="tl" text-anchor="start">HTTPS</text><g class="nd ext"><rect x="10" y="246" width="439.20000000000005" height="66" rx="10"/><text x="229.60000000000002" y="276" class="tt" text-anchor="middle">Load balancer</text><text x="229.60000000000002" y="294" class="ts" text-anchor="middle">chia đều cho nhiều máy</text></g><line x1="229.60000000000002" y1="316" x2="229.60000000000002" y2="360" class="ln" marker-end="url(#ar)"/><text x="243.60000000000002" y="343" class="tl" text-anchor="start">HTTP nội bộ</text><g class="nd go"><rect x="10" y="364" width="439.20000000000005" height="66" rx="10"/><text x="229.60000000000002" y="394" class="tt" text-anchor="middle">Go API server (nhiều bản chạy song song)</text><text x="229.60000000000002" y="412" class="ts" text-anchor="middle">kiểm tra đăng nhập, quyền, dữ liệu, nghiệp vụ</text></g><line x1="229.60000000000002" y1="434" x2="229.60000000000002" y2="478" class="ln" marker-end="url(#ar)"/><text x="243.60000000000002" y="461" class="tl" text-anchor="start">SQL / lệnh Redis / đẩy việc vào hàng đợi</text><g class="nd db"><rect x="10" y="482" width="439.20000000000005" height="66" rx="10"/><text x="229.60000000000002" y="512" class="tt" text-anchor="middle">PostgreSQL · Redis · Hàng đợi</text><text x="229.60000000000002" y="530" class="ts" text-anchor="middle">lưu đơn, cache, việc chạy nền</text></g></svg><figcaption>Đường đi điển hình của một request trong hệ thống thật</figcaption></figure>
+<p>Và đây là những gì diễn ra theo thời gian, trong khoảng vài chục mili giây:</p>
+<figure class="dg"><svg viewBox="0 0 842.4000000000001 510" style="min-width:600px;max-width:842.4000000000001px" role="img" aria-label="Đặt hàng: frontend chỉ thấy một lần fetch, backend làm cả chuỗi việc"><line x1="81.2" y1="66" x2="81.2" y2="500" class="lf"/><g class="nd fe"><rect x="20" y="10" width="122.4" height="54" rx="10"/><text x="81.2" y="42" class="tt" text-anchor="middle">Trình duyệt</text></g><line x1="251.2" y1="66" x2="251.2" y2="500" class="lf"/><g class="nd go"><rect x="190" y="10" width="122.4" height="54" rx="10"/><text x="251.2" y="42" class="tt" text-anchor="middle">Go API</text></g><line x1="421.2" y1="66" x2="421.2" y2="500" class="lf"/><g class="nd cache"><rect x="360" y="10" width="122.4" height="54" rx="10"/><text x="421.2" y="42" class="tt" text-anchor="middle">Redis</text></g><line x1="591.2" y1="66" x2="591.2" y2="500" class="lf"/><g class="nd db"><rect x="530" y="10" width="122.4" height="54" rx="10"/><text x="591.2" y="42" class="tt" text-anchor="middle">Postgres</text></g><line x1="761.2" y1="66" x2="761.2" y2="500" class="lf"/><g class="nd q"><rect x="700" y="10" width="122.4" height="54" rx="10"/><text x="761.2" y="42" class="tt" text-anchor="middle">Hàng đợi</text></g><line x1="81.2" y1="106" x2="247.2" y2="106" class="ln" marker-end="url(#ar)"/><text x="166.2" y="83" class="tl" text-anchor="middle">POST /api/orders</text><text x="166.2" y="99" class="tl" text-anchor="middle">(cookie phiên)</text><line x1="251.2" y1="148" x2="417.2" y2="148" class="ln" marker-end="url(#ar)"/><text x="336.2" y="141" class="tl" text-anchor="middle">phiên này của ai?</text><line x1="421.2" y1="190" x2="255.2" y2="190" class="ln ds" marker-end="url(#ar)"/><text x="336.2" y="183" class="tl" text-anchor="middle">user 42</text><rect x="49.91999999999996" y="220" width="402.56000000000006" height="28" rx="6" class="nt"/><text x="251.2" y="238" class="tn" text-anchor="middle">kiểm tra dữ liệu, giá lấy từ DB, không lấy từ client</text><line x1="251.2" y1="274" x2="587.2" y2="274" class="ln" marker-end="url(#ar)"/><text x="421.20000000000005" y="267" class="tl" text-anchor="middle">BEGIN, trừ kho, tạo đơn, COMMIT</text><line x1="591.2" y1="316" x2="255.2" y2="316" class="ln ds" marker-end="url(#ar)"/><text x="421.20000000000005" y="309" class="tl" text-anchor="middle">đơn #9001</text><line x1="251.2" y1="358" x2="757.2" y2="358" class="ln" marker-end="url(#ar)"/><text x="506.20000000000005" y="351" class="tl" text-anchor="middle">&quot;gửi email xác nhận đơn 9001&quot;</text><line x1="251.2" y1="416" x2="85.2" y2="416" class="ln ds" marker-end="url(#ar)"/><text x="166.2" y="393" class="tl" text-anchor="middle">201 Created {id:</text><text x="166.2" y="409" class="tl" text-anchor="middle">9001}</text><rect x="488.08000000000004" y="446" width="344.32000000000005" height="28" rx="6" class="nt"/><text x="660.24" y="464" class="tn" text-anchor="middle">worker gửi email sau, request không phải chờ</text></svg><figcaption>Đặt hàng: frontend chỉ thấy một lần fetch, backend làm cả chuỗi việc</figcaption></figure>
+<p>Mỗi ô trong sơ đồ này là một bài trong lộ trình: HTTP (bài 11), xác thực (18), SQL và giao dịch (14 đến 16), cache (17), hàng đợi (20).</p>
+
+<h2 id="backend-chiu-trach-nhiem-nhung-gi"><a href="#backend-chiu-trach-nhiem-nhung-gi" class="anchor" aria-hidden="true">#</a>Backend chịu trách nhiệm những gì</h2>
+<ol>
+<li><b>Nguồn sự thật (source of truth).</b> Frontend hiển thị, backend quyết định. Số dư, giá tiền, quyền truy cập, trạng thái đơn hàng chỉ đúng khi backend nói nó đúng.</li>
+<li><b>Bảo mật.</b> Mọi kiểm tra ở frontend (ẩn nút, disable form) chỉ là trải nghiệm người dùng. Người dùng mở DevTools hoặc dùng <code>curl</code> là vượt qua được. Kiểm tra thật nằm ở backend.</li>
+<li><b>Toàn vẹn dữ liệu.</b> Hai người cùng mua món hàng cuối cùng: chỉ một người được mua. Tiền đã trừ thì đơn phải được tạo. Đây là việc của transaction và ràng buộc trong database.</li>
+<li><b>Hiệu năng và chi phí.</b> Một truy vấn chậm 200ms chạy 1 triệu lần mỗi ngày là hơn 55 giờ máy chủ.</li>
+<li><b>Độ tin cậy.</b> Máy chủ sẽ chết, mạng sẽ chập chờn, dịch vụ bên thứ ba sẽ trả lỗi. Backend tốt vẫn chạy đúng khi những thứ đó xảy ra.</li>
+<li><b>Quan sát được.</b> Khi có lỗi lúc 2 giờ sáng, log và số liệu phải cho bạn biết chuyện gì đã xảy ra.</li>
+</ol>
+
+<h3>Quy tắc số một: không tin client</h3>
+<p>Một lỗi kinh điển của người mới làm backend: lấy giá tiền từ request.</p>
+<div class="code"><div class="code-h"><span>Request gửi lên (người dùng sửa được bằng DevTools)</span><button class="copy" type="button">Sao chép</button></div><pre><code>{ <span class="s">&quot;productId&quot;</span>: <span class="n">7</span>, <span class="s">&quot;quantity&quot;</span>: <span class="n">1</span>, <span class="s">&quot;price&quot;</span>: <span class="n">1000</span> }</code></pre></div>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Tin luôn giá từ client: người dùng sửa price = 1000 là mua iPhone giá 1.000đ</span>
+total := req.Price * req.Quantity</code></pre></div>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Giá luôn lấy từ database. Client chỉ được nói &quot;tôi muốn mua món nào, bao nhiêu cái&quot;.</span>
+product, err := repo.<span class="f">GetProduct</span>(ctx, req.ProductID)
+<span class="k">if</span> err != <span class="b">nil</span> {
+    <span class="k">return</span> err
+}
+total := product.Price * <span class="t">int64</span>(req.Quantity)</code></pre></div>
+<aside class="real"><p>Lỗi kiểu này xảy ra thật: nhiều chương trình săn lỗi (bug bounty) của các sàn thương mại điện tử đã trả thưởng cho các báo cáo "sửa giá / sửa số lượng âm trong request". Bài 19 sẽ đi qua cả danh sách lỗi hay gặp nhất.</p></aside>
+
+<h2 id="vi-sao-chon-go"><a href="#vi-sao-chon-go" class="anchor" aria-hidden="true">#</a>Vì sao chọn Go</h2>
+<p>Go được Google tạo ra (công bố năm 2009, bản 1.0 năm 2012) để viết các dịch vụ mạng lớn. Nó cố tình đơn giản: ít từ khoá, một cách định dạng code duy nhất, không có class và kế thừa.</p>
+<table>
+<tr><th>Điểm mạnh</th><th>Ý nghĩa với bạn</th></tr>
+<tr><td>Biên dịch ra <b>một file chạy duy nhất</b></td><td>Không cần <code>node_modules</code> trên máy chủ. Copy một file lên là chạy. Docker image có thể chỉ vài chục MB.</td></tr>
+<tr><td><b>Goroutine</b> rẻ</td><td>Mỗi request chạy trên một goroutine riêng. Hàng chục nghìn kết nối đồng thời là chuyện bình thường.</td></tr>
+<tr><td>Kiểu tĩnh, biên dịch nhanh</td><td>Giống TypeScript nhưng kiểu được kiểm tra thật lúc biên dịch, không bị <code>any</code> lọt qua.</td></tr>
+<tr><td>Thư viện chuẩn mạnh</td><td>HTTP server, JSON, mã hoá, test, đo hiệu năng đều có sẵn, không cần cài framework.</td></tr>
+<tr><td>Dễ đọc code người khác</td><td><code>gofmt</code> định dạng mọi code giống nhau. Vào công ty mới, đọc code cũ rất nhanh.</td></tr>
+</table>
+<p><b>Những phần mềm nổi tiếng viết bằng Go:</b> Docker, Kubernetes, Terraform, Prometheus, Grafana (phần backend), etcd, CockroachDB, Caddy, Hugo. <b>Những công ty dùng Go nhiều cho backend:</b> Google, Uber, Cloudflare, Twitch, Dropbox, và ở Đông Nam Á có Grab.</p>
+
+<h3>Go so với Node.js</h3>
+<table>
+<tr><th></th><th>Node.js (TypeScript)</th><th>Go</th></tr>
+<tr><td>Mô hình đồng thời</td><td>Một luồng + event loop, <code>async/await</code></td><td>Nhiều goroutine chạy song song trên mọi nhân CPU, code viết tuần tự như bình thường</td></tr>
+<tr><td>Việc nặng CPU</td><td>Chặn event loop, cần worker threads</td><td>Không chặn request khác</td></tr>
+<tr><td>Kiểu dữ liệu</td><td>Kiểm tra lúc build, mất khi chạy</td><td>Kiểm tra lúc biên dịch và giữ khi chạy</td></tr>
+<tr><td>Triển khai</td><td>Cần Node runtime + node_modules</td><td>Một file nhị phân</td></tr>
+<tr><td>Hệ sinh thái</td><td>Cực lớn (npm)</td><td>Nhỏ hơn, nhưng thư viện chuẩn làm được rất nhiều</td></tr>
+<tr><td>Dùng chung code với FE</td><td>Được</td><td>Không</td></tr>
+</table>
+<aside class="warn"><p>Go không phải lựa chọn tốt nhất cho mọi thứ. Học máy và phân tích dữ liệu thì Python mạnh hơn nhiều. Hệ thống cần độ trễ cực thấp và ổn định tuyệt đối (không chấp nhận bộ thu gom rác) thì người ta chọn Rust hoặc C++. Bài 23 có câu chuyện Discord chuyển một dịch vụ từ Go sang Rust vì lý do này.</p></aside>
+
+<h2 id="nhung-thay-doi-trong-cach-nghi"><a href="#nhung-thay-doi-trong-cach-nghi" class="anchor" aria-hidden="true">#</a>Những thay đổi trong cách nghĩ</h2>
+<p>Đây là những thứ dân frontend chuyển sang backend hay vấp nhất. Bạn không cần nhớ ngay, nhưng sẽ gặp lại chúng xuyên suốt lộ trình:</p>
+<ul>
+<li><b>"Chạy trên máy tôi được" không còn đủ.</b> Hai request đến cùng lúc, mạng mất giữa chừng, người dùng bấm nút hai lần: code phải đúng trong mọi trường hợp đó.</li>
+<li><b>Dữ liệu sống lâu hơn code.</b> Bạn có thể viết lại frontend trong một tuần. Dữ liệu 5 năm trong database thì phải chuyển đổi cẩn thận từng cột (migration).</li>
+<li><b>Mọi thứ đều có giới hạn.</b> Upload tối đa bao nhiêu MB? Một trang trả bao nhiêu dòng? Một người được gọi API bao nhiêu lần mỗi phút? Không đặt giới hạn là chờ bị sập.</li>
+<li><b>Lỗi là chuyện bình thường.</b> Go buộc bạn xử lý lỗi ở mọi bước (bài 7). Lúc đầu thấy dài dòng, sau sẽ thấy đó là lý do hệ thống Go ít bất ngờ.</li>
+<li><b>Đo, đừng đoán.</b> Chậm ở đâu thì xem log, metrics, kế hoạch truy vấn. Đừng tối ưu theo cảm giác.</li>
+</ul>
+
+<h2 id="lo-trinh-nay-day-gi"><a href="#lo-trinh-nay-day-gi" class="anchor" aria-hidden="true">#</a>Lộ trình này dạy gì</h2>
+<figure class="dg"><svg viewBox="0 0 633.12 504" style="min-width:600px;max-width:633.12px" role="img" aria-label="Bảy chặng, mỗi chặng xây trên chặng trước"><g class="nd "><rect x="10" y="10" width="216.4" height="52" rx="10"/><text x="118.2" y="41" class="tt" text-anchor="middle">Chặng 0 · Khởi động</text></g><text x="246.4" y="41" class="tl" text-anchor="start">bạn đang ở đây</text><line x1="118.2" y1="62" x2="118.2" y2="80" class="ln" marker-end="url(#ar)"/><g class="nd go"><rect x="10" y="82" width="216.4" height="52" rx="10"/><text x="118.2" y="113" class="tt" text-anchor="middle">Chặng 1 · Ngôn ngữ Go</text></g><text x="246.4" y="113" class="tl" text-anchor="start">cú pháp, struct, interface, lỗi, goroutine, test</text><line x1="118.2" y1="134" x2="118.2" y2="152" class="ln" marker-end="url(#ar)"/><g class="nd fe"><rect x="10" y="154" width="216.4" height="52" rx="10"/><text x="118.2" y="185" class="tt" text-anchor="middle">Chặng 2 · Xây API</text></g><text x="246.4" y="185" class="tl" text-anchor="start">HTTP, REST, middleware, cấu trúc dự án</text><line x1="118.2" y1="206" x2="118.2" y2="224" class="ln" marker-end="url(#ar)"/><g class="nd db"><rect x="10" y="226" width="216.4" height="52" rx="10"/><text x="118.2" y="257" class="tt" text-anchor="middle">Chặng 3 · Dữ liệu</text></g><text x="246.4" y="257" class="tl" text-anchor="start">SQL, Postgres, index, transaction, Redis</text><line x1="118.2" y1="278" x2="118.2" y2="296" class="ln" marker-end="url(#ar)"/><g class="nd warn"><rect x="10" y="298" width="216.4" height="52" rx="10"/><text x="118.2" y="329" class="tt" text-anchor="middle">Chặng 4 · Bảo mật</text></g><text x="246.4" y="329" class="tl" text-anchor="start">đăng nhập, phân quyền, OWASP API Top 10</text><line x1="118.2" y1="350" x2="118.2" y2="368" class="ln" marker-end="url(#ar)"/><g class="nd cache"><rect x="10" y="370" width="216.4" height="52" rx="10"/><text x="118.2" y="401" class="tt" text-anchor="middle">Chặng 5 · Vận hành</text></g><text x="246.4" y="401" class="tl" text-anchor="start">hàng đợi, webhook, giám sát, Docker, hệ thống lớn</text><line x1="118.2" y1="422" x2="118.2" y2="440" class="ln" marker-end="url(#ar)"/><g class="nd ok"><rect x="10" y="442" width="216.4" height="52" rx="10"/><text x="118.2" y="473" class="tt" text-anchor="middle">Chặng 6 · Dự án cuối</text></g><text x="246.4" y="473" class="tl" text-anchor="start">API &quot;Sổ bài tập&quot; hoàn chỉnh</text></svg><figcaption>Bảy chặng, mỗi chặng xây trên chặng trước</figcaption></figure>
+<p>Mỗi bài có cấu trúc giống nhau: giải thích kèm so sánh với frontend, sơ đồ, code mẫu, hộp <b>Ngoài thực tế</b> kể chuyện ở các hệ thống thật, hộp <b>Chuẩn production</b> nói người ta làm thế nào ở công ty, câu hỏi nhanh và bài tập có lời giải.</p>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Người dùng gửi request đổi mật khẩu cho tài khoản <code>userId: 99</code>, trong khi họ đang đăng nhập bằng tài khoản 42. Frontend đã ẩn ô nhập userId. Backend nên làm gì?</p><div class="qo"><button type="button" class="opt">Không cần làm gì, vì frontend đã ẩn ô nhập</button><button type="button" class="opt">Kiểm tra userId có tồn tại trong database không</button><button type="button" class="opt" data-ok>Bỏ qua userId trong request, lấy người dùng từ phiên đăng nhập (42), hoặc từ chối nếu hai giá trị khác nhau</button></div><p class="why" hidden>Mọi thứ trong request đều có thể bị sửa. Danh tính người dùng chỉ được lấy từ phiên đăng nhập mà backend tự xác minh. Đây là lỗi BOLA, đứng số 1 trong OWASP API Top 10 (bài 19).</p></div>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Vì sao Go phù hợp với dịch vụ có hàng chục nghìn kết nối đồng thời?</p><div class="qo"><button type="button" class="opt">Vì Go chạy một luồng duy nhất giống Node.js</button><button type="button" class="opt" data-ok>Vì mỗi kết nối có thể chạy trên một goroutine rất nhẹ, và các goroutine chạy song song trên mọi nhân CPU</button><button type="button" class="opt">Vì Go không có bộ thu gom rác</button></div><p class="why" hidden>Goroutine khởi đầu với stack chỉ vài KB và được bộ lập lịch của Go phân phối lên các luồng hệ điều hành. Go vẫn có bộ thu gom rác (GC), chỉ là nó được tối ưu cho độ trễ thấp.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Vẽ đường đi của một tính năng bạn từng làm</summary>
+<p>Chọn một màn hình bạn từng làm ở frontend (ví dụ trang danh sách đơn hàng có phân trang và bộ lọc). Viết ra giấy:</p>
+<ol><li>Những request nào được gửi đi, method gì, URL gì.</li><li>Với mỗi request, backend phải kiểm tra những gì trước khi trả dữ liệu.</li><li>Dữ liệu đó có thể nằm ở những bảng nào trong database.</li></ol>
+<details class="sol"><summary>Gợi ý đáp án</summary>
+<p>Ví dụ <code>GET /api/orders?status=paid&amp;page=2</code>. Backend phải: xác định người gọi là ai (phiên đăng nhập), chỉ lấy đơn của chính người đó (không để xem đơn người khác), kiểm tra <code>status</code> có thuộc danh sách hợp lệ, giới hạn <code>page</code> và số dòng mỗi trang, rồi truy vấn bảng <code>orders</code> (có thể JOIN <code>order_items</code>, <code>products</code>). Bạn sẽ tự viết đúng endpoint này ở bài 12 và 15.</p>
+</details>
+</details>
+<details class="ex"><summary>Thử "tấn công" một trang của chính bạn</summary>
+<p>Mở một dự án frontend bạn đang làm. Trong DevTools, tab Network, chuột phải một request → <i>Copy as cURL</i>. Dán vào terminal, sửa một tham số (id của bản ghi, số lượng, vai trò) rồi gửi lại. Backend có chặn không?</p>
+<details class="sol"><summary>Bạn vừa học được gì</summary>
+<p>Đây là cách người kiểm thử bảo mật làm hằng ngày. Từ giờ, mỗi endpoint bạn viết hãy tự hỏi: "nếu ai đó gửi request này bằng curl với tham số bậy thì sao?"</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="lo-trinh">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><span></span><a class="next" href="cai-dat.html"><small>Bài tiếp theo</small>Cài Go và chương trình đầu tiên</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#frontend-va-backend-cung-mot-san-pham-hai-phia">Frontend và backend: cùng một sản phẩm, hai phía</a><a href="#mot-request-di-qua-nhung-dau">Một request đi qua những đâu</a><a href="#backend-chiu-trach-nhiem-nhung-gi">Backend chịu trách nhiệm những gì</a><a href="#vi-sao-chon-go">Vì sao chọn Go</a><a href="#nhung-thay-doi-trong-cach-nghi">Những thay đổi trong cách nghĩ</a><a href="#lo-trinh-nay-day-gi">Lộ trình này dạy gì</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 17: Cache và Redis · Go cho dân Frontend</title>
+<meta name="description" content="Khi nào cần cache, cache-aside, TTL, xoá cache, cache stampede, giới hạn tần suất bằng Redis.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache" aria-current="page"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="cache">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#059669">Chặng 3 · Dữ liệu</span><span>Bài 17</span><span>45 phút đọc + làm bài</span></div>
+    <h1>Cache và Redis</h1>
+    <p class="lead">Khi nào cần cache, cache-aside, TTL, xoá cache, cache stampede, giới hạn tần suất bằng Redis.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Áp dụng cache-aside với Redis</li><li>Biết các cách cache làm sai dữ liệu</li><li>Chặn hàng nghìn request trùng bằng singleflight</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="khi-nao-can-cache"><a href="#khi-nao-can-cache" class="anchor" aria-hidden="true">#</a>Khi nào cần cache</h2>
+<p>Cache là giữ sẵn kết quả của một việc tốn kém để lần sau trả ngay. Nhưng cache cũng là nguồn gốc của rất nhiều lỗi "dữ liệu cũ". Câu đùa nổi tiếng của Phil Karlton: <i>"Chỉ có hai việc khó trong khoa học máy tính: xoá cache cho đúng và đặt tên."</i></p>
+<p>Chỉ cache khi <b>đo được</b> là cần:</p>
+<ul>
+<li>Dữ liệu được đọc nhiều hơn ghi rất nhiều (cấu hình, danh mục, trang chủ, hồ sơ công khai).</li>
+<li>Tính toán đắt (báo cáo tổng hợp, gọi API bên ngoài có tính phí hoặc chậm).</li>
+<li>Chấp nhận được việc dữ liệu cũ đi vài giây / vài phút.</li>
+</ul>
+<aside class="tip"><p>Trước khi thêm cache, hãy thử thêm index hoặc sửa N+1 (bài 16). Một truy vấn 0,1ms có index thì không cần cache. Cache che đi một truy vấn chậm, nhưng không sửa được nó.</p></aside>
+
+<h2 id="cac-tang-cache-trong-mot-he-thong"><a href="#cac-tang-cache-trong-mot-he-thong" class="anchor" aria-hidden="true">#</a>Các tầng cache trong một hệ thống</h2>
+<figure class="dg"><svg viewBox="0 0 1154 86" style="min-width:600px;max-width:1154px" role="img" aria-label="Càng gần người dùng càng nhanh, nhưng càng khó xoá khi dữ liệu đổi"><g class="nd fe"><rect x="10" y="10" width="153.68" height="66" rx="10"/><text x="86.84" y="40" class="tt" text-anchor="middle">Trình duyệt</text><text x="86.84" y="58" class="ts" text-anchor="middle">Cache-Control, ETag</text></g><line x1="165.68" y1="43" x2="229.68" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd ext"><rect x="233.68" y="10" width="200.72000000000003" height="66" rx="10"/><text x="334.04" y="40" class="tt" text-anchor="middle">CDN</text><text x="334.04" y="58" class="ts" text-anchor="middle">file tĩnh, trang công khai</text></g><line x1="436.40000000000003" y1="43" x2="500.40000000000003" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd go"><rect x="504.40000000000003" y="10" width="189.60000000000002" height="66" rx="10"/><text x="599.2" y="40" class="tt" text-anchor="middle">Bộ nhớ trong server</text><text x="599.2" y="58" class="ts" text-anchor="middle">dữ liệu rất nóng, ít đổi</text></g><line x1="696" y1="43" x2="760" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd cache"><rect x="764" y="10" width="194.00000000000003" height="66" rx="10"/><text x="861" y="40" class="tt" text-anchor="middle">Redis</text><text x="861" y="58" class="ts" text-anchor="middle">dùng chung mọi bản server</text></g><line x1="960" y1="43" x2="1024" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd db"><rect x="1028" y="10" width="116" height="66" rx="10"/><text x="1086" y="40" class="tt" text-anchor="middle">Database</text><text x="1086" y="58" class="ts" text-anchor="middle">nguồn sự thật</text></g></svg><figcaption>Càng gần người dùng càng nhanh, nhưng càng khó xoá khi dữ liệu đổi</figcaption></figure>
+<aside class="fe"><p>Bạn đã quen với tầng đầu: <code>Cache-Control: max-age=31536000, immutable</code> cho file JS có hash trong tên, và React Query / SWR giữ dữ liệu API trong bộ nhớ của tab. Backend thêm các tầng phía sau.</p></aside>
+
+<h2 id="redis"><a href="#redis" class="anchor" aria-hidden="true">#</a>Redis</h2>
+<p>Redis là một kho key-value chạy trong RAM, mỗi lệnh thường mất dưới 1ms. Ngoài làm cache, nó còn được dùng cho: phiên đăng nhập, đếm giới hạn tần suất, khoá phân tán, hàng đợi đơn giản, bảng xếp hạng.</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">docker</span> run -d --name redis -p <span class="n">6379</span>:<span class="n">6379</span> redis:<span class="n">7</span>
+<span class="k">docker</span> exec -it redis redis-cli</code></pre></div>
+<div class="code"><div class="code-h"><span>redis-cli</span><button class="copy" type="button">Sao chép</button></div><pre><code>SET user:42:name &quot;Lan&quot; EX 60     # lưu, hết hạn sau 60 giây
+GET user:42:name                  # &quot;Lan&quot;
+TTL user:42:name                  # còn bao nhiêu giây
+INCR rl:login:1.2.3.4             # tăng bộ đếm (nguyên tử), trả về giá trị mới
+DEL user:42:name</code></pre></div>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;github.com/redis/go-redis/v9&quot;</span>
+
+rdb := redis.<span class="f">NewClient</span>(&amp;redis.Options{Addr: <span class="s">&quot;localhost:6379&quot;</span>})
+<span class="c">// Hoặc từ URL: opt, _ := redis.ParseURL(os.Getenv(&quot;REDIS_URL&quot;)); rdb := redis.NewClient(opt)</span>
+
+err := rdb.<span class="f">Set</span>(ctx, <span class="s">&quot;user:42:name&quot;</span>, <span class="s">&quot;Lan&quot;</span>, time.Minute).<span class="f">Err</span>()
+name, err := rdb.<span class="f">Get</span>(ctx, <span class="s">&quot;user:42:name&quot;</span>).<span class="f">Result</span>()
+<span class="k">if</span> errors.<span class="f">Is</span>(err, redis.Nil) { <span class="c">// khoá không tồn tại</span>
+    <span class="c">// ...</span>
+}</code></pre></div>
+
+<h2 id="cache-aside-mau-dung-nhieu-nhat"><a href="#cache-aside-mau-dung-nhieu-nhat" class="anchor" aria-hidden="true">#</a>Cache-aside: mẫu dùng nhiều nhất</h2>
+<figure class="dg"><svg viewBox="0 0 500 448" style="min-width:500px;max-width:500px" role="img" aria-label="Đọc: thử cache trước, không có thì lấy từ database rồi ghi vào cache"><line x1="80" y1="66" x2="80" y2="438" class="lf"/><g class="nd go"><rect x="20" y="10" width="120" height="54" rx="10"/><text x="80" y="42" class="tt" text-anchor="middle">Service</text></g><line x1="250" y1="66" x2="250" y2="438" class="lf"/><g class="nd cache"><rect x="190" y="10" width="120" height="54" rx="10"/><text x="250" y="42" class="tt" text-anchor="middle">Redis</text></g><line x1="420" y1="66" x2="420" y2="438" class="lf"/><g class="nd db"><rect x="360" y="10" width="120" height="54" rx="10"/><text x="420" y="42" class="tt" text-anchor="middle">Postgres</text></g><line x1="80" y1="90" x2="246" y2="90" class="ln" marker-end="url(#ar)"/><text x="165" y="83" class="tl" text-anchor="middle">GET class:42:summary</text><line x1="250" y1="132" x2="84" y2="132" class="ln ds" marker-end="url(#ar)"/><text x="165" y="125" class="tl" text-anchor="middle">không có (miss)</text><line x1="80" y1="174" x2="416" y2="174" class="ln" marker-end="url(#ar)"/><text x="250" y="167" class="tl" text-anchor="middle">truy vấn tổng hợp (50ms)</text><line x1="420" y1="216" x2="84" y2="216" class="ln ds" marker-end="url(#ar)"/><text x="250" y="209" class="tl" text-anchor="middle">kết quả</text><line x1="80" y1="274" x2="246" y2="274" class="ln" marker-end="url(#ar)"/><text x="165" y="251" class="tl" text-anchor="middle">SET class:42:summary</text><text x="165" y="267" class="tl" text-anchor="middle">... EX 300</text><line x1="10" y1="322" x2="490" y2="322" class="dv"/><rect x="169.44" y="310" width="161.12" height="22" rx="11" class="dvb"/><text x="250" y="326" class="ts" text-anchor="middle">lần sau, trong 5 phút</text><line x1="80" y1="354" x2="246" y2="354" class="ln" marker-end="url(#ar)"/><text x="165" y="347" class="tl" text-anchor="middle">GET class:42:summary</text><line x1="250" y1="396" x2="84" y2="396" class="ln ds" marker-end="url(#ar)"/><text x="165" y="389" class="tl" text-anchor="middle">có (hit), 0,5ms</text></svg><figcaption>Đọc: thử cache trước, không có thì lấy từ database rồi ghi vào cache</figcaption></figure>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Service) <span class="f">ClassSummary</span>(ctx context.Context, classID <span class="t">int64</span>) (Summary, <span class="t">error</span>) {
+    key := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;class:%d:summary:v1&quot;</span>, classID)
+
+    <span class="k">if</span> b, err := s.rdb.<span class="f">Get</span>(ctx, key).<span class="f">Bytes</span>(); err == <span class="b">nil</span> {
+        <span class="k">var</span> sum Summary
+        <span class="k">if</span> json.<span class="f">Unmarshal</span>(b, &amp;sum) == <span class="b">nil</span> {
+            <span class="k">return</span> sum, <span class="b">nil</span> <span class="c">// hit</span>
+        }
+    } <span class="k">else</span> <span class="k">if</span> !errors.<span class="f">Is</span>(err, redis.Nil) {
+        <span class="c">// Redis lỗi: ghi log rồi đi tiếp vào database, KHÔNG làm hỏng request</span>
+        slog.<span class="f">WarnContext</span>(ctx, <span class="s">&quot;redis get&quot;</span>, <span class="s">&quot;err&quot;</span>, err)
+    }
+
+    sum, err := s.store.<span class="f">ComputeSummary</span>(ctx, classID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> Summary{}, err
+    }
+    <span class="k">if</span> b, err := json.<span class="f">Marshal</span>(sum); err == <span class="b">nil</span> {
+        s.rdb.<span class="f">Set</span>(ctx, key, b, <span class="n">5</span>*time.Minute) <span class="c">// lỗi ghi cache cũng không làm hỏng request</span>
+    }
+    <span class="k">return</span> sum, <span class="b">nil</span>
+}</code></pre></div>
+<aside class="prod"><p>Cache phải là thứ <b>có cũng được, mất cũng được</b>. Redis sập thì hệ thống chậm đi, không được chết theo. Và luôn có <b>TTL</b>: dù bạn quên xoá cache ở đâu đó, dữ liệu sai cũng chỉ tồn tại tối đa bằng TTL.</p></aside>
+<p>Hậu tố <code>:v1</code> trong khoá: khi đổi cấu trúc <code>Summary</code>, tăng lên <code>v2</code>, bản code mới không đọc nhầm dữ liệu cache dạng cũ.</p>
+
+<h2 id="xoa-cache-khi-du-lieu-doi"><a href="#xoa-cache-khi-du-lieu-doi" class="anchor" aria-hidden="true">#</a>Xoá cache khi dữ liệu đổi</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Service) <span class="f">Submit</span>(ctx context.Context, sub Submission) <span class="t">error</span> {
+    <span class="k">if</span> err := s.store.<span class="f">Submit</span>(ctx, sub); err != <span class="b">nil</span> { <span class="c">// 1. ghi database trước</span>
+        <span class="k">return</span> err
+    }
+    s.rdb.<span class="f">Del</span>(ctx, fmt.<span class="f">Sprintf</span>(<span class="s">&quot;class:%d:summary:v1&quot;</span>, sub.ClassID)) <span class="c">// 2. rồi xoá cache</span>
+    <span class="k">return</span> <span class="b">nil</span>
+}</code></pre></div>
+<p>Vì sao <b>xoá</b> thay vì ghi giá trị mới vào cache? Vì hai request cập nhật cùng lúc có thể ghi cache theo thứ tự ngược với database, để lại giá trị cũ trong cache. Xoá thì lần đọc sau tự lấy giá trị đúng từ database.</p>
+<aside class="warn"><p>Vẫn còn một khe hở nhỏ: một request đọc lấy giá trị cũ từ database, request khác ghi và xoá cache, rồi request đọc kia mới ghi giá trị cũ vào cache. TTL giới hạn thời gian sai. Với dữ liệu tuyệt đối không được sai (số dư, tồn kho, quyền truy cập), <b>đừng cache</b>, hoặc chỉ dùng cache để hiển thị, còn quyết định thì luôn đọc từ database.</p></aside>
+
+<h2 id="cache-stampede-hang-nghin-request-cung-tinh-lai"><a href="#cache-stampede-hang-nghin-request-cung-tinh-lai" class="anchor" aria-hidden="true">#</a>Cache stampede: hàng nghìn request cùng tính lại</h2>
+<p>Trang chủ được cache 60 giây, 2.000 request mỗi giây. Đúng lúc cache hết hạn, 2.000 request cùng thấy "miss" và cùng chạy truy vấn nặng. Database quá tải, chậm lại, nhiều request hơn bị miss... Đây gọi là <i>cache stampede</i> (hay thundering herd).</p>
+<p>Cách chặn trong một tiến trình: <code>singleflight</code>. Các lời gọi cùng khoá đang chạy thì chờ và dùng chung kết quả của lời gọi đầu tiên.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;golang.org/x/sync/singleflight&quot;</span>
+
+<span class="k">type</span> Service <span class="k">struct</span> {
+    group singleflight.Group
+    <span class="c">// ...</span>
+}
+
+<span class="k">func</span> (s *Service) <span class="f">HomeFeed</span>(ctx context.Context) (Feed, <span class="t">error</span>) {
+    v, err, _ := s.group.<span class="f">Do</span>(<span class="s">&quot;home-feed&quot;</span>, <span class="k">func</span>() (<span class="t">any</span>, <span class="t">error</span>) {
+        <span class="k">return</span> s.<span class="f">loadHomeFeed</span>(ctx) <span class="c">// chỉ MỘT goroutine chạy, những cái khác chờ kết quả này</span>
+    })
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> Feed{}, err
+    }
+    <span class="k">return</span> v.(Feed), <span class="b">nil</span>
+}</code></pre></div>
+<p>Các cách khác: thêm ngẫu nhiên vào TTL (<code>5 phút ± 30 giây</code>) để các khoá không hết hạn cùng lúc, và làm mới cache ở nền trước khi hết hạn.</p>
+<aside class="real"><p>Package singleflight vốn nằm trong mã nguồn của groupcache, thư viện cache do Brad Fitzpatrick viết khi ở Google, dùng cho dl.google.com. Nó gom các yêu cầu trùng nhau để chỉ một yêu cầu thật sự đi tới nguồn.</p></aside>
+
+<h2 id="cache-trong-bo-nho-cua-server"><a href="#cache-trong-bo-nho-cua-server" class="anchor" aria-hidden="true">#</a>Cache trong bộ nhớ của server</h2>
+<p>Với dữ liệu nhỏ, rất nóng, ít đổi (cấu hình, danh sách môn học mặc định), map trong bộ nhớ có mutex nhanh hơn Redis nhiều (không qua mạng). Nhược điểm: mỗi bản server có bản riêng, không xoá đồng loạt được. Chỉ dùng với TTL ngắn và dữ liệu chấp nhận lệch giữa các máy.</p>
+
+<h2 id="gioi-han-tan-suat-rate-limit"><a href="#gioi-han-tan-suat-rate-limit" class="anchor" aria-hidden="true">#</a>Giới hạn tần suất (rate limit)</h2>
+<p>Chặn dò mật khẩu, spam gửi OTP / email, một người dùng ngốn hết tài nguyên. Hai cách:</p>
+<h3>Trong một tiến trình: token bucket</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;golang.org/x/time/rate&quot;</span>
+
+<span class="c">// Mỗi giây thêm 5 &quot;vé&quot;, tối đa dồn 10 vé: cho phép bùng 10 request rồi 5 request mỗi giây</span>
+lim := rate.<span class="f">NewLimiter</span>(<span class="n">5</span>, <span class="n">10</span>)
+<span class="k">if</span> !lim.<span class="f">Allow</span>() {
+    w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Retry-After&quot;</span>, <span class="s">&quot;1&quot;</span>)
+    http.<span class="f">Error</span>(w, <span class="s">&quot;Quá nhiều yêu cầu&quot;</span>, http.StatusTooManyRequests)
+    <span class="k">return</span>
+}</code></pre></div>
+<h3>Dùng chung nhiều server: đếm trong Redis</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Cửa sổ cố định: tối đa 5 lần đăng nhập sai mỗi 15 phút cho mỗi email</span>
+<span class="k">func</span> (s *Service) <span class="f">allowLogin</span>(ctx context.Context, email <span class="t">string</span>) (<span class="t">bool</span>, <span class="t">error</span>) {
+    key := <span class="s">&quot;rl:login:&quot;</span> + email
+    n, err := s.rdb.<span class="f">Incr</span>(ctx, key).<span class="f">Result</span>() <span class="c">// INCR là nguyên tử</span>
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="b">true</span>, err <span class="c">// Redis lỗi: tuỳ chính sách, ở đây cho qua và ghi log</span>
+    }
+    <span class="k">if</span> n == <span class="n">1</span> {
+        s.rdb.<span class="f">Expire</span>(ctx, key, <span class="n">15</span>*time.Minute) <span class="c">// lần đầu trong cửa sổ thì đặt hạn</span>
+    }
+    <span class="k">return</span> n &lt;= <span class="n">5</span>, <span class="b">nil</span>
+}</code></pre></div>
+<aside class="warn"><p>Đoạn trên có điểm yếu nhỏ: nếu server chết giữa <code>INCR</code> và <code>EXPIRE</code>, khoá không bao giờ hết hạn và người đó bị khoá mãi. Cách chắc chắn là gộp hai lệnh vào một <b>script Lua</b> hoặc một <code>MULTI/EXEC</code> pipeline để Redis chạy nguyên khối. Đây chính là loại lỗi "hai bước rời nhau" bạn đã gặp ở database.</p></aside>
+<aside class="real"><p>Các dịch vụ lớn trả về header cho client biết giới hạn: GitHub API dùng <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code>. Có một bản nháp chuẩn IETF cho header <code>RateLimit</code> đang được nhiều nơi áp dụng.</p></aside>
+
+<h2 id="cache-http-cho-client"><a href="#cache-http-cho-client" class="anchor" aria-hidden="true">#</a>Cache HTTP cho client</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Dữ liệu công khai, ít đổi: cho CDN và trình duyệt cache 5 phút</span>
+w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Cache-Control&quot;</span>, <span class="s">&quot;public, max-age=300&quot;</span>)
+
+<span class="c">// Dữ liệu riêng của người dùng: CDN không được cache</span>
+w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Cache-Control&quot;</span>, <span class="s">&quot;private, no-store&quot;</span>)</code></pre></div>
+<aside class="warn"><p>Một lỗi nghiêm trọng có thật: CDN cache nhầm response chứa dữ liệu cá nhân (vì thiếu <code>private</code> / <code>no-store</code>), và người dùng khác truy cập cùng URL nhận được trang của người khác. Mọi response cần đăng nhập nên mặc định <code>Cache-Control: no-store</code>.</p></aside>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Redis bị sập 5 phút. Với mẫu cache-aside viết đúng, chuyện gì xảy ra?</p><div class="qo"><button type="button" class="opt">Toàn bộ API trả 500 trong 5 phút</button><button type="button" class="opt" data-ok>Mọi request đọc thẳng từ database, chậm hơn nhưng vẫn đúng, và có thể tăng tải đáng kể cho database</button><button type="button" class="opt">Request trả về dữ liệu cũ đã cache</button></div><p class="why" hidden>Cache lỗi thì bỏ qua và đọc nguồn sự thật. Đó là lý do cần theo dõi tải database và có rate limit, phòng khi cache biến mất đột ngột.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>Cache có singleflight và TTL lệch ngẫu nhiên</summary>
+<p>Viết hàm generic <code>GetOrLoad[T any](ctx, rdb, group, key, ttl, load func(ctx) (T, error)) (T, error)</code>: thử Redis, miss thì dùng singleflight gọi <code>load</code>, ghi vào Redis với TTL cộng thêm ngẫu nhiên tối đa 10%. Redis lỗi thì vẫn trả được kết quả từ <code>load</code>.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> GetOrLoad[T <span class="t">any</span>](ctx context.Context, rdb *redis.Client, g *singleflight.Group,
+    key <span class="t">string</span>, ttl time.Duration, load <span class="k">func</span>(context.Context) (T, <span class="t">error</span>)) (T, <span class="t">error</span>) {
+
+    <span class="k">var</span> zero T
+    <span class="k">if</span> b, err := rdb.<span class="f">Get</span>(ctx, key).<span class="f">Bytes</span>(); err == <span class="b">nil</span> {
+        <span class="k">var</span> v T
+        <span class="k">if</span> json.<span class="f">Unmarshal</span>(b, &amp;v) == <span class="b">nil</span> {
+            <span class="k">return</span> v, <span class="b">nil</span>
+        }
+    }
+    v, err, _ := g.<span class="f">Do</span>(key, <span class="k">func</span>() (<span class="t">any</span>, <span class="t">error</span>) {
+        val, err := <span class="f">load</span>(ctx)
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            <span class="k">return</span> <span class="b">nil</span>, err
+        }
+        <span class="k">if</span> b, err := json.<span class="f">Marshal</span>(val); err == <span class="b">nil</span> {
+            jitter := time.<span class="f">Duration</span>(rand.<span class="f">Int64N</span>(<span class="t">int64</span>(ttl / <span class="n">10</span>))) <span class="c">// math/rand/v2</span>
+            rdb.<span class="f">Set</span>(ctx, key, b, ttl+jitter)
+        }
+        <span class="k">return</span> val, <span class="b">nil</span>
+    })
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> zero, err
+    }
+    <span class="k">return</span> v.(T), <span class="b">nil</span>
+}</code></pre></div>
+<p>Lưu ý: hàm <code>load</code> chạy với <code>ctx</code> của request đầu tiên. Nếu request đó bị huỷ, các request đang chờ cũng nhận lỗi theo. Ở hệ thống thật người ta dùng <code>context.WithoutCancel(ctx)</code> (Go 1.21+) kèm timeout riêng cho việc tải chung.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="cache">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="toi-uu-query.html"><small>Bài trước</small>Index, tối ưu truy vấn và tranh chấp dữ liệu</a><a class="next" href="xac-thuc.html"><small>Bài tiếp theo</small>Xác thực và phân quyền</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#khi-nao-can-cache">Khi nào cần cache</a><a href="#cac-tang-cache-trong-mot-he-thong">Các tầng cache trong một hệ thống</a><a href="#redis">Redis</a><a href="#cache-aside-mau-dung-nhieu-nhat">Cache-aside: mẫu dùng nhiều nhất</a><a href="#xoa-cache-khi-du-lieu-doi">Xoá cache khi dữ liệu đổi</a><a href="#cache-stampede-hang-nghin-request-cung-tinh-lai">Cache stampede: hàng nghìn request cùng tính lại</a><a href="#cache-trong-bo-nho-cua-server">Cache trong bộ nhớ của server</a><a href="#gioi-han-tan-suat-rate-limit">Giới hạn tần suất (rate limit)</a><a href="#cache-http-cho-client">Cache HTTP cho client</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bài 03: Hàm, rẽ nhánh, vòng lặp và defer · Go cho dân Frontend</title>
+<meta name="description" content="if / for / switch kiểu Go, hàm trả nhiều giá trị, closure, defer và thứ tự chạy của nó.">
+<meta name="theme-color" content="#00ADD8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk"/></marker></defs></svg>
+<header class="top">
+  <button class="menu" type="button" aria-label="Mở danh sách bài"><span></span><span></span><span></span></button>
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="28" height="28">cho dân Frontend</a>
+  <nav class="topnav"><a href="index.html#lo-trinh">Lộ trình</a><a href="thuat-ngu.html">Thuật ngữ</a><a href="nguyen-tac.html">Nguyên tắc BE</a></nav>
+  <button class="theme" type="button" aria-label="Đổi giao diện sáng / tối"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg></button>
+</header>
+<div class="layout">
+  <aside class="side" aria-label="Danh sách bài">
+    <div class="prog"><div class="prog-t"><span>Tiến độ</span><b class="prog-n">0/25</b></div><div class="prog-b"><i></i></div></div>
+    <div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Chặng 0</span> Khởi động</div><ol><li><a href="lo-trinh.html" data-slug="lo-trinh"><i class="dot"></i><span class="no">00</span><span class="tx">Backend là gì: góc nhìn cho dân Frontend</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#00ADD8"><span>Chặng 1</span> Ngôn ngữ Go</div><ol><li><a href="cai-dat.html" data-slug="cai-dat"><i class="dot"></i><span class="no">01</span><span class="tx">Cài Go và chương trình đầu tiên</span></a></li><li><a href="bien-kieu.html" data-slug="bien-kieu"><i class="dot"></i><span class="no">02</span><span class="tx">Biến, kiểu dữ liệu và zero value</span></a></li><li><a href="ham-dieu-khien.html" data-slug="ham-dieu-khien" aria-current="page"><i class="dot"></i><span class="no">03</span><span class="tx">Hàm, rẽ nhánh, vòng lặp và defer</span></a></li><li><a href="slice-map.html" data-slug="slice-map"><i class="dot"></i><span class="no">04</span><span class="tx">Array, slice và map</span></a></li><li><a href="struct-con-tro.html" data-slug="struct-con-tro"><i class="dot"></i><span class="no">05</span><span class="tx">Struct, con trỏ và method</span></a></li><li><a href="interface.html" data-slug="interface"><i class="dot"></i><span class="no">06</span><span class="tx">Interface, embedding và generics</span></a></li><li><a href="xu-ly-loi.html" data-slug="xu-ly-loi"><i class="dot"></i><span class="no">07</span><span class="tx">Xử lý lỗi kiểu Go</span></a></li><li><a href="package-module.html" data-slug="package-module"><i class="dot"></i><span class="no">08</span><span class="tx">Package, module và cấu trúc dự án</span></a></li><li><a href="dong-thoi.html" data-slug="dong-thoi"><i class="dot"></i><span class="no">09</span><span class="tx">Goroutine, channel và đồng thời</span></a></li><li><a href="context-test.html" data-slug="context-test"><i class="dot"></i><span class="no">10</span><span class="tx">Context và kiểm thử</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#7c3aed"><span>Chặng 2</span> Xây API</div><ol><li><a href="http.html" data-slug="http"><i class="dot"></i><span class="no">11</span><span class="tx">HTTP từ gốc với net/http</span></a></li><li><a href="rest.html" data-slug="rest"><i class="dot"></i><span class="no">12</span><span class="tx">Thiết kế REST API chuẩn</span></a></li><li><a href="kien-truc.html" data-slug="kien-truc"><i class="dot"></i><span class="no">13</span><span class="tx">Middleware, log và cấu trúc phân lớp</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#059669"><span>Chặng 3</span> Dữ liệu</div><ol><li><a href="sql.html" data-slug="sql"><i class="dot"></i><span class="no">14</span><span class="tx">SQL và thiết kế cơ sở dữ liệu</span></a></li><li><a href="go-postgres.html" data-slug="go-postgres"><i class="dot"></i><span class="no">15</span><span class="tx">Go làm việc với PostgreSQL</span></a></li><li><a href="toi-uu-query.html" data-slug="toi-uu-query"><i class="dot"></i><span class="no">16</span><span class="tx">Index, tối ưu truy vấn và tranh chấp dữ liệu</span></a></li><li><a href="cache.html" data-slug="cache"><i class="dot"></i><span class="no">17</span><span class="tx">Cache và Redis</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#dc2626"><span>Chặng 4</span> Bảo mật</div><ol><li><a href="xac-thuc.html" data-slug="xac-thuc"><i class="dot"></i><span class="no">18</span><span class="tx">Xác thực và phân quyền</span></a></li><li><a href="bao-mat-api.html" data-slug="bao-mat-api"><i class="dot"></i><span class="no">19</span><span class="tx">Bảo mật API: các lỗ hổng hay gặp nhất</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#d97706"><span>Chặng 5</span> Vận hành hệ thống thật</div><ol><li><a href="bat-dong-bo.html" data-slug="bat-dong-bo"><i class="dot"></i><span class="no">20</span><span class="tx">Hàng đợi, việc chạy nền và webhook</span></a></li><li><a href="quan-sat.html" data-slug="quan-sat"><i class="dot"></i><span class="no">21</span><span class="tx">Theo dõi hệ thống: log, metrics, tracing</span></a></li><li><a href="trien-khai.html" data-slug="trien-khai"><i class="dot"></i><span class="no">22</span><span class="tx">Docker, CI/CD và triển khai</span></a></li><li><a href="he-thong-that.html" data-slug="he-thong-that"><i class="dot"></i><span class="no">23</span><span class="tx">Các hệ thống thật hoạt động ra sao</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#0f766e"><span>Chặng 6</span> Dự án cuối</div><ol><li><a href="du-an.html" data-slug="du-an"><i class="dot"></i><span class="no">24</span><span class="tx">Dự án: API &quot;Sổ bài tập&quot; chuẩn production</span></a></li></ol></div><div class="sb-phase"><div class="sb-ph" style="--pc:#64748b"><span>Tra cứu</span></div><ol><li><a href="thuat-ngu.html"><i class="dot plain"></i><span class="tx">Từ điển thuật ngữ backend</span></a></li><li><a href="nguyen-tac.html"><i class="dot plain"></i><span class="tx">Nguyên tắc làm backend</span></a></li></ol></div>
+  </aside>
+  <div class="scrim"></div>
+  <main id="main"><article class="lesson" data-slug="ham-dieu-khien">
+  <header class="l-head">
+    <div class="l-meta"><span class="ph" style="--pc:#00ADD8">Chặng 1 · Ngôn ngữ Go</span><span>Bài 03</span><span>45 phút đọc + làm bài</span></div>
+    <h1>Hàm, rẽ nhánh, vòng lặp và defer</h1>
+    <p class="lead">if / for / switch kiểu Go, hàm trả nhiều giá trị, closure, defer và thứ tự chạy của nó.</p>
+    <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Viết hàm trả về (giá trị, lỗi)</li><li>Dùng for cho mọi kiểu vòng lặp</li><li>Dùng defer để dọn tài nguyên</li></ul></div>
+  </header>
+  <div class="prose"><h2 id="if-khong-can-ngoac-tron-bat-buoc-ngoac-nhon"><a href="#if-khong-can-ngoac-tron-bat-buoc-ngoac-nhon" class="anchor" aria-hidden="true">#</a>if: không cần ngoặc tròn, bắt buộc ngoặc nhọn</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">if</span> score &gt;= <span class="n">8</span> {
+    fmt.<span class="f">Println</span>(<span class="s">&quot;Giỏi&quot;</span>)
+} <span class="k">else</span> <span class="k">if</span> score &gt;= <span class="n">6.5</span> {
+    fmt.<span class="f">Println</span>(<span class="s">&quot;Khá&quot;</span>)
+} <span class="k">else</span> {
+    fmt.<span class="f">Println</span>(<span class="s">&quot;Cần cố gắng&quot;</span>)
+}</code></pre></div>
+<p>Điểm đặc biệt: <code>if</code> có thể kèm một câu lệnh khởi tạo trước dấu <code>;</code>. Biến tạo ra chỉ sống trong khối if/else đó. Mẫu này xuất hiện ở <b>mọi</b> code Go:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">if</span> n, err := strconv.<span class="f">Atoi</span>(input); err != <span class="b">nil</span> {
+    fmt.<span class="f">Println</span>(<span class="s">&quot;không phải số:&quot;</span>, err)
+} <span class="k">else</span> {
+    fmt.<span class="f">Println</span>(<span class="s">&quot;số là&quot;</span>, n)
+}
+<span class="c">// n và err không còn tồn tại ở đây</span></code></pre></div>
+
+<h2 id="for-vong-lap-duy-nhat"><a href="#for-vong-lap-duy-nhat" class="anchor" aria-hidden="true">#</a>for: vòng lặp duy nhất</h2>
+<p>Go không có <code>while</code>, <code>do</code>, <code>forEach</code>. Chỉ có <code>for</code>, với nhiều dạng:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// 1. Kiểu C</span>
+<span class="k">for</span> i := <span class="n">0</span>; i &lt; <span class="n">3</span>; i++ { }
+
+<span class="c">// 2. Kiểu while</span>
+<span class="k">for</span> balance &gt; <span class="n">0</span> { balance -= <span class="n">10</span> }
+
+<span class="c">// 3. Vô hạn (thoát bằng break hoặc return)</span>
+<span class="k">for</span> {
+    <span class="k">if</span> <span class="f">done</span>() {
+        <span class="k">break</span>
+    }
+}
+
+<span class="c">// 4. range trên slice: chỉ số và giá trị</span>
+names := []<span class="t">string</span>{<span class="s">&quot;An&quot;</span>, <span class="s">&quot;Bình&quot;</span>, <span class="s">&quot;Chi&quot;</span>}
+<span class="k">for</span> i, name := <span class="k">range</span> names {
+    fmt.<span class="f">Println</span>(i, name)
+}
+<span class="k">for</span> _, name := <span class="k">range</span> names { }   <span class="c">// bỏ chỉ số bằng _</span>
+
+<span class="c">// 5. range trên map: thứ tự NGẪU NHIÊN (bài 04)</span>
+<span class="k">for</span> key, value := <span class="k">range</span> ages { }
+
+<span class="c">// 6. range trên số nguyên (Go 1.22+): 0, 1, 2</span>
+<span class="k">for</span> i := <span class="k">range</span> <span class="n">3</span> { }</code></pre></div>
+<table>
+<tr><th>JavaScript</th><th>Go</th></tr>
+<tr><td><code>arr.forEach((x, i) =&gt; ...)</code></td><td><code>for i, x := range arr { ... }</code></td></tr>
+<tr><td><code>for (const x of arr)</code></td><td><code>for _, x := range arr</code></td></tr>
+<tr><td><code>while (cond)</code></td><td><code>for cond</code></td></tr>
+<tr><td><code>arr.map(f)</code>, <code>arr.filter(f)</code></td><td>Viết vòng for (Go ưa code rõ ràng hơn chuỗi hàm). Từ Go 1.21 có package <code>slices</code> với <code>slices.Contains</code>, <code>slices.Index</code>, <code>slices.Sort</code>...</td></tr>
+</table>
+<aside class="warn"><p>Biến trong <code>for _, x := range</code> là <b>bản sao</b> của phần tử. Sửa <code>x.Score = 10</code> không làm thay đổi phần tử trong slice. Muốn sửa, dùng chỉ số: <code>items[i].Score = 10</code>.</p></aside>
+
+<h2 id="switch-khong-can-break"><a href="#switch-khong-can-break" class="anchor" aria-hidden="true">#</a>switch: không cần break</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">switch</span> method {
+<span class="k">case</span> <span class="s">&quot;GET&quot;</span>, <span class="s">&quot;HEAD&quot;</span>:
+    fmt.<span class="f">Println</span>(<span class="s">&quot;đọc&quot;</span>)
+<span class="k">case</span> <span class="s">&quot;POST&quot;</span>:
+    fmt.<span class="f">Println</span>(<span class="s">&quot;tạo&quot;</span>)
+<span class="k">default</span>:
+    fmt.<span class="f">Println</span>(<span class="s">&quot;khác&quot;</span>)
+}</code></pre></div>
+<p>Mỗi <code>case</code> tự dừng sau khi chạy xong (ngược với JavaScript, nơi quên <code>break</code> là lỗi). Muốn chạy tiếp case dưới thì phải viết rõ <code>fallthrough</code>, rất hiếm khi dùng.</p>
+<p>switch không có biểu thức là cách viết gọn cho chuỗi if/else:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">switch</span> {
+<span class="k">case</span> score &gt;= <span class="n">8</span>:
+    grade = <span class="s">&quot;Giỏi&quot;</span>
+<span class="k">case</span> score &gt;= <span class="n">6.5</span>:
+    grade = <span class="s">&quot;Khá&quot;</span>
+<span class="k">default</span>:
+    grade = <span class="s">&quot;Trung bình&quot;</span>
+}</code></pre></div>
+
+<h2 id="ham"><a href="#ham" class="anchor" aria-hidden="true">#</a>Hàm</h2>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// kiểu viết SAU tên tham số, kiểu trả về ở cuối</span>
+<span class="k">func</span> <span class="f">add</span>(a <span class="t">int</span>, b <span class="t">int</span>) <span class="t">int</span> {
+    <span class="k">return</span> a + b
+}
+
+<span class="c">// các tham số cùng kiểu có thể viết gộp</span>
+<span class="k">func</span> <span class="f">area</span>(w, h <span class="t">float64</span>) <span class="t">float64</span> { <span class="k">return</span> w * h }</code></pre></div>
+
+<h3>Trả về nhiều giá trị</h3>
+<p>Đây là tính năng làm nên phong cách Go. Hàm có thể lỗi thì trả về <code>(kết quả, error)</code>, và người gọi <b>phải</b> nhận cả hai.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">divide</span>(a, b <span class="t">float64</span>) (<span class="t">float64</span>, <span class="t">error</span>) {
+    <span class="k">if</span> b == <span class="n">0</span> {
+        <span class="k">return</span> <span class="n">0</span>, errors.<span class="f">New</span>(<span class="s">&quot;không chia được cho 0&quot;</span>)
+    }
+    <span class="k">return</span> a / b, <span class="b">nil</span>
+}
+
+result, err := <span class="f">divide</span>(<span class="n">10</span>, <span class="n">0</span>)
+<span class="k">if</span> err != <span class="b">nil</span> {
+    fmt.<span class="f">Println</span>(<span class="s">&quot;lỗi:&quot;</span>, err)
+    <span class="k">return</span>
+}
+fmt.<span class="f">Println</span>(result)</code></pre></div>
+<aside class="fe"><p>Thay cho <code>try { ... } catch (e) { ... }</code>, lỗi trong Go là một giá trị trả về bình thường. Không có lỗi nào "bay" lên qua nhiều tầng mà bạn không thấy. Bài 07 nói kỹ về cách này.</p></aside>
+
+<h3>Guard clause: thoát sớm, giữ luồng chính sát lề trái</h3>
+<p>Phong cách Go: xử lý trường hợp lỗi trước rồi <code>return</code>, đoạn code "đường thẳng" nằm sát lề trái. Tránh lồng if nhiều tầng.</p>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">process</span>(u *User) <span class="t">error</span> {
+    <span class="k">if</span> u != <span class="b">nil</span> {
+        <span class="k">if</span> u.Active {
+            <span class="k">if</span> u.Email != <span class="s">&quot;&quot;</span> {
+                <span class="k">return</span> <span class="f">send</span>(u.Email)
+            } <span class="k">else</span> {
+                <span class="k">return</span> errors.<span class="f">New</span>(<span class="s">&quot;thiếu email&quot;</span>)
+            }
+        }
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}</code></pre></div>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">process</span>(u *User) <span class="t">error</span> {
+    <span class="k">if</span> u == <span class="b">nil</span> || !u.Active {
+        <span class="k">return</span> <span class="b">nil</span>
+    }
+    <span class="k">if</span> u.Email == <span class="s">&quot;&quot;</span> {
+        <span class="k">return</span> errors.<span class="f">New</span>(<span class="s">&quot;thiếu email&quot;</span>)
+    }
+    <span class="k">return</span> <span class="f">send</span>(u.Email)
+}</code></pre></div>
+
+<h3>Hàm có số tham số thay đổi (variadic)</h3>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">sum</span>(nums ...<span class="t">int</span>) <span class="t">int</span> {   <span class="c">// nums là []int</span>
+    total := <span class="n">0</span>
+    <span class="k">for</span> _, n := <span class="k">range</span> nums {
+        total += n
+    }
+    <span class="k">return</span> total
+}
+
+<span class="f">sum</span>(<span class="n">1</span>, <span class="n">2</span>, <span class="n">3</span>)
+list := []<span class="t">int</span>{<span class="n">4</span>, <span class="n">5</span>}
+<span class="f">sum</span>(list...)                  <span class="c">// trải slice ra, giống ...spread trong JS</span></code></pre></div>
+
+<h2 id="ham-la-gia-tri-closure"><a href="#ham-la-gia-tri-closure" class="anchor" aria-hidden="true">#</a>Hàm là giá trị, closure</h2>
+<p>Giống JavaScript, hàm có thể gán vào biến, truyền làm tham số, trả về từ hàm khác, và "nhớ" biến bên ngoài (closure).</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">counter</span>() <span class="k">func</span>() <span class="t">int</span> {
+    n := <span class="n">0</span>
+    <span class="k">return</span> <span class="k">func</span>() <span class="t">int</span> {
+        n++
+        <span class="k">return</span> n
+    }
+}
+
+next := <span class="f">counter</span>()
+<span class="f">next</span>() <span class="c">// 1</span>
+<span class="f">next</span>() <span class="c">// 2</span>
+
+<span class="c">// Hàm làm tham số: rất hay gặp ở middleware HTTP (bài 13)</span>
+<span class="k">func</span> <span class="f">retry</span>(times <span class="t">int</span>, fn <span class="k">func</span>() <span class="t">error</span>) <span class="t">error</span> {
+    <span class="k">var</span> err <span class="t">error</span>
+    <span class="k">for</span> <span class="k">range</span> times {
+        <span class="k">if</span> err = <span class="f">fn</span>(); err == <span class="b">nil</span> {
+            <span class="k">return</span> <span class="b">nil</span>
+        }
+    }
+    <span class="k">return</span> err
+}</code></pre></div>
+<aside class="tip"><p>Từ Go 1.22, mỗi vòng lặp <code>for</code> tạo biến lặp <b>mới</b> cho mỗi lần lặp. Lỗi kinh điển "mọi goroutine / closure đều thấy giá trị cuối cùng của i" (giống lỗi <code>var</code> trong vòng for của JavaScript thời trước <code>let</code>) đã hết. Bạn vẫn sẽ thấy dòng <code>i := i</code> trong code cũ: đó là cách sửa lỗi này trước Go 1.22.</p></aside>
+
+<h2 id="defer-don-dep-khi-ham-ket-thuc"><a href="#defer-don-dep-khi-ham-ket-thuc" class="anchor" aria-hidden="true">#</a>defer: dọn dẹp khi hàm kết thúc</h2>
+<p><code>defer</code> hẹn một lời gọi hàm để chạy <b>ngay trước khi hàm hiện tại trả về</b>, kể cả khi trả về sớm hay khi panic. Dùng để đóng file, đóng kết nối, mở khoá, rollback giao dịch.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">readConfig</span>(path <span class="t">string</span>) ([]<span class="t">byte</span>, <span class="t">error</span>) {
+    f, err := os.<span class="f">Open</span>(path)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="b">nil</span>, err
+    }
+    <span class="k">defer</span> f.<span class="f">Close</span>() <span class="c">// dù return ở đâu bên dưới, file vẫn được đóng</span>
+
+    <span class="k">return</span> io.<span class="f">ReadAll</span>(f)
+}</code></pre></div>
+<p>Nhiều <code>defer</code> chạy theo thứ tự <b>ngược lại</b> (vào sau ra trước, như một chồng đĩa):</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">defer</span> fmt.<span class="f">Println</span>(<span class="s">&quot;1&quot;</span>)
+    <span class="k">defer</span> fmt.<span class="f">Println</span>(<span class="s">&quot;2&quot;</span>)
+    <span class="k">defer</span> fmt.<span class="f">Println</span>(<span class="s">&quot;3&quot;</span>)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;thân hàm&quot;</span>)
+}
+<span class="c">// thân hàm</span>
+<span class="c">// 3</span>
+<span class="c">// 2</span>
+<span class="c">// 1</span></code></pre></div>
+<figure class="dg"><svg viewBox="0 0 426.56000000000006 288" style="min-width:426.56000000000006px;max-width:426.56000000000006px" role="img" aria-label="Thứ tự chạy: thân hàm trước, rồi các defer từ dưới lên"><g class="nd go"><rect x="10" y="10" width="170" height="52" rx="10"/><text x="95" y="41" class="tt" text-anchor="middle">Thân hàm chạy</text></g><text x="200" y="41" class="tl" text-anchor="start">fmt.Println(&quot;thân hàm&quot;)</text><line x1="95" y1="62" x2="95" y2="80" class="ln" marker-end="url(#ar)"/><g class="nd cache"><rect x="10" y="82" width="170" height="52" rx="10"/><text x="95" y="113" class="tt" text-anchor="middle">defer 3</text></g><text x="200" y="113" class="tl" text-anchor="start">đăng ký cuối, chạy đầu tiên</text><line x1="95" y1="134" x2="95" y2="152" class="ln" marker-end="url(#ar)"/><g class="nd cache"><rect x="10" y="154" width="170" height="52" rx="10"/><text x="95" y="185" class="tt" text-anchor="middle">defer 2</text></g><line x1="95" y1="206" x2="95" y2="224" class="ln" marker-end="url(#ar)"/><g class="nd cache"><rect x="10" y="226" width="170" height="52" rx="10"/><text x="95" y="257" class="tt" text-anchor="middle">defer 1</text></g><text x="200" y="257" class="tl" text-anchor="start">đăng ký đầu, chạy cuối cùng</text></svg><figcaption>Thứ tự chạy: thân hàm trước, rồi các defer từ dưới lên</figcaption></figure>
+<aside class="warn"><p>Tham số của lời gọi defer được tính <b>ngay lúc gặp dòng defer</b>, không phải lúc chạy:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>start := time.<span class="f">Now</span>()
+<span class="k">defer</span> fmt.<span class="f">Println</span>(<span class="s">&quot;mất&quot;</span>, time.<span class="f">Since</span>(start))          <span class="c">// sai: time.Since tính ngay, luôn ~0</span>
+<span class="k">defer</span> <span class="k">func</span>() { fmt.<span class="f">Println</span>(<span class="s">&quot;mất&quot;</span>, time.<span class="f">Since</span>(start)) }() <span class="c">// đúng: bọc trong hàm</span></code></pre></div>
+<p>Và đừng <code>defer</code> trong vòng lặp dài (ví dụ mở 10.000 file): các defer chỉ chạy khi <b>hàm</b> kết thúc, nên file mở chồng chất. Hãy tách thân vòng lặp ra một hàm riêng.</p></aside>
+<aside class="real"><p>Mẫu đo thời gian xử lý bằng defer có ở hầu hết middleware ghi log của các dịch vụ Go: ghi <code>start</code> ở đầu, <code>defer</code> một hàm ghi log thời gian khi request xong. Bạn sẽ tự viết nó ở bài 13.</p></aside>
+
+<div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Đoạn code sau in ra gì? <code>x := 1; defer fmt.Println(x); x = 2</code></p><div class="qo"><button type="button" class="opt" data-ok>1</button><button type="button" class="opt">2</button><button type="button" class="opt">Không in gì cả</button></div><p class="why" hidden>Tham số x được tính ngay lúc dòng defer chạy (lúc đó x = 1). Gán x = 2 sau đó không ảnh hưởng.</p></div>
+
+<h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
+<details class="ex"><summary>FizzBuzz phiên bản Việt và đếm thời gian</summary>
+<p>In từ 1 đến 30: chia hết cho 3 in "Lẻ", chia hết cho 5 in "Chẵn", chia hết cho cả hai in "Tròn", còn lại in số. Dùng <code>switch</code> không biểu thức, và dùng <code>defer</code> để in tổng thời gian chạy khi hàm main kết thúc.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    start := time.<span class="f">Now</span>()
+    <span class="k">defer</span> <span class="k">func</span>() { fmt.<span class="f">Println</span>(<span class="s">&quot;xong sau&quot;</span>, time.<span class="f">Since</span>(start)) }()
+
+    <span class="k">for</span> i := <span class="n">1</span>; i &lt;= <span class="n">30</span>; i++ {
+        <span class="k">switch</span> {
+        <span class="k">case</span> i%<span class="n">15</span> == <span class="n">0</span>:
+            fmt.<span class="f">Println</span>(<span class="s">&quot;Tròn&quot;</span>)
+        <span class="k">case</span> i%<span class="n">3</span> == <span class="n">0</span>:
+            fmt.<span class="f">Println</span>(<span class="s">&quot;Lẻ&quot;</span>)
+        <span class="k">case</span> i%<span class="n">5</span> == <span class="n">0</span>:
+            fmt.<span class="f">Println</span>(<span class="s">&quot;Chẵn&quot;</span>)
+        <span class="k">default</span>:
+            fmt.<span class="f">Println</span>(i)
+        }
+    }
+}</code></pre></div>
+</details>
+</details>
+<details class="ex"><summary>Hàm thử lại có chờ tăng dần</summary>
+<p>Viết <code>retry(attempts int, base time.Duration, fn func() error) error</code>: gọi <code>fn</code>, lỗi thì chờ <code>base</code>, rồi <code>base*2</code>, <code>base*4</code>... cho tới khi hết lượt. Đây chính là <i>exponential backoff</i>, thứ bạn sẽ dùng khi gọi API bên thứ ba (bài 20).</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">retry</span>(attempts <span class="t">int</span>, base time.Duration, fn <span class="k">func</span>() <span class="t">error</span>) <span class="t">error</span> {
+    <span class="k">var</span> err <span class="t">error</span>
+    wait := base
+    <span class="k">for</span> i := <span class="k">range</span> attempts {
+        <span class="k">if</span> err = <span class="f">fn</span>(); err == <span class="b">nil</span> {
+            <span class="k">return</span> <span class="b">nil</span>
+        }
+        <span class="k">if</span> i &lt; attempts-<span class="n">1</span> {
+            time.<span class="f">Sleep</span>(wait)
+            wait *= <span class="n">2</span>
+        }
+    }
+    <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;hết %d lần thử: %w&quot;</span>, attempts, err)
+}</code></pre></div>
+<p>Ngoài thực tế người ta còn thêm <b>jitter</b> (cộng một khoảng ngẫu nhiên vào thời gian chờ) để hàng nghìn client không cùng thử lại vào đúng một thời điểm. Bài viết "Exponential Backoff And Jitter" trên blog kiến trúc của AWS giải thích rất rõ điều này.</p>
+</details>
+</details>
+</div>
+  <div class="done-box"><button class="done-btn" type="button" data-slug="ham-dieu-khien">Đánh dấu đã học xong bài này</button></div>
+  <nav class="pn"><a class="prev" href="bien-kieu.html"><small>Bài trước</small>Biến, kiểu dữ liệu và zero value</a><a class="next" href="slice-map.html"><small>Bài tiếp theo</small>Array, slice và map</a></nav>
+</article></main>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#if-khong-can-ngoac-tron-bat-buoc-ngoac-nhon">if: không cần ngoặc tròn, bắt buộc ngoặc nhọn</a><a href="#for-vong-lap-duy-nhat">for: vòng lặp duy nhất</a><a href="#switch-khong-can-break">switch: không cần break</a><a href="#ham">Hàm</a><a href="#ham-la-gia-tri-closure">Hàm là giá trị, closure</a><a href="#defer-don-dep-khi-ham-ket-thuc">defer: dọn dẹp khi hàm kết thúc</a><a href="#bai-tap">Bài tập</a></nav>
+</div>
+</body>
+</html>
