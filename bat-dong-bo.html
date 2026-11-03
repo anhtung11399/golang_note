@@ -62,7 +62,7 @@
     status      <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="s">'pending'</span>   <span class="c">-- pending | done | dead</span>
 );
 <span class="k">CREATE</span> <span class="k">INDEX</span> jobs_ready <span class="k">ON</span> jobs (run_at) <span class="k">WHERE</span> status = <span class="s">'pending'</span>;</code></pre></div>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Worker lấy một việc. SKIP LOCKED: nhiều worker chạy song song không giành cùng một việc</span>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Worker lấy một việc. SKIP LOCKED: nhiều worker chạy song song không giành cùng một việc</span>
 <span class="k">func</span> (w *Worker) <span class="f">claim</span>(ctx context.Context, tx pgx.Tx) (Job, <span class="t">error</span>) {
     <span class="k">var</span> j Job
     err := tx.<span class="f">QueryRow</span>(ctx, <span class="s">`
@@ -118,7 +118,7 @@
 <li><b>Trả lời nhanh.</b> Ghi nhận rồi trả 2xx, xử lý nặng đưa ra hàng đợi. Bên gửi thường có timeout vài giây.</li>
 <li><b>Không tin nội dung.</b> Kiểm số tiền, mã đơn, tài khoản nhận khớp với dữ liệu của bạn. Có thể gọi ngược API của bên gửi để xác nhận.</li>
 </ol>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *Handler) <span class="f">paymentWebhook</span>(w http.ResponseWriter, r *http.Request) {
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *Handler) <span class="f">paymentWebhook</span>(w http.ResponseWriter, r *http.Request) {
     body, err := io.<span class="f">ReadAll</span>(http.<span class="f">MaxBytesReader</span>(w, r.Body, <span class="n">64</span>&lt;&lt;<span class="n">10</span>))
     <span class="k">if</span> err != <span class="b">nil</span> {
         http.<span class="f">Error</span>(w, <span class="s">&quot;body quá lớn&quot;</span>, http.StatusRequestEntityTooLarge)
@@ -190,14 +190,306 @@
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Worker gửi thông báo</summary>
-<p>Khi giáo viên giao bài, tạo một việc <code>notify.assignment</code> trong cùng transaction với bài tập. Viết worker (chương trình riêng <code>cmd/worker</code>) lấy việc bằng <code>SKIP LOCKED</code>, gửi thông báo cho từng phụ huynh (giả lập bằng log, cho lỗi ngẫu nhiên 20%), thử lại có backoff, không gửi trùng cho một phụ huynh dù việc chạy lại, dừng an toàn khi nhận SIGTERM.</p>
-<details class="sol"><summary>Tiêu chí tự kiểm tra</summary>
+<p>Khi giáo viên giao bài, tạo một việc <code>notify.assignment</code> trong <b>cùng transaction</b> với bài tập. Viết worker lấy việc bằng <code>SKIP LOCKED</code> và gửi thông báo cho từng phụ huynh của lớp (giả lập, lỗi ngẫu nhiên 20%). Yêu cầu:</p>
 <ul>
-<li>Bảng <code>notifications_sent(job_id, user_id)</code> có khoá chính kép: gửi cho ai thì chèn dòng đó, chèn không được nghĩa là đã gửi.</li>
-<li>Chạy 3 worker cùng lúc: không việc nào bị xử lý hai lần cùng lúc.</li>
-<li>Tắt worker bằng Ctrl+C giữa chừng rồi bật lại: việc dở dang được làm tiếp, không ai nhận trùng.</li>
-<li>Việc lỗi 8 lần chuyển sang <code>dead</code> và có <code>last_error</code> để đọc.</li>
-<li>Vòng lặp chính: <code>for ctx.Err() == nil { if no job { sleep 1s } }</code>, không quay liên tục làm nóng CPU khi hàng đợi rỗng.</li>
+<li>lỗi thì thử lại, chờ tăng dần. Lỗi 8 lần thì chuyển việc sang <code>dead</code>, giữ <code>last_error</code> để đọc.</li>
+<li>việc chạy lại nhiều lần cũng không gửi trùng cho một phụ huynh.</li>
+<li>chạy 3 worker cùng lúc: không việc nào bị hai worker cùng làm.</li>
+<li>bấm Ctrl+C: làm nốt việc đang làm rồi mới thoát. Hàng đợi rỗng thì ngủ, không quay liên tục làm nóng CPU.</li>
+</ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Một chương trình, hai lệnh cho gọn: <code>go run . giao-bai</code> (giả làm API: tạo bài + việc) và <code>go run . worker A</code> (chạy worker tên A). Đọc lệnh bằng <code>os.Args</code> như bài 01.</li>
+<li>Chống gửi trùng: bảng <code>notifications_sent(job_id, user_id)</code> có khoá chính kép. Trước khi gửi cho ai, kiểm tra đã có dòng chưa. Gửi xong thì chèn dòng đó ngay.</li>
+<li>Lấy việc và cập nhật trạng thái trong một transaction (<code>pgx.BeginFunc</code>), giống đoạn <code>runOnce</code> ở trên. Lỗi thì <b>vẫn commit</b>, chỉ là cập nhật <code>attempts</code> và dời <code>run_at</code> ra sau.</li>
+<li>Dừng an toàn: <code>signal.NotifyContext</code> (bài 13) cho một ctx bị huỷ khi bấm Ctrl+C. Vòng lặp chính kiểm tra <code>ctx.Err()</code> <b>giữa</b> các việc. Việc đang làm dùng ctx riêng (<code>context.WithoutCancel</code>) để không bị cắt ngang.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<p>Bảng dùng cho bài này (dán vào <code>psql</code>, dùng chung database bài 14 được, tên bảng không trùng):</p>
+<div class="code"><div class="code-h"><span>schema.sql</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">CREATE</span> <span class="k">TABLE</span> parents (
+    id        <span class="t">bigint</span> <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    name      <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    class_id  <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span>
+);
+<span class="k">INSERT</span> <span class="k">INTO</span> parents <span class="k">VALUES</span> (<span class="n">1</span>, <span class="s">'Mẹ An'</span>, <span class="n">42</span>), (<span class="n">2</span>, <span class="s">'Bố Bình'</span>, <span class="n">42</span>), (<span class="n">3</span>, <span class="s">'Mẹ Chi'</span>, <span class="n">42</span>), (<span class="n">4</span>, <span class="s">'Bố Dũng'</span>, <span class="n">42</span>), (<span class="n">5</span>, <span class="s">'Mẹ Em'</span>, <span class="n">42</span>);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> homework (
+    id        <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    class_id  <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    title     <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>
+);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> jobs (
+    id          <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    kind        <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    payload     <span class="t">jsonb</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    run_at      <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>(),
+    attempts    <span class="t">int</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="n">0</span>,
+    last_error  <span class="t">text</span>,
+    status      <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="s">'pending'</span>   <span class="c">-- pending | done | dead</span>
+);
+<span class="k">CREATE</span> <span class="k">INDEX</span> jobs_ready <span class="k">ON</span> jobs (run_at) <span class="k">WHERE</span> status = <span class="s">'pending'</span>;
+
+<span class="c">-- Đã gửi cho ai trong việc nào. Khoá chính kép: không bao giờ có hai dòng giống nhau.</span>
+<span class="c">-- Cố ý KHÔNG đặt REFERENCES jobs(id): worker đang giữ khoá FOR UPDATE trên dòng job,</span>
+<span class="c">-- mà chèn dòng có khoá ngoại trỏ tới đúng dòng đó (từ kết nối khác) sẽ phải chờ khoá ấy: tự chặn chính mình</span>
+<span class="k">CREATE</span> <span class="k">TABLE</span> notifications_sent (
+    job_id   <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    user_id  <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    sent_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>(),
+    <span class="k">PRIMARY</span> <span class="k">KEY</span> (job_id, user_id)
+);</code></pre></div>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">mkdir</span> worker &amp;&amp; <span class="k">cd</span> worker
+<span class="k">go</span> mod init worker
+<span class="k">go</span> get github.com/jackc/pgx/v5</code></pre></div>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;log/slog&quot;</span>
+    <span class="s">&quot;math/rand/v2&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;os/signal&quot;</span>
+    <span class="s">&quot;syscall&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/jackc/pgx/v5&quot;</span>
+    <span class="s">&quot;github.com/jackc/pgx/v5/pgxpool&quot;</span>
+)
+
+<span class="k">const</span> maxAttempts = <span class="n">8</span>
+
+<span class="k">type</span> Job <span class="k">struct</span> {
+    ID       <span class="t">int64</span>
+    Kind     <span class="t">string</span>
+    Payload  []<span class="t">byte</span>
+    Attempts <span class="t">int</span>
+}
+
+<span class="k">type</span> assignmentPayload <span class="k">struct</span> {
+    HomeworkID <span class="t">int64</span> <span class="s">`json:&quot;homeworkId&quot;`</span>
+    ClassID    <span class="t">int64</span> <span class="s">`json:&quot;classId&quot;`</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">if</span> <span class="b">len</span>(os.Args) &lt; <span class="n">2</span> {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;Cách dùng: go run . giao-bai | go run . worker &lt;tên&gt;&quot;</span>)
+        os.<span class="f">Exit</span>(<span class="n">1</span>)
+    }
+    ctx, stop := signal.<span class="f">NotifyContext</span>(context.<span class="f">Background</span>(), os.Interrupt, syscall.SIGTERM)
+    <span class="k">defer</span> <span class="f">stop</span>()
+
+    db, err := pgxpool.<span class="f">New</span>(ctx, os.<span class="f">Getenv</span>(<span class="s">&quot;DATABASE_URL&quot;</span>))
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        fmt.<span class="f">Println</span>(err)
+        os.<span class="f">Exit</span>(<span class="n">1</span>)
+    }
+    <span class="k">defer</span> db.<span class="f">Close</span>()
+
+    <span class="k">switch</span> os.Args[<span class="n">1</span>] {
+    <span class="k">case</span> <span class="s">&quot;giao-bai&quot;</span>:
+        err = <span class="f">assign</span>(ctx, db, <span class="n">42</span>, <span class="s">&quot;Toán trang 20&quot;</span>)
+    <span class="k">case</span> <span class="s">&quot;worker&quot;</span>:
+        name := <span class="s">&quot;w&quot;</span>
+        <span class="k">if</span> <span class="b">len</span>(os.Args) &gt; <span class="n">2</span> {
+            name = os.Args[<span class="n">2</span>]
+        }
+        log := slog.<span class="f">New</span>(slog.<span class="f">NewTextHandler</span>(os.Stdout, <span class="b">nil</span>)).<span class="f">With</span>(<span class="s">&quot;worker&quot;</span>, name)
+        err = (&amp;Worker{db: db, log: log}).<span class="f">Run</span>(ctx)
+    }
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;lỗi:&quot;</span>, err)
+        os.<span class="f">Exit</span>(<span class="n">1</span>)
+    }
+}
+
+<span class="c">// assign: phần việc của API khi giáo viên giao bài.</span>
+<span class="c">// Lưu bài tập VÀ tạo việc trong CÙNG một transaction: có bài thì chắc chắn có việc, và ngược lại</span>
+<span class="k">func</span> <span class="f">assign</span>(ctx context.Context, db *pgxpool.Pool, classID <span class="t">int64</span>, title <span class="t">string</span>) <span class="t">error</span> {
+    <span class="k">return</span> pgx.<span class="f">BeginFunc</span>(ctx, db, <span class="k">func</span>(tx pgx.Tx) <span class="t">error</span> {
+        <span class="k">var</span> hwID <span class="t">int64</span>
+        <span class="k">if</span> err := tx.<span class="f">QueryRow</span>(ctx,
+            <span class="s">`INSERT INTO homework (class_id, title) VALUES ($1, $2) RETURNING id`</span>, classID, title).<span class="f">Scan</span>(&amp;hwID); err != <span class="b">nil</span> {
+            <span class="k">return</span> err
+        }
+        payload, _ := json.<span class="f">Marshal</span>(assignmentPayload{HomeworkID: hwID, ClassID: classID})
+        <span class="k">var</span> jobID <span class="t">int64</span>
+        <span class="k">if</span> err := tx.<span class="f">QueryRow</span>(ctx,
+            <span class="s">`INSERT INTO jobs (kind, payload) VALUES ('notify.assignment', $1) RETURNING id`</span>, payload).<span class="f">Scan</span>(&amp;jobID); err != <span class="b">nil</span> {
+            <span class="k">return</span> err
+        }
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;đã giao bài %d, tạo việc %d\n&quot;</span>, hwID, jobID)
+        <span class="k">return</span> <span class="b">nil</span>
+    })
+}
+
+<span class="k">type</span> Worker <span class="k">struct</span> {
+    db  *pgxpool.Pool
+    log *slog.Logger
+}
+
+<span class="c">// Run lặp tới khi nhận Ctrl+C / SIGTERM. Việc đang làm dở thì làm cho xong rồi mới thoát</span>
+<span class="k">func</span> (w *Worker) <span class="f">Run</span>(ctx context.Context) <span class="t">error</span> {
+    w.log.<span class="f">Info</span>(<span class="s">&quot;bắt đầu&quot;</span>)
+    <span class="k">for</span> ctx.<span class="f">Err</span>() == <span class="b">nil</span> {
+        <span class="c">// Việc chạy với ctx riêng (không bị huỷ theo Ctrl+C), tối đa 30 giây</span>
+        jobCtx, cancel := context.<span class="f">WithTimeout</span>(context.<span class="f">WithoutCancel</span>(ctx), <span class="n">30</span>*time.Second)
+        err := w.<span class="f">runOnce</span>(jobCtx)
+        <span class="f">cancel</span>()
+        <span class="k">if</span> errors.<span class="f">Is</span>(err, pgx.ErrNoRows) { <span class="c">// hàng đợi rỗng: ngủ 1 giây, không quay liên tục</span>
+            <span class="k">select</span> {
+            <span class="k">case</span> &lt;-time.<span class="f">After</span>(time.Second):
+            <span class="k">case</span> &lt;-ctx.<span class="f">Done</span>():
+            }
+            <span class="k">continue</span>
+        }
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            w.log.<span class="f">Error</span>(<span class="s">&quot;lỗi hệ thống&quot;</span>, <span class="s">&quot;err&quot;</span>, err)
+            time.<span class="f">Sleep</span>(time.Second)
+        }
+    }
+    w.log.<span class="f">Info</span>(<span class="s">&quot;đã dừng an toàn&quot;</span>)
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="k">func</span> (w *Worker) <span class="f">runOnce</span>(ctx context.Context) <span class="t">error</span> {
+    <span class="k">return</span> pgx.<span class="f">BeginFunc</span>(ctx, w.db, <span class="k">func</span>(tx pgx.Tx) <span class="t">error</span> {
+        <span class="k">var</span> j Job
+        <span class="c">// SKIP LOCKED: việc đang bị worker khác khoá thì bỏ qua, lấy việc kế tiếp</span>
+        err := tx.<span class="f">QueryRow</span>(ctx, <span class="s">`
+            SELECT id, kind, payload, attempts FROM jobs
+            WHERE status = 'pending' AND run_at &lt;= now()
+            ORDER BY run_at
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED`</span>).<span class="f">Scan</span>(&amp;j.ID, &amp;j.Kind, &amp;j.Payload, &amp;j.Attempts)
+        <span class="k">if</span> err != <span class="b">nil</span> {
+            <span class="k">return</span> err
+        }
+
+        herr := w.<span class="f">handle</span>(ctx, j)
+        <span class="k">if</span> herr == <span class="b">nil</span> {
+            w.log.<span class="f">Info</span>(<span class="s">&quot;xong việc&quot;</span>, <span class="s">&quot;job&quot;</span>, j.ID, <span class="s">&quot;lần thử&quot;</span>, j.Attempts+<span class="n">1</span>)
+            _, err = tx.<span class="f">Exec</span>(ctx, <span class="s">`UPDATE jobs SET status = 'done', attempts = attempts + 1 WHERE id = $1`</span>, j.ID)
+            <span class="k">return</span> err
+        }
+
+        <span class="k">if</span> j.Attempts+<span class="n">1</span> &gt;= maxAttempts { <span class="c">// thử quá nhiều lần: bỏ, để người đọc last_error</span>
+            w.log.<span class="f">Error</span>(<span class="s">&quot;bỏ việc&quot;</span>, <span class="s">&quot;job&quot;</span>, j.ID, <span class="s">&quot;err&quot;</span>, herr)
+            _, err = tx.<span class="f">Exec</span>(ctx, <span class="s">`UPDATE jobs SET status = 'dead', attempts = attempts + 1, last_error = $2 WHERE id = $1`</span>, j.ID, herr.<span class="f">Error</span>())
+            <span class="k">return</span> err
+        }
+        delay := time.<span class="f">Duration</span>(<span class="n">1</span>&lt;&lt;j.Attempts) * time.Second <span class="c">// 1s, 2s, 4s, 8s...</span>
+        w.log.<span class="f">Warn</span>(<span class="s">&quot;lỗi, sẽ thử lại&quot;</span>, <span class="s">&quot;job&quot;</span>, j.ID, <span class="s">&quot;lần thử&quot;</span>, j.Attempts+<span class="n">1</span>, <span class="s">&quot;chờ&quot;</span>, delay, <span class="s">&quot;err&quot;</span>, herr)
+        _, err = tx.<span class="f">Exec</span>(ctx, <span class="s">`
+            UPDATE jobs SET attempts = attempts + 1, last_error = $2, run_at = now() + $3::interval
+            WHERE id = $1`</span>, j.ID, herr.<span class="f">Error</span>(), delay.<span class="f">String</span>())
+        <span class="k">return</span> err <span class="c">// commit: lưu số lần thử, việc sẽ được lấy lại sau `delay`</span>
+    })
+}
+
+<span class="k">func</span> (w *Worker) <span class="f">handle</span>(ctx context.Context, j Job) <span class="t">error</span> {
+    <span class="k">if</span> j.Kind != <span class="s">&quot;notify.assignment&quot;</span> {
+        <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;không biết loại việc %q&quot;</span>, j.Kind)
+    }
+    <span class="k">var</span> p assignmentPayload
+    <span class="k">if</span> err := json.<span class="f">Unmarshal</span>(j.Payload, &amp;p); err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    rows, _ := w.db.<span class="f">Query</span>(ctx, <span class="s">`SELECT id, name FROM parents WHERE class_id = $1 ORDER BY id`</span>, p.ClassID)
+    <span class="k">type</span> parent <span class="k">struct</span> {
+        ID   <span class="t">int64</span>
+        Name <span class="t">string</span>
+    }
+    parents, err := pgx.<span class="f">CollectRows</span>(rows, pgx.RowToStructByPos[parent])
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+
+    <span class="k">for</span> _, par := <span class="k">range</span> parents {
+        <span class="c">// Đã gửi cho người này trong việc này ở lần chạy trước? Thì bỏ qua</span>
+        <span class="k">var</span> sent <span class="t">bool</span>
+        <span class="k">if</span> err := w.db.<span class="f">QueryRow</span>(ctx,
+            <span class="s">`SELECT EXISTS (SELECT 1 FROM notifications_sent WHERE job_id = $1 AND user_id = $2)`</span>,
+            j.ID, par.ID).<span class="f">Scan</span>(&amp;sent); err != <span class="b">nil</span> {
+            <span class="k">return</span> err
+        }
+        <span class="k">if</span> sent {
+            <span class="k">continue</span>
+        }
+        <span class="k">if</span> err := <span class="f">sendPush</span>(par.Name); err != <span class="b">nil</span> {
+            <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;gửi cho %s: %w&quot;</span>, par.Name, err)
+        }
+        <span class="c">// Ghi nhận ngay (ngoài transaction của việc), để lần thử lại không gửi trùng</span>
+        <span class="k">if</span> _, err := w.db.<span class="f">Exec</span>(ctx,
+            <span class="s">`INSERT INTO notifications_sent (job_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`</span>,
+            j.ID, par.ID); err != <span class="b">nil</span> {
+            <span class="k">return</span> err
+        }
+        w.log.<span class="f">Info</span>(<span class="s">&quot;đã gửi&quot;</span>, <span class="s">&quot;job&quot;</span>, j.ID, <span class="s">&quot;tới&quot;</span>, par.Name)
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="c">// Giả lập dịch vụ push: chậm 100ms, lỗi ngẫu nhiên 20%</span>
+<span class="k">func</span> <span class="f">sendPush</span>(to <span class="t">string</span>) <span class="t">error</span> {
+    time.<span class="f">Sleep</span>(<span class="n">100</span> * time.Millisecond)
+    <span class="k">if</span> rand.<span class="f">IntN</span>(<span class="n">5</span>) == <span class="n">0</span> {
+        <span class="k">return</span> errors.<span class="f">New</span>(<span class="s">&quot;dịch vụ push trả 503&quot;</span>)
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}</code></pre></div>
+<p><b>Chạy thử:</b> build ra một file chạy cho nhanh, giao 3 bài, rồi mở 3 worker ở 3 terminal (hoặc chạy nền như dưới):</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">export</span> DATABASE_URL=<span class="s">'postgres://postgres:dev@localhost:5432/postgres'</span>
+<span class="k">go</span> build -o w .
+./w giao-bai &amp;&amp; ./w giao-bai &amp;&amp; ./w giao-bai
+./w worker A &amp;   <span class="c"># dấu &amp; : chạy nền, terminal vẫn gõ tiếp được</span>
+./w worker B &amp;
+./w worker C &amp;
+<span class="c"># chờ khoảng 10 giây, rồi dừng cả ba (giống Ctrl+C):</span>
+pkill -INT -f <span class="s">&quot;w worker&quot;</span></code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>đã giao bài 1, tạo việc 1
+đã giao bài 2, tạo việc 2
+đã giao bài 3, tạo việc 3
+level=INFO msg=&quot;bắt đầu&quot; worker=A
+level=INFO msg=&quot;đã gửi&quot; worker=A job=1 tới=&quot;Mẹ An&quot;
+level=INFO msg=&quot;đã gửi&quot; worker=A job=1 tới=&quot;Bố Bình&quot;
+level=WARN msg=&quot;lỗi, sẽ thử lại&quot; worker=A job=1 &quot;lần thử&quot;=1 chờ=1s err=&quot;gửi cho Mẹ Chi: dịch vụ push trả 503&quot;
+level=INFO msg=&quot;bắt đầu&quot; worker=B
+level=WARN msg=&quot;lỗi, sẽ thử lại&quot; worker=B job=2 &quot;lần thử&quot;=1 chờ=1s err=&quot;gửi cho Mẹ An: dịch vụ push trả 503&quot;
+...
+level=INFO msg=&quot;đã gửi&quot; worker=B job=1 tới=&quot;Mẹ Chi&quot;
+level=INFO msg=&quot;đã gửi&quot; worker=B job=1 tới=&quot;Bố Dũng&quot;
+level=INFO msg=&quot;đã gửi&quot; worker=B job=1 tới=&quot;Mẹ Em&quot;
+level=INFO msg=&quot;xong việc&quot; worker=B job=1 &quot;lần thử&quot;=3
+...
+level=INFO msg=&quot;đã dừng an toàn&quot; worker=A
+level=INFO msg=&quot;đã dừng an toàn&quot; worker=B</pre></div>
+<p>Log đã bỏ bớt phần <code>time=...</code> cho gọn. Lỗi xảy ra ngẫu nhiên nên mỗi lần chạy log mỗi khác. Kiểm tra kết quả trong database:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">postgres=#</span> <span class="t-c">SELECT id, status, attempts, last_error FROM jobs ORDER BY id;</span>
+ id | status | attempts |              last_error
+----+--------+----------+---------------------------------------
+  1 | done   |        3 | gửi cho Mẹ Chi: dịch vụ push trả 503
+  2 | done   |        3 | gửi cho Mẹ Em: dịch vụ push trả 503
+  3 | done   |        3 | gửi cho Bố Dũng: dịch vụ push trả 503
+(3 rows)
+
+<span class="t-p">postgres=#</span> <span class="t-c">SELECT job_id, count(*) AS so_nguoi FROM notifications_sent GROUP BY job_id ORDER BY job_id;</span>
+ job_id | so_nguoi
+--------+----------
+      1 |        5
+      2 |        5
+      3 |        5
+(3 rows)</pre></div>
+<p><b>Giải thích:</b></p>
+<ul>
+<li>Việc 1: worker A gửi được cho Mẹ An, Bố Bình rồi lỗi ở Mẹ Chi. Lần sau worker <b>B</b> lấy lại việc 1 và chỉ gửi cho 3 người còn lại: bảng <code>notifications_sent</code> nhớ ai đã nhận rồi. Mỗi việc đúng 5 người, không ai nhận hai lần.</li>
+<li><code>last_error</code> vẫn giữ lỗi của lần thử gần nhất dù việc đã <code>done</code>: tiện để xem việc từng gặp chuyện gì.</li>
+<li>Ba worker không bao giờ làm cùng một việc cùng lúc nhờ <code>FOR UPDATE SKIP LOCKED</code>: worker B thấy việc 1 đang bị A khoá thì lấy việc khác.</li>
+<li>Vẫn còn một khe hở: gửi thành công mà worker chết ngay trước khi kịp chèn dòng <code>notifications_sent</code>, lần sau sẽ gửi lại người đó. Đây là đặc điểm của mọi hàng đợi "ít nhất một lần" (at-least-once). Muốn tuyệt đối không trùng thì phía nhận phải idempotent, xem mục trên.</li>
+<li>Chú thích trong <code>schema.sql</code> nói vì sao <code>notifications_sent.job_id</code> cố ý không có khoá ngoại: có khoá ngoại thì mỗi lần chèn, Postgres phải khoá nhẹ dòng job đó, mà dòng đó lại đang bị chính worker giữ <code>FOR UPDATE</code> từ một kết nối khác, nên worker tự chờ chính mình mãi mãi. Lỗi này rất khó đoán nếu chưa gặp: chương trình không báo lỗi, chỉ đứng im.</li>
 </ul>
 </details>
 </details>

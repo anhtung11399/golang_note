@@ -9,10 +9,14 @@ go version        # in ra phiên bản, ví dụ: go version go1.2x darwin/arm64
 <aside class="tip"><p>Chưa muốn cài? Mở <a href="https://go.dev/play/" target="_blank" rel="noopener">go.dev/play</a> và dán code của các bài 02 đến 07 vào chạy thử. Từ bài 08 trở đi bạn sẽ cần máy thật.</p></aside>
 
 <h2>Chương trình đầu tiên</h2>
+<p>Mở terminal và làm đúng ba bước sau.</p>
+<p><b>Bước 1.</b> Tạo thư mục dự án và file <code>go.mod</code>:</p>
 <pre lang="sh">
-mkdir hello && cd hello
-go mod init example.com/hello   # tạo go.mod, giống npm init
+mkdir hello        # tạo thư mục tên hello
+cd hello           # đi vào thư mục đó. Mọi lệnh go bên dưới đều chạy TRONG thư mục này
+go mod init example.com/hello   # tạo file go.mod, giống npm init tạo package.json
 </pre>
+<p><b>Bước 2.</b> Trong thư mục <code>hello</code>, tạo file <code>main.go</code> và dán nội dung sau:</p>
 <pre lang="go" file="main.go">
 package main
 
@@ -29,19 +33,63 @@ func main() {
     fmt.Printf("Xin chào, %s!\n", name)
 }
 </pre>
+<p><b>Bước 3.</b> Chạy:</p>
 <pre lang="sh">
-go run .            # biên dịch tạm và chạy: Xin chào, bạn!
-go run . Tùng       # Xin chào, Tùng!
-go build -o hello . # tạo file chạy tên hello
-./hello Lan
+go run .
 </pre>
-<p>Giải thích từng dòng:</p>
-<ul>
-<li><code>package main</code>: file này thuộc package tên <code>main</code>. Package <code>main</code> là đặc biệt: nó tạo ra chương trình chạy được, và phải có hàm <code>main()</code> làm điểm bắt đầu.</li>
-<li><code>import</code>: dùng package khác. <code>fmt</code> (định dạng và in chuỗi) và <code>os</code> (làm việc với hệ điều hành) là thư viện chuẩn, có sẵn.</li>
-<li><code>name := "bạn"</code>: khai báo biến và gán giá trị, kiểu được suy ra là <code>string</code> (bài 02).</li>
-<li><code>fmt.Printf</code>: giống <code>console.log</code> có định dạng. <code>%s</code> là chỗ chèn chuỗi.</li>
-</ul>
+<pre lang="out">
+Xin chào, bạn!
+</pre>
+<p>Dấu chấm trong <code>go run .</code> nghĩa là "chạy package ở thư mục hiện tại". Bạn phải đang đứng trong thư mục <code>hello</code> thì lệnh mới tìm thấy <code>main.go</code>.</p>
+
+<h3>Giải thích từng dòng</h3>
+<table>
+<tr><th>Dòng</th><th>Ý nghĩa</th><th>Tương đương JS / TS</th></tr>
+<tr><td><code>package main</code></td><td>File này thuộc package tên <code>main</code>. Đây là package đặc biệt: Go biết đây là chương trình chạy được, không phải thư viện.</td><td>Không có. Gần giống một file có <code>"bin"</code> trong package.json</td></tr>
+<tr><td><code>import ( "fmt" "os" )</code></td><td>Dùng hai package có sẵn: <code>fmt</code> để in chữ, <code>os</code> để làm việc với hệ điều hành.</td><td><code>import fs from 'node:fs'</code></td></tr>
+<tr><td><code>func main() {</code></td><td>Hàm <code>main</code> là điểm bắt đầu. Chạy chương trình là Go gọi hàm này. Hàm chạy xong thì chương trình kết thúc.</td><td>Code ở cấp cao nhất của file <code>index.js</code></td></tr>
+<tr><td><code>name := "bạn"</code></td><td>Tạo biến <code>name</code>, gán giá trị <code>"bạn"</code>. Go tự hiểu kiểu là <code>string</code>.</td><td><code>let name = "bạn"</code></td></tr>
+<tr><td><code>if len(os.Args) &gt; 1 {</code></td><td><code>os.Args</code> là danh sách những chữ bạn gõ khi chạy chương trình (xem hình dưới). <code>len</code> cho biết danh sách có mấy phần tử.</td><td><code>if (process.argv.length &gt; 2)</code></td></tr>
+<tr><td><code>name = os.Args[1]</code></td><td>Lấy chữ đầu tiên người dùng gõ sau tên chương trình, gán vào <code>name</code>. Dùng <code>=</code> vì biến đã có rồi.</td><td><code>name = process.argv[2]</code></td></tr>
+<tr><td><code>fmt.Printf("Xin chào, %s!\n", name)</code></td><td>In ra màn hình. <code>%s</code> là chỗ trống, được thay bằng giá trị của <code>name</code>. <code>\n</code> là xuống dòng.</td><td><code>console.log(`Xin chào, ${name}!`)</code></td></tr>
+</table>
+
+<h3>os.Args: chữ bạn gõ sau lệnh chạy</h3>
+<p>Khi bạn gõ <code>go run . Lan 3</code>, Go đưa vào chương trình một danh sách chuỗi:</p>
+<fig type="flow" caption="Phần tử 0 luôn là đường dẫn file chạy. Chữ bạn gõ thêm bắt đầu từ phần tử 1">
+[ext] os.Args[0] / "/tmp/go-build.../hello"
+[go] os.Args[1] / "Lan"
+[go] os.Args[2] / "3" (chuỗi, chưa phải số)
+</fig>
+<p>Vì vậy cùng một chương trình, gõ khác nhau thì in khác nhau:</p>
+<pre lang="out">
+$ go run .
+Xin chào, bạn!
+$ go run . Tùng
+Xin chào, Tùng!
+</pre>
+<p>Dòng có dấu <code>$</code> ở đầu là lệnh bạn gõ (không gõ dấu <code>$</code>), dòng bên dưới là chương trình in ra.</p>
+<aside class="warn"><p><b>Go Playground không truyền được tham số.</b> Trên go.dev/play không có chỗ gõ <code>Lan 3</code>, nên <code>os.Args</code> chỉ có phần tử 0. Chương trình nào đọc <code>os.Args</code> phải chạy bằng terminal trên máy.</p></aside>
+
+<h3>Tạo file chạy</h3>
+<pre lang="sh">
+go build -o hello .   # biên dịch ra file tên hello trong thư mục hiện tại
+./hello Lan           # chạy file đó, không cần lệnh go nữa
+</pre>
+<pre lang="out" sim="1">
+Xin chào, Lan!
+</pre>
+
+<h2>Cách đọc và chạy code trong các bài</h2>
+<p>Các bài sau có nhiều khối code. Nhìn tiêu đề của khối để biết làm gì với nó:</p>
+<table>
+<tr><th>Tiêu đề khối</th><th>Ý nghĩa</th><th>Làm gì</th></tr>
+<tr><td><b>Go</b> hoặc <b>main.go</b>, dòng đầu là <code>package main</code></td><td>Chương trình đầy đủ</td><td>Bấm "Sao chép", dán đè toàn bộ <code>main.go</code>, chạy <code>go run .</code>. Hoặc dán vào go.dev/play rồi bấm Run.</td></tr>
+<tr><td><b>Go · trích đoạn</b></td><td>Một phần của chương trình lớn hơn, để minh hoạ</td><td>Đọc để hiểu. Muốn chạy thì đặt vào bên trong <code>func main()</code> của chương trình đầy đủ.</td></tr>
+<tr><td><b>Kết quả khi chạy</b> (viền đứt)</td><td>Chữ mà chương trình ngay phía trên in ra</td><td>Chạy xong, so với khối này. Giống hệt nghĩa là đúng.</td></tr>
+<tr><td><b>Terminal</b></td><td>Lệnh gõ trong terminal</td><td>Gõ từng dòng. Phần sau dấu <code>#</code> là chú thích, không cần gõ.</td></tr>
+</table>
+<aside class="tip"><p>Mỗi bài tập có thể làm trong một thư mục riêng: <code>mkdir bai01 &amp;&amp; cd bai01 &amp;&amp; go mod init bai01</code>, rồi tạo <code>main.go</code>. Trong một thư mục chỉ được có <b>một</b> hàm <code>main</code>, nên đừng để hai file có <code>func main</code> cạnh nhau.</p></aside>
 
 <h2>Code Go được chạy như thế nào</h2>
 <p>JavaScript được trình duyệt hoặc Node đọc và chạy (có JIT). Go thì khác: trình biên dịch dịch toàn bộ code thành <b>mã máy</b> cho một hệ điều hành và loại CPU cụ thể, đóng gói luôn thư viện và runtime (bộ lập lịch goroutine, bộ thu gom rác) vào <b>một file duy nhất</b>.</p>
@@ -90,7 +138,7 @@ require github.com/jackc/pgx/v5 v5.7.1
 
 <h2>Trình biên dịch nghiêm khắc</h2>
 <p>Go từ chối biên dịch nếu có <b>biến cục bộ không dùng</b> hoặc <b>import không dùng</b>. Lúc đầu thấy khó chịu, nhưng nhờ vậy code Go hiếm khi có rác.</p>
-<pre lang="go" mark="bad">
+<pre lang="go" mark="bad" check="no">
 package main
 
 import (
@@ -123,34 +171,97 @@ go doc net/http.Server      # xem một kiểu
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Lời chào có tham số</summary>
-<p>Sửa chương trình để nhận hai tham số: tên và số lần chào. <code>go run . Lan 3</code> in ra 3 dòng "Xin chào, Lan!". Gợi ý: <code>strconv.Atoi</code> đổi chuỗi thành số và trả về lỗi nếu chuỗi không phải số.</p>
+<p>Sửa chương trình để nhận <b>hai</b> tham số: tên và số lần chào. Khi gõ lệnh dưới đây trong terminal, chương trình in 3 dòng:</p>
+<pre lang="out">
+$ go run . Lan 3
+Xin chào, Lan!
+Xin chào, Lan!
+Xin chào, Lan!
+</pre>
+<p>Nếu người dùng gõ thiếu tham số hoặc số lần không phải số, in ra hướng dẫn thay vì bị lỗi.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Theo hình <code>os.Args</code> ở trên: tên nằm ở <code>os.Args[1]</code>, số lần nằm ở <code>os.Args[2]</code>. Muốn có cả hai thì <code>len(os.Args)</code> phải ít nhất là 3.</li>
+<li><code>os.Args[2]</code> là chuỗi <code>"3"</code>, chưa dùng để đếm được. Đổi sang số bằng <code>strconv.Atoi("3")</code>. Hàm này trả về <b>hai</b> giá trị: con số, và một lỗi (<code>nil</code> nếu không có lỗi). Giống <code>Number("3")</code> của JS, nhưng thay vì ra <code>NaN</code> thì Go báo lỗi.</li>
+<li>Lặp <code>n</code> lần bằng <code>for i := 0; i &lt; n; i++ { ... }</code>, giống vòng <code>for</code> của JS nhưng không có ngoặc tròn.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go" file="main.go">
+<pre lang="go" file="main.go" args="Lan 3">
 package main
 
 import (
     "fmt"
     "os"
-    "strconv"
+    "strconv" // đổi chuỗi sang số
 )
 
 func main() {
+    // Cần tên chương trình + 2 chữ người dùng gõ = 3 phần tử
     if len(os.Args) < 3 {
-        fmt.Println("Cách dùng: hello <tên> <số lần>")
-        os.Exit(1)
+        fmt.Println("Cách dùng: go run . <tên> <số lần>")
+        fmt.Println("Ví dụ:     go run . Lan 3")
+        os.Exit(1) // dừng chương trình, mã 1 nghĩa là có lỗi
     }
-    name := os.Args[1]
-    n, err := strconv.Atoi(os.Args[2])
+
+    name := os.Args[1] // "Lan"
+
+    // Atoi trả về 2 giá trị: số và lỗi
+    n, err := strconv.Atoi(os.Args[2]) // "3" -> 3
     if err != nil || n < 1 {
-        fmt.Println("Số lần phải là số nguyên dương")
+        // err khác nil: chuỗi không phải số, ví dụ "ba"
+        fmt.Println("Số lần phải là số nguyên dương, ví dụ 3")
         os.Exit(1)
     }
+
+    // i chạy 0, 1, 2: lặp đúng n = 3 lần
     for i := 0; i < n; i++ {
         fmt.Printf("Xin chào, %s!\n", name)
     }
 }
 </pre>
-<p>Để ý cách Go trả lỗi: <code>strconv.Atoi</code> trả về hai giá trị, số và lỗi. Bạn sẽ thấy mẫu <code>x, err := ...</code> rồi <code>if err != nil</code> ở khắp nơi (bài 07).</p>
+<pre lang="out">
+$ go run . Lan 3
+Xin chào, Lan!
+Xin chào, Lan!
+Xin chào, Lan!
+</pre>
+<p><b>Chạy thử các trường hợp sai</b>, để thấy chương trình tự bảo vệ:</p>
+<pre lang="out" sim="1">
+$ go run .
+Cách dùng: go run . <tên> <số lần>
+Ví dụ:     go run . Lan 3
+exit status 1
+$ go run . Lan ba
+Số lần phải là số nguyên dương, ví dụ 3
+exit status 1
+</pre>
+<aside class="warn"><p>Nếu bạn chỉ bấm Run (trên Go Playground hoặc nút Run của VS Code) hay gõ <code>go run .</code> mà không có <code>Lan 3</code>, chương trình sẽ in "Cách dùng" chứ không in 3 lần. Đó là đúng: không có tham số thì nó không biết chào ai. Dòng <code>exit status 1</code> là lệnh <code>go run</code> báo chương trình đã dừng bằng <code>os.Exit(1)</code>.</p></aside>
+<p><b>Giải thích</b></p>
+<ul>
+<li><code>n, err := strconv.Atoi(...)</code>: một hàm Go trả về nhiều giá trị cùng lúc, gán vào nhiều biến bằng dấu phẩy. Giống destructuring <code>const [n, err] = atoi(...)</code> trong JS.</li>
+<li><code>if err != nil</code>: <code>nil</code> giống <code>null</code>. Lỗi khác <code>nil</code> nghĩa là có lỗi. Bạn sẽ gặp hai dòng này ở khắp mọi nơi trong code Go (bài 07 nói kỹ).</li>
+<li><code>os.Exit(1)</code>: kết thúc chương trình ngay. Số 0 là thành công, khác 0 là lỗi. Các công cụ như CI dựa vào số này để biết lệnh chạy được hay không.</li>
+</ul>
+<p><b>Muốn thử trên Go Playground</b> (không có tham số): thay hai dòng đọc <code>os.Args</code> bằng giá trị gõ sẵn:</p>
+<pre lang="go">
+package main
+
+import "fmt"
+
+func main() {
+    name := "Lan" // thay cho os.Args[1]
+    n := 3        // thay cho os.Args[2] đã đổi sang số
+
+    for i := 0; i < n; i++ {
+        fmt.Printf("Xin chào, %s!\n", name)
+    }
+}
+</pre>
+<pre lang="out">
+Xin chào, Lan!
+Xin chào, Lan!
+Xin chào, Lan!
+</pre>
 </details>
 </details>
 <details class="ex"><summary>Build cho ba hệ điều hành</summary>

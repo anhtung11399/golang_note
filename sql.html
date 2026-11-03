@@ -37,13 +37,22 @@
   </header>
   <div class="prose"><h2 id="vi-sao-van-la-sql"><a href="#vi-sao-van-la-sql" class="anchor" aria-hidden="true">#</a>Vì sao vẫn là SQL</h2>
 <p>Có rất nhiều loại database (MongoDB, DynamoDB, Cassandra...), nhưng với đa số ứng dụng nghiệp vụ, <b>cơ sở dữ liệu quan hệ</b> (PostgreSQL, MySQL) vẫn là lựa chọn mặc định: dữ liệu có cấu trúc rõ, có quan hệ với nhau, cần giao dịch đúng tuyệt đối. Lộ trình này dùng <b>PostgreSQL</b>, database mã nguồn mở được dùng rộng rãi nhất cho backend hiện nay.</p>
-<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c"># Chạy Postgres bằng Docker (cách nhanh nhất trên máy cá nhân)</span>
-<span class="k">docker</span> run -d --name pg -e POSTGRES_PASSWORD=dev -p <span class="n">5432</span>:<span class="n">5432</span> postgres:<span class="n">17</span>
-<span class="k">docker</span> exec -it pg <span class="k">psql</span> -U postgres     <span class="c"># mở cửa sổ gõ SQL</span></code></pre></div>
+<h3>Cài Postgres để chạy thử</h3>
+<p>Mọi câu SQL trong bài này đều chạy được, và kết quả in ngay bên dưới để bạn so. Chọn một trong hai cách:</p>
+<p><b>Cách 1: Docker</b> (cần cài Docker Desktop và mở nó lên trước):</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">docker</span> run -d --name pg -e POSTGRES_PASSWORD=dev -p <span class="n">5432</span>:<span class="n">5432</span> postgres:<span class="n">17</span>   <span class="c"># tải và chạy Postgres ở nền</span>
+<span class="k">docker</span> exec -it pg <span class="k">psql</span> -U postgres                                         <span class="c"># mở cửa sổ gõ SQL</span></code></pre></div>
+<p><b>Cách 2: Homebrew</b> trên macOS, không cần Docker:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">brew</span> install postgresql@<span class="n">17</span>
+<span class="k">brew</span> services start postgresql@<span class="n">17</span>   <span class="c"># chạy Postgres ở nền, tự bật lại khi mở máy</span>
+<span class="k">psql</span> postgres                       <span class="c"># mở cửa sổ gõ SQL</span></code></pre></div>
+<p>Khi thấy dấu nhắc <code>postgres=#</code> là bạn đang ở trong <code>psql</code>, công cụ gõ SQL của Postgres. Dán câu SQL vào, kết thúc bằng dấu <code>;</code> rồi Enter. Gõ <code>\q</code> để thoát, <code>\dt</code> để xem danh sách bảng, <code>\d users</code> để xem cấu trúc bảng <code>users</code>.</p>
+<aside class="tip"><p>Thích giao diện bấm chuột hơn: cài <b>TablePlus</b>, <b>DBeaver</b> hoặc <b>pgAdmin</b>, kết nối tới <code>localhost:5432</code>, người dùng <code>postgres</code>, mật khẩu <code>dev</code> (cách 1) hoặc để trống (cách 2).</p></aside>
 <aside class="fe"><p>Hãy nghĩ một bảng như một mảng object cùng kiểu, mỗi dòng là một object, mỗi cột là một thuộc tính có kiểu cố định. Khác với state ở frontend: dữ liệu này dùng chung cho mọi người, sống nhiều năm, và database sẽ <b>từ chối</b> dữ liệu sai ràng buộc thay vì để bạn tự kiểm tra.</p></aside>
 
 <h2 id="thiet-ke-bang-cho-so-bai-tap"><a href="#thiet-ke-bang-cho-so-bai-tap" class="anchor" aria-hidden="true">#</a>Thiết kế bảng cho "Sổ bài tập"</h2>
 <p>Nghiệp vụ: giáo viên có nhiều lớp. Lớp có nhiều học sinh, một học sinh có thể học nhiều lớp (học thêm). Lớp có nhiều bài tập. Mỗi học sinh nộp mỗi bài tập một lần, có điểm.</p>
+<p>Năm bảng dưới đây được dùng xuyên suốt bài 14, 15, 16. Đọc sơ đồ trước: mũi tên đi từ bảng "một" tới bảng "nhiều" (một giáo viên có nhiều lớp).</p>
 <figure class="dg">
 <svg viewBox="0 0 760 330" style="min-width:620px;max-width:760px" role="img" aria-label="Sơ đồ quan hệ các bảng">
   <g class="nd go"><rect x="20" y="20" width="170" height="110" rx="10"/></g>
@@ -114,6 +123,49 @@
     <span class="k">PRIMARY</span> <span class="k">KEY</span> (assignment_id, student_id)
 );</code></pre></div>
 
+<p><b>Đọc lược đồ:</b></p>
+<ul>
+<li><code>bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY</code>: cột id là số nguyên 64 bit, database tự đánh số 1, 2, 3... khi thêm dòng. Giống <code>AUTO_INCREMENT</code> của MySQL.</li>
+<li><code>text NOT NULL UNIQUE</code>: chuỗi, không được để trống, không được trùng với dòng khác.</li>
+<li><code>REFERENCES users(id)</code>: khoá ngoại. Giá trị cột này phải là một <code>id</code> có thật trong bảng <code>users</code>.</li>
+<li><code>timestamptz NOT NULL DEFAULT now()</code>: thời điểm, không gửi thì lấy giờ hiện tại.</li>
+<li><code>numeric(4,2)</code>: số thập phân chính xác, tối đa 4 chữ số, 2 chữ số sau dấu chấm (từ 0.00 đến 99.99). Không dùng số thực cho điểm, cùng lý do như tiền ở bài 02.</li>
+</ul>
+<p>Dán toàn bộ khối trên vào <code>psql</code>. Mỗi bảng tạo xong, psql in <code>CREATE TABLE</code>.</p>
+
+<h3>Dữ liệu mẫu</h3>
+<p>Dán tiếp khối này để có dữ liệu cho mọi ví dụ trong bài. Id được ghi cố định (<code>OVERRIDING SYSTEM VALUE</code> cho phép tự chọn id thay vì để database đánh số) để kết quả trên máy bạn giống hệt trong bài:</p>
+<div class="code"><div class="code-h"><span>seed.sql</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> users (id, email, name, role) OVERRIDING SYSTEM VALUE <span class="k">VALUES</span>
+  (<span class="n">7</span>,   <span class="s">'hoa@truong.vn'</span>,  <span class="s">'Cô Hoa'</span>,  <span class="s">'teacher'</span>),
+  (<span class="n">8</span>,   <span class="s">'nam@truong.vn'</span>,  <span class="s">'Thầy Nam'</span>, <span class="s">'teacher'</span>),
+  (<span class="n">101</span>, <span class="s">'an@hs.vn'</span>,       <span class="s">'An'</span>,      <span class="s">'student'</span>),
+  (<span class="n">102</span>, <span class="s">'binh@hs.vn'</span>,     <span class="s">'Bình'</span>,    <span class="s">'student'</span>),
+  (<span class="n">103</span>, <span class="s">'chi@hs.vn'</span>,      <span class="s">'Chi'</span>,     <span class="s">'student'</span>),
+  (<span class="n">104</span>, <span class="s">'dung@hs.vn'</span>,     <span class="s">'Dũng'</span>,    <span class="s">'student'</span>);
+
+<span class="k">INSERT</span> <span class="k">INTO</span> classes (id, teacher_id, name, capacity) OVERRIDING SYSTEM VALUE <span class="k">VALUES</span>
+  (<span class="n">42</span>, <span class="n">7</span>, <span class="s">'Lớp 5A'</span>, <span class="n">35</span>),
+  (<span class="n">43</span>, <span class="n">7</span>, <span class="s">'Tiếng Anh tối thứ 3'</span>, <span class="n">20</span>),
+  (<span class="n">50</span>, <span class="n">8</span>, <span class="s">'Lớp 6B'</span>, <span class="n">40</span>);
+
+<span class="k">INSERT</span> <span class="k">INTO</span> enrollments (class_id, student_id) <span class="k">VALUES</span>
+  (<span class="n">42</span>, <span class="n">101</span>), (<span class="n">42</span>, <span class="n">102</span>), (<span class="n">42</span>, <span class="n">103</span>), (<span class="n">42</span>, <span class="n">104</span>),
+  (<span class="n">43</span>, <span class="n">101</span>), (<span class="n">43</span>, <span class="n">103</span>);
+
+<span class="k">INSERT</span> <span class="k">INTO</span> assignments (id, class_id, title, due_date) OVERRIDING SYSTEM VALUE <span class="k">VALUES</span>
+  (<span class="n">9</span>,  <span class="n">42</span>, <span class="s">'Toán trang 12'</span>, <span class="s">'2026-11-03'</span>),
+  (<span class="n">10</span>, <span class="n">42</span>, <span class="s">'Văn: tả cây'</span>,   <span class="s">'2026-11-05'</span>),
+  (<span class="n">11</span>, <span class="n">43</span>, <span class="s">'Unit 3'</span>,        <span class="s">'2026-11-04'</span>);
+
+<span class="k">INSERT</span> <span class="k">INTO</span> submissions (assignment_id, student_id, score, submitted_at) <span class="k">VALUES</span>
+  (<span class="n">9</span>,  <span class="n">101</span>, <span class="n">9.00</span>, <span class="s">'2026-11-02 19:05+07'</span>),
+  (<span class="n">9</span>,  <span class="n">103</span>, <span class="n">7.50</span>, <span class="s">'2026-11-02 20:41+07'</span>),
+  (<span class="n">9</span>,  <span class="n">104</span>, <span class="n">4.00</span>, <span class="s">'2026-11-03 06:30+07'</span>),
+  (<span class="n">10</span>, <span class="n">101</span>, <span class="n">8.00</span>, <span class="s">'2026-11-04 18:00+07'</span>),
+  (<span class="n">10</span>, <span class="n">104</span>, <span class="n">3.50</span>, <span class="s">'2026-11-04 21:10+07'</span>),
+  (<span class="n">10</span>, <span class="n">103</span>, <span class="k">NULL</span>, <span class="s">'2026-11-04 21:30+07'</span>);</code></pre></div>
+<p>Tóm tắt dữ liệu: Cô Hoa (id 7) dạy hai lớp 42 (Lớp 5A, 4 học sinh An, Bình, Chi, Dũng) và 43. Lớp 42 có bài tập 9 và 10. Bình chưa nộp bài nào, Chi nộp bài 10 nhưng chưa được chấm (<code>score</code> là <code>NULL</code>).</p>
+
 <h2 id="rang-buoc-de-database-giu-du-lieu-dung"><a href="#rang-buoc-de-database-giu-du-lieu-dung" class="anchor" aria-hidden="true">#</a>Ràng buộc: để database giữ dữ liệu đúng</h2>
 <table>
 <tr><th>Ràng buộc</th><th>Đảm bảo điều gì</th></tr>
@@ -124,6 +176,17 @@
 <tr><td><code>ON DELETE CASCADE</code></td><td>Xoá lớp thì tự xoá bài tập, bài nộp của lớp đó</td></tr>
 <tr><td><code>CHECK</code></td><td>Giá trị trong khoảng cho phép: điểm 0 đến 10, sĩ số 1 đến 80</td></tr>
 </table>
+<p>Thử phá ràng buộc để thấy database từ chối:</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> users (email, name, role) <span class="k">VALUES</span> (<span class="s">'an@hs.vn'</span>, <span class="s">'An khác'</span>, <span class="s">'student'</span>);</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>ERROR:  duplicate key value violates unique constraint &quot;users_email_key&quot;
+DETAIL:  Key (email)=(an@hs.vn) already exists.</pre></div>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> submissions (assignment_id, student_id, score) <span class="k">VALUES</span> (<span class="n">9</span>, <span class="n">102</span>, <span class="n">11</span>);</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>ERROR:  new row for relation &quot;submissions&quot; violates check constraint &quot;submissions_score_check&quot;
+DETAIL:  Failing row contains (9, 102, 11.00, 2026-11-03 15:43:45.781+07).</pre></div>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> classes (teacher_id, name, capacity) <span class="k">VALUES</span> (<span class="n">999</span>, <span class="s">'Lớp ma'</span>, <span class="n">10</span>);</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>ERROR:  insert or update on table &quot;classes&quot; violates foreign key constraint &quot;classes_teacher_id_fkey&quot;
+DETAIL:  Key (teacher_id)=(999) is not present in table &quot;users&quot;.</pre></div>
+<p>Ba lỗi lần lượt là: email đã có người dùng (UNIQUE), điểm 11 ngoài khoảng 0 đến 10 (CHECK), giáo viên 999 không tồn tại (khoá ngoại). Ở bài 15 bạn sẽ bắt các lỗi này trong Go và đổi thành response <code>409</code> / <code>400</code>.</p>
 <aside class="prod"><p>Kiểm tra ở Go là tốt, nhưng <b>ràng buộc trong database là lớp phòng thủ cuối cùng</b>: nó vẫn đúng khi có bug trong code, khi hai request chạy song song, khi ai đó sửa dữ liệu bằng tay hay viết script nhập liệu. Code bạn viết hôm nay sẽ được người khác sửa trong 3 năm tới, còn ràng buộc thì vẫn ở đó.</p></aside>
 
 <h3>Khoá chính: số tự tăng hay UUID?</h3>
@@ -137,67 +200,118 @@
 <p>Cả hai đều phổ biến. Lưu ý: id đoán được <b>không</b> phải lỗ hổng nếu mọi endpoint đều kiểm quyền (bài 19). Đừng dựa vào id khó đoán để bảo mật.</p>
 
 <h2 id="crud-co-ban"><a href="#crud-co-ban" class="anchor" aria-hidden="true">#</a>CRUD cơ bản</h2>
-<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- Tạo, và lấy lại id vừa tạo</span>
-<span class="k">INSERT</span> <span class="k">INTO</span> classes (teacher_id, name, capacity) <span class="k">VALUES</span> (<span class="n">7</span>, <span class="s">'Lớp 5A'</span>, <span class="n">35</span>)
-<span class="k">RETURNING</span> id, created_at;
+<p>CRUD = Create, Read, Update, Delete: bốn việc cơ bản với dữ liệu. Trong SQL là <code>INSERT</code>, <code>SELECT</code>, <code>UPDATE</code>, <code>DELETE</code>.</p>
+<p><b>Đọc:</b> lấy các lớp của giáo viên 7. Đọc câu SQL như tiếng Anh: "chọn cột id, name, capacity từ bảng classes, ở những dòng có teacher_id bằng 7, sắp theo id".</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">SELECT</span> id, name, capacity <span class="k">FROM</span> classes <span class="k">WHERE</span> teacher_id = <span class="n">7</span> <span class="k">ORDER</span> <span class="k">BY</span> id;</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> id |        name         | capacity
+----+---------------------+----------
+ 42 | Lớp 5A              |       35
+ 43 | Tiếng Anh tối thứ 3 |       20
+(2 rows)</pre></div>
+<p><b>Tạo</b>, và lấy lại dữ liệu vừa tạo bằng <code>RETURNING</code> (không cần chạy thêm câu <code>SELECT</code>):</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> classes (teacher_id, name, capacity) <span class="k">VALUES</span> (<span class="n">7</span>, <span class="s">'Lớp 5B'</span>, <span class="n">35</span>)
+<span class="k">RETURNING</span> id, name;</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> id |  name
+----+--------
+  1 | Lớp 5B
+(1 row)
 
-<span class="c">-- Đọc</span>
-<span class="k">SELECT</span> id, name, capacity <span class="k">FROM</span> classes <span class="k">WHERE</span> teacher_id = <span class="n">7</span> <span class="k">ORDER</span> <span class="k">BY</span> created_at <span class="k">DESC</span> <span class="k">LIMIT</span> <span class="n">20</span>;
-
-<span class="c">-- Sửa (luôn có WHERE!)</span>
-<span class="k">UPDATE</span> classes <span class="k">SET</span> name = <span class="s">'Lớp 5A1'</span> <span class="k">WHERE</span> id = <span class="n">42</span> <span class="k">AND</span> teacher_id = <span class="n">7</span>;
-
-<span class="c">-- Xoá (luôn có WHERE!)</span>
-<span class="k">DELETE</span> <span class="k">FROM</span> classes <span class="k">WHERE</span> id = <span class="n">42</span> <span class="k">AND</span> teacher_id = <span class="n">7</span>;</code></pre></div>
+INSERT 0 1</pre></div>
+<p>Lớp mới có id 1 vì dữ liệu mẫu tự chọn id 42, 43, 50, còn bộ đếm tự tăng của database vẫn bắt đầu từ 1.</p>
+<p><b>Sửa</b> và <b>xoá</b>. Luôn có <code>WHERE</code>:</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">UPDATE</span> classes <span class="k">SET</span> name = <span class="s">'Lớp 5A1'</span> <span class="k">WHERE</span> id = <span class="n">42</span> <span class="k">AND</span> teacher_id = <span class="n">7</span>;</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>UPDATE 1</pre></div>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">UPDATE</span> classes <span class="k">SET</span> name = <span class="s">'Lớp của tôi'</span> <span class="k">WHERE</span> id = <span class="n">50</span> <span class="k">AND</span> teacher_id = <span class="n">7</span>;</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>UPDATE 0</pre></div>
+<p><code>UPDATE 1</code> nghĩa là một dòng bị sửa. <code>UPDATE 0</code>: không dòng nào, vì lớp 50 là của Thầy Nam (id 8), không phải của giáo viên 7. Câu SQL không báo lỗi, chỉ là không sửa gì. Trong Go, bạn đọc con số này để trả <code>404</code> (bài 15).</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">DELETE</span> <span class="k">FROM</span> classes <span class="k">WHERE</span> id = <span class="n">1</span> <span class="k">AND</span> teacher_id = <span class="n">7</span>;   <span class="c">-- xoá lớp 5B vừa tạo</span></code></pre></div>
 <aside class="warn"><p><code>UPDATE classes SET name = 'x'</code> quên <code>WHERE</code> là sửa <b>mọi dòng</b> của bảng. Khi sửa dữ liệu bằng tay trên production: mở transaction (<code>BEGIN</code>), chạy, xem số dòng bị ảnh hưởng, đúng rồi mới <code>COMMIT</code>.</p></aside>
 <p>Để ý điều kiện <code>AND teacher_id = 7</code>: không chỉ sửa lớp 42, mà sửa lớp 42 <b>nếu nó thuộc giáo viên 7</b>. Gộp kiểm quyền vào câu SQL là thói quen tốt nhất bạn có thể tập từ bây giờ.</p>
 
 <h2 id="join-ghep-du-lieu-tu-nhieu-bang"><a href="#join-ghep-du-lieu-tu-nhieu-bang" class="anchor" aria-hidden="true">#</a>JOIN: ghép dữ liệu từ nhiều bảng</h2>
-<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- Bài tập kèm tên lớp (INNER JOIN: chỉ lấy dòng có ở cả hai bên)</span>
-<span class="k">SELECT</span> a.id, a.title, a.due_date, c.name <span class="k">AS</span> class_name
-<span class="k">FROM</span> assignments a
-<span class="k">JOIN</span> classes c <span class="k">ON</span> c.id = a.class_id
-<span class="k">WHERE</span> c.teacher_id = <span class="n">7</span>;
-
-<span class="c">-- Mọi học sinh của lớp 42 kèm điểm bài 9 (LEFT JOIN: giữ cả học sinh chưa nộp)</span>
-<span class="k">SELECT</span> u.id, u.name, s.score, s.submitted_at
-<span class="k">FROM</span> enrollments e
-<span class="k">JOIN</span> users u <span class="k">ON</span> u.id = e.student_id
-<span class="k">LEFT</span> <span class="k">JOIN</span> submissions s <span class="k">ON</span> s.student_id = e.student_id <span class="k">AND</span> s.assignment_id = <span class="n">9</span>
+<p>Bảng <code>assignments</code> chỉ có <code>class_id</code>, không có tên lớp. Muốn hiện tên lớp cạnh bài tập thì phải ghép hai bảng: với mỗi bài tập, tìm dòng lớp có <code>id</code> bằng <code>class_id</code> của nó. Giống <code>assignments.map(a =&gt; ({ ...a, class: classes.find(c =&gt; c.id === a.classId) }))</code>, nhưng database làm nhanh hơn nhiều nhờ index.</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">SELECT</span> a.id, a.title, a.due_date, c.name <span class="k">AS</span> class_name
+<span class="k">FROM</span> assignments a                    <span class="c">-- &quot;a&quot; là tên gọi tắt của bảng</span>
+<span class="k">JOIN</span> classes c <span class="k">ON</span> c.id = a.class_id   <span class="c">-- ghép: dòng nào của classes khớp với bài tập này</span>
+<span class="k">WHERE</span> c.teacher_id = <span class="n">7</span>;</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> id |     title     |  due_date  |     class_name
+----+---------------+------------+---------------------
+  9 | Toán trang 12 | 2026-11-03 | Lớp 5A
+ 10 | Văn: tả cây   | 2026-11-05 | Lớp 5A
+ 11 | Unit 3        | 2026-11-04 | Tiếng Anh tối thứ 3
+(3 rows)</pre></div>
+<p><code>AS class_name</code> đặt tên cho cột kết quả. <code>JOIN</code> (đầy đủ là <code>INNER JOIN</code>) chỉ giữ những dòng khớp được ở cả hai bên.</p>
+<p>Bài toán khó hơn: <b>mọi</b> học sinh của lớp 42 kèm điểm bài 9, kể cả em chưa nộp. Dùng <code>LEFT JOIN</code>: giữ mọi dòng của bảng bên trái, bên phải không có thì điền NULL.</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">SELECT</span> u.id, u.name, s.score, s.submitted_at
+<span class="k">FROM</span> enrollments e                                    <span class="c">-- bắt đầu từ danh sách học sinh của lớp</span>
+<span class="k">JOIN</span> users u <span class="k">ON</span> u.id = e.student_id                   <span class="c">-- lấy tên học sinh</span>
+<span class="k">LEFT</span> <span class="k">JOIN</span> submissions s <span class="k">ON</span> s.student_id = e.student_id <span class="k">AND</span> s.assignment_id = <span class="n">9</span>  <span class="c">-- bài nộp, nếu có</span>
 <span class="k">WHERE</span> e.class_id = <span class="n">42</span>
 <span class="k">ORDER</span> <span class="k">BY</span> u.name;</code></pre></div>
-<table>
-<tr><th>Học sinh</th><th>score</th><th>submitted_at</th></tr>
-<tr><td>An</td><td>9.00</td><td>2026-11-02 19:05</td></tr>
-<tr><td>Bình</td><td><i>NULL</i></td><td><i>NULL</i></td></tr>
-<tr><td>Chi</td><td>7.50</td><td>2026-11-02 20:41</td></tr>
-</table>
-<p>Bình chưa nộp: <code>LEFT JOIN</code> vẫn giữ dòng của Bình với các cột của <code>submissions</code> là NULL. Nếu dùng <code>JOIN</code> thường, Bình biến mất khỏi danh sách, và giáo viên không biết ai chưa nộp.</p>
-<aside class="warn"><p>Để ý: điều kiện <code>s.assignment_id = 9</code> nằm trong <code>ON</code>, không phải trong <code>WHERE</code>. Đặt vào <code>WHERE</code> thì dòng NULL của Bình bị lọc mất, LEFT JOIN thành JOIN thường. Đây là lỗi SQL kinh điển.</p></aside>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> id  | name | score |      submitted_at
+-----+------+-------+------------------------
+ 101 | An   |  9.00 | 2026-11-02 19:05:00+07
+ 102 | Bình |       |
+ 103 | Chi  |  7.50 | 2026-11-02 20:41:00+07
+ 104 | Dũng |  4.00 | 2026-11-03 06:30:00+07
+(4 rows)</pre></div>
+<p>Bình chưa nộp: <code>LEFT JOIN</code> vẫn giữ dòng của Bình với các cột của <code>submissions</code> để trống (NULL, psql in ra ô trống). Nếu dùng <code>JOIN</code> thường, Bình biến mất khỏi danh sách, và giáo viên không biết ai chưa nộp. Thời gian hiện theo giờ Việt Nam (<code>+07</code>) vì phiên psql đang đặt múi giờ đó (xem mục "Thời gian trong database").</p>
+<aside class="warn"><p>Để ý: điều kiện <code>s.assignment_id = 9</code> nằm trong <code>ON</code>, không phải trong <code>WHERE</code>. Đặt vào <code>WHERE</code> thì dòng NULL của Bình bị lọc mất, LEFT JOIN thành JOIN thường. Đây là lỗi SQL kinh điển. Thử đặt sai chỗ:</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">SELECT</span> u.id, u.name, s.score
+<span class="k">FROM</span> enrollments e
+<span class="k">JOIN</span> users u <span class="k">ON</span> u.id = e.student_id
+<span class="k">LEFT</span> <span class="k">JOIN</span> submissions s <span class="k">ON</span> s.student_id = e.student_id
+<span class="k">WHERE</span> e.class_id = <span class="n">42</span> <span class="k">AND</span> s.assignment_id = <span class="n">9</span>   <span class="c">-- SAI: điều kiện của bảng bên phải nằm ở WHERE</span>
+<span class="k">ORDER</span> <span class="k">BY</span> u.name;</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> id  | name | score
+-----+------+-------
+ 101 | An   |  9.00
+ 103 | Chi  |  7.50
+ 104 | Dũng |  4.00
+(3 rows)</pre></div>
+<p>Bình đã biến mất. Câu SQL vẫn chạy, không báo lỗi gì, nên lỗi này rất khó phát hiện.</p></aside>
 
 <h2 id="gom-nhom-group-by"><a href="#gom-nhom-group-by" class="anchor" aria-hidden="true">#</a>Gom nhóm: GROUP BY</h2>
+<p><code>GROUP BY</code> gom các dòng có cùng giá trị thành một nhóm, rồi các hàm <code>count</code>, <code>avg</code>, <code>sum</code>, <code>max</code> tính trên từng nhóm. Giống <code>lodash.groupBy</code> rồi tính trên mỗi nhóm.</p>
 <div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- Mỗi lớp của giáo viên 7: số học sinh, số bài tập</span>
 <span class="k">SELECT</span> c.id, c.name,
-       <span class="k">count</span>(<span class="k">DISTINCT</span> e.student_id) <span class="k">AS</span> students,
+       <span class="k">count</span>(<span class="k">DISTINCT</span> e.student_id) <span class="k">AS</span> students,     <span class="c">-- DISTINCT: đếm mỗi học sinh một lần</span>
        <span class="k">count</span>(<span class="k">DISTINCT</span> a.id)         <span class="k">AS</span> assignments
 <span class="k">FROM</span> classes c
 <span class="k">LEFT</span> <span class="k">JOIN</span> enrollments e <span class="k">ON</span> e.class_id = c.id
 <span class="k">LEFT</span> <span class="k">JOIN</span> assignments a <span class="k">ON</span> a.class_id = c.id
 <span class="k">WHERE</span> c.teacher_id = <span class="n">7</span>
-<span class="k">GROUP</span> <span class="k">BY</span> c.id, c.name;
-
-<span class="c">-- Điểm trung bình theo học sinh trong lớp 42, chỉ lấy em dưới 5</span>
-<span class="k">SELECT</span> s.student_id, round(<span class="k">avg</span>(s.score), <span class="n">2</span>) <span class="k">AS</span> avg_score, <span class="k">count</span>(*) <span class="k">AS</span> graded
+<span class="k">GROUP</span> <span class="k">BY</span> c.id, c.name;                               <span class="c">-- mỗi lớp một dòng kết quả</span></code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> id |        name         | students | assignments
+----+---------------------+----------+-------------
+ 42 | Lớp 5A              |        4 |           2
+ 43 | Tiếng Anh tối thứ 3 |        2 |           1
+(2 rows)</pre></div>
+<p>Vì sao cần <code>DISTINCT</code>? Ghép một lớp với 4 học sinh và 2 bài tập tạo ra 4 × 2 = 8 dòng trung gian. Đếm không có <code>DISTINCT</code> sẽ ra 8 học sinh, 8 bài tập.</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- Điểm trung bình theo học sinh trong lớp 42, chỉ lấy em dưới 5</span>
+<span class="k">SELECT</span> s.student_id, round(<span class="k">avg</span>(s.score), <span class="n">2</span>) <span class="k">AS</span> avg_score, <span class="k">count</span>(s.score) <span class="k">AS</span> graded
 <span class="k">FROM</span> submissions s
 <span class="k">JOIN</span> assignments a <span class="k">ON</span> a.id = s.assignment_id
-<span class="k">WHERE</span> a.class_id = <span class="n">42</span> <span class="k">AND</span> s.score <span class="k">IS</span> <span class="k">NOT</span> <span class="k">NULL</span>
+<span class="k">WHERE</span> a.class_id = <span class="n">42</span> <span class="k">AND</span> s.score <span class="k">IS</span> <span class="k">NOT</span> <span class="k">NULL</span>   <span class="c">-- WHERE lọc dòng TRƯỚC khi gom</span>
 <span class="k">GROUP</span> <span class="k">BY</span> s.student_id
-<span class="k">HAVING</span> <span class="k">avg</span>(s.score) &lt; <span class="n">5</span>;   <span class="c">-- HAVING lọc SAU khi gom, WHERE lọc TRƯỚC</span></code></pre></div>
+<span class="k">HAVING</span> <span class="k">avg</span>(s.score) &lt; <span class="n">5</span>;                        <span class="c">-- HAVING lọc nhóm SAU khi gom</span></code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> student_id | avg_score | graded
+------------+-----------+--------
+        104 |      3.75 |      2
+(1 row)</pre></div>
+<p>Dũng (104) được 4 và 3.5, trung bình 3.75. An và Chi trung bình trên 5 nên bị <code>HAVING</code> loại.</p>
 
 <h2 id="null-khong-phai-0-khong-phai-chuoi-rong"><a href="#null-khong-phai-0-khong-phai-chuoi-rong" class="anchor" aria-hidden="true">#</a>NULL: không phải 0, không phải chuỗi rỗng</h2>
 <ul>
 <li><code>NULL</code> nghĩa là "không biết / không có". <code>score = NULL</code> luôn ra "không biết", không bao giờ đúng. Phải viết <code>score IS NULL</code>.</li>
-<li><code>avg</code>, <code>sum</code>, <code>count(cột)</code> bỏ qua NULL. <code>count(*)</code> đếm mọi dòng.</li>
+<li><code>avg</code>, <code>sum</code>, <code>count(cột)</code> bỏ qua NULL. <code>count(*)</code> đếm mọi dòng. Bài 10 có 3 bài nộp, một bài chưa chấm:
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">SELECT</span> <span class="k">count</span>(*) <span class="k">AS</span> dong, <span class="k">count</span>(score) <span class="k">AS</span> da_cham, round(<span class="k">avg</span>(score), <span class="n">2</span>) <span class="k">AS</span> trung_binh
+<span class="k">FROM</span> submissions <span class="k">WHERE</span> assignment_id = <span class="n">10</span>;</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> dong | da_cham | trung_binh
+------+---------+------------
+    3 |       2 |       5.75
+(1 row)</pre></div>
+Trung bình là (8 + 3.5) / 2 = 5.75, bài chưa chấm của Chi không bị tính là 0.</li>
 <li>Trong Go, đọc cột có thể NULL vào kiểu con trỏ (<code>*float64</code>) hoặc kiểu riêng của driver (<code>pgtype.Numeric</code>). Đọc NULL vào <code>float64</code> thường sẽ báo lỗi.</li>
 </ul>
 
@@ -211,6 +325,7 @@
 <ul>
 <li>Thời điểm (lúc tạo, lúc nộp): <code>timestamptz</code>. Postgres lưu dạng UTC và đổi theo múi giờ của phiên kết nối khi hiển thị.</li>
 <li>Ngày theo lịch (hạn nộp, ngày điểm danh): <code>date</code>. Nhớ quy đổi "hôm nay" theo giờ Việt Nam (<code>Asia/Ho_Chi_Minh</code>) chứ không theo UTC: từ 0 giờ tới 7 giờ sáng ở Việt Nam, ngày UTC vẫn là hôm qua.</li>
+<li>Muốn psql hiện giờ Việt Nam như các kết quả trong bài: <code>SET TIME ZONE 'Asia/Ho_Chi_Minh';</code> (chỉ đổi cách hiển thị, dữ liệu lưu vẫn là một thời điểm duy nhất).</li>
 </ul>
 
 <div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Bạn muốn liệt kê <b>mọi</b> học sinh trong lớp kèm điểm bài 9, kể cả em chưa nộp. Viết <code>LEFT JOIN submissions s ON s.student_id = e.student_id WHERE s.assignment_id = 9</code>. Kết quả?</p><div class="qo"><button type="button" class="opt">Đúng như mong muốn</button><button type="button" class="opt" data-ok>Mất các em chưa nộp, vì WHERE loại các dòng có s.assignment_id là NULL</button><button type="button" class="opt">Lỗi cú pháp</button></div><p class="why" hidden>Điều kiện trên bảng bên phải của LEFT JOIN phải đặt trong ON. Đặt trong WHERE thì LEFT JOIN thành JOIN thường.</p></div>
@@ -219,9 +334,15 @@
 <details class="ex"><summary>Viết các truy vấn báo cáo</summary>
 <p>Với 5 bảng ở trên, viết SQL cho:</p>
 <ol>
-<li>Danh sách học sinh lớp 42 <b>chưa nộp</b> bài tập 9.</li>
-<li>Với mỗi bài tập của lớp 42: tiêu đề, số em đã nộp, sĩ số lớp.</li>
-<li>Năm học sinh có điểm trung bình cao nhất lớp 42 (chỉ tính bài đã chấm).</li>
+<li>Danh sách học sinh lớp 42 <b>chưa nộp</b> bài tập 9. (Với dữ liệu mẫu: chỉ có Bình.)</li>
+<li>Với mỗi bài tập của lớp 42: tiêu đề, số em đã nộp, sĩ số lớp. (Bài 9: 3/4, bài 10: 3/4.)</li>
+<li>Năm học sinh có điểm trung bình cao nhất lớp 42 (chỉ tính bài đã chấm). (An đứng đầu với 8.50.)</li>
+</ol>
+<p><b>Gợi ý</b></p>
+<ol class="steps">
+<li>Câu 1: bắt đầu từ câu LEFT JOIN "mọi học sinh kèm điểm bài 9" ở trên. Em chưa nộp là em có cột của <code>submissions</code> bị NULL. Thêm điều kiện <code>s.student_id IS NULL</code>.</li>
+<li>Câu 2: mỗi bài tập một dòng. Có thể đếm bằng <b>truy vấn con</b>: viết một câu <code>SELECT count(*)</code> nhỏ trong ngoặc ngay ở danh sách cột.</li>
+<li>Câu 3: giống ví dụ <code>HAVING</code>, bỏ <code>HAVING</code>, thêm <code>ORDER BY avg_score DESC LIMIT 5</code>, và JOIN thêm <code>users</code> để có tên.</li>
 </ol>
 <details class="sol"><summary>Xem lời giải</summary>
 <div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- 1. Chưa nộp: LEFT JOIN rồi lấy dòng không khớp</span>
@@ -255,10 +376,34 @@
 <span class="k">GROUP</span> <span class="k">BY</span> u.id, u.name
 <span class="k">ORDER</span> <span class="k">BY</span> avg_score <span class="k">DESC</span>
 <span class="k">LIMIT</span> <span class="n">5</span>;</code></pre></div>
+<p>Kết quả với dữ liệu mẫu, theo thứ tự câu 1 (cả hai cách cho cùng kết quả), câu 2, câu 3:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> id  | name
+-----+------
+ 102 | Bình
+(1 row)</pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> id |     title     | submitted | total
+----+---------------+-----------+-------
+ 10 | Văn: tả cây   |         3 |     4
+  9 | Toán trang 12 |         3 |     4
+(2 rows)</pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> id  | name | avg_score
+-----+------+-----------
+ 101 | An   |      8.50
+ 103 | Chi  |      7.50
+ 104 | Dũng |      3.75
+(3 rows)</pre></div>
+<p>Câu 3 chỉ ra 3 em dù <code>LIMIT 5</code>: Bình không có bài nào được chấm nên không có trong nhóm nào. <code>LIMIT</code> là "tối đa", không phải "đúng bằng".</p>
 </details>
 </details>
 <details class="ex"><summary>Thêm tính năng vào lược đồ</summary>
 <p>Thêm: giáo viên đính kèm nhiều file vào bài tập (tên file, kích thước, đường dẫn lưu trữ), và mỗi lớp có nhiều môn học, bài tập thuộc một môn. Viết <code>CREATE TABLE</code> / <code>ALTER TABLE</code> với đủ ràng buộc.</p>
+<p><b>Gợi ý</b></p>
+<ol class="steps">
+<li>"Một lớp có nhiều môn" = bảng mới <code>subjects</code> có cột <code>class_id</code> trỏ về <code>classes</code>.</li>
+<li>"Bài tập thuộc một môn" = bảng <code>assignments</code> thêm cột <code>subject_id</code>: <code>ALTER TABLE assignments ADD COLUMN ...</code>.</li>
+<li>"Một bài tập có nhiều file" = bảng mới <code>assignment_files</code> có <code>assignment_id</code>.</li>
+<li>Với mỗi cột, tự hỏi: được để trống không (<code>NOT NULL</code>)? được trùng không (<code>UNIQUE</code>)? giới hạn giá trị (<code>CHECK</code>)? xoá cha thì con ra sao (<code>ON DELETE</code>)?</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
 <div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">CREATE</span> <span class="k">TABLE</span> subjects (
     id        <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
@@ -276,6 +421,14 @@
     size_bytes     <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (size_bytes <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">26214400</span>), <span class="c">-- tối đa 25 MB</span>
     storage_key    <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">UNIQUE</span>
 );</code></pre></div>
+<p>Thử kiểm tra: tạo môn, gán bài tập 9 vào môn Toán, rồi xoá môn Toán:</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> subjects (class_id, name) <span class="k">VALUES</span> (<span class="n">42</span>, <span class="s">'Toán'</span>), (<span class="n">42</span>, <span class="s">'Tiếng Việt'</span>);
+<span class="k">UPDATE</span> assignments <span class="k">SET</span> subject_id = <span class="n">1</span> <span class="k">WHERE</span> id = <span class="n">9</span>;
+<span class="k">DELETE</span> <span class="k">FROM</span> subjects <span class="k">WHERE</span> id = <span class="n">1</span>;</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>INSERT 0 2
+UPDATE 1
+ERROR:  update or delete on table &quot;subjects&quot; violates RESTRICT setting of foreign key constraint &quot;assignments_subject_id_fkey&quot; on table &quot;assignments&quot;
+DETAIL:  Key (id)=(1) is referenced from table &quot;assignments&quot;.</pre></div>
 <p><code>ON DELETE RESTRICT</code> ở <code>subject_id</code>: không cho xoá môn khi còn bài tập thuộc môn đó, buộc giáo viên xử lý bài tập trước. Chọn CASCADE hay RESTRICT là quyết định nghiệp vụ, hãy hỏi người làm sản phẩm. Thêm cột vào bảng đã có dữ liệu thì cột mới phải cho phép NULL hoặc có DEFAULT.</p>
 </details>
 </details>

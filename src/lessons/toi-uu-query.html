@@ -47,21 +47,26 @@ EXPLAIN ANALYZE
 SELECT id, title FROM assignments
 WHERE class_id = 42 ORDER BY due_date DESC LIMIT 20;
 </pre>
-<pre lang="text" file="Trước khi có index">
-Limit  (actual time=180.2..180.3 rows=20)
-  ->  Sort  (Sort Key: due_date DESC)
-        ->  Seq Scan on assignments  (actual time=0.02..176.9 rows=412 loops=1)
-              Filter: (class_id = 42)
-              Rows Removed by Filter: 1999588
-Execution Time: 180.4 ms
+<p>Kết quả thật trên bảng 1 triệu bài tập (bài tập thứ hai cuối bài hướng dẫn tạo bảng này). Đã bỏ bớt phần <code>cost=...</code> cho dễ đọc:</p>
+<pre lang="out" file="Trước khi có index">
+ Limit  (actual time=9.262..10.302 rows=20 loops=1)
+   ->  Gather Merge  (actual time=9.261..10.300 rows=20 loops=1)
+         Workers Planned: 2
+         ->  Sort  (actual time=8.323..8.323 rows=20 loops=3)
+               Sort Key: due_date DESC
+               ->  Parallel Seq Scan on assignments  (actual time=0.088..8.257 rows=67 loops=3)
+                     Filter: (class_id = 42)
+                     Rows Removed by Filter: 333267
+ Execution Time: 10.314 ms
 </pre>
-<pre lang="text" file="Sau khi CREATE INDEX (class_id, due_date DESC)">
-Limit  (actual time=0.03..0.06 rows=20)
-  ->  Index Scan using idx_assignments_class_due on assignments  (rows=20)
-        Index Cond: (class_id = 42)
-Execution Time: 0.08 ms
+<pre lang="out" file="Sau khi CREATE INDEX (class_id, due_date DESC)">
+ Limit  (actual time=0.021..0.039 rows=20 loops=1)
+   ->  Index Scan using idx_assignments_class_due on assignments  (actual time=0.020..0.037 rows=20 loops=1)
+         Index Cond: (class_id = 42)
+ Execution Time: 0.046 ms
 </pre>
-<p>Những thứ cần nhìn: <b>Seq Scan</b> trên bảng lớn, <b>Rows Removed by Filter</b> rất lớn (đọc nhiều bỏ nhiều), <b>Sort</b> trên nhiều dòng, và <code>actual time</code>. Từ 180ms xuống 0,08ms là chuyện bình thường khi thêm đúng index.</p>
+<p><b>Cách đọc:</b> đọc từ dòng thụt vào sâu nhất (chạy đầu tiên) ra ngoài. Trước khi có index: <code>Seq Scan</code> đọc cả bảng bằng 3 tiến trình song song (<code>loops=3</code>), mỗi tiến trình bỏ đi 333.267 dòng không khớp (<code>Rows Removed by Filter</code>), giữ 67 dòng, rồi sắp xếp, rồi lấy 20. Sau khi có index: <code>Index Scan</code> đi thẳng tới đúng 20 dòng của lớp 42, đã xếp sẵn theo hạn, không cần <code>Sort</code>.</p>
+<p>Những thứ cần nhìn: <b>Seq Scan</b> trên bảng lớn, <b>Rows Removed by Filter</b> rất lớn (đọc nhiều bỏ nhiều), <b>Sort</b> trên nhiều dòng, và <code>Execution Time</code>. Từ 10ms xuống 0,05ms (nhanh hơn 200 lần) là chuyện bình thường khi thêm đúng index. 10ms nghe nhỏ, nhưng bảng to gấp 10 lần thì thành 100ms, và nhân với hàng nghìn request mỗi giây thì database quá tải.</p>
 <aside class="warn"><p><code>EXPLAIN ANALYZE</code> <b>chạy thật</b> câu lệnh. Với UPDATE / DELETE, bọc trong <code>BEGIN; ... ROLLBACK;</code>. Và kế hoạch trên máy bạn (100 dòng) có thể khác hẳn production (10 triệu dòng): Postgres chọn cách chạy dựa trên thống kê dữ liệu thật.</p></aside>
 <aside class="prod"><p>Bật extension <code>pg_stat_statements</code> trên production: nó thống kê câu truy vấn nào tốn tổng thời gian nhiều nhất. Thường 5 câu truy vấn chiếm phần lớn tải, sửa chúng trước. Các dịch vụ Postgres có quản lý (AWS RDS, Google Cloud SQL, Supabase, Neon) đều có sẵn hoặc bật được.</p></aside>
 
@@ -124,6 +129,80 @@ Người A -> Database: UPDATE stock = 0, tạo đơn A
 Người B -> Database: UPDATE stock = 0, tạo đơn B
 note Database: bán 2 vé trong khi chỉ còn 1
 </fig>
+<p><b>Tận mắt thấy lỗi.</b> Chương trình dưới cho 50 goroutine (50 người) cùng mua khi kho còn 10 vé, lần đầu bằng cách "đọc, kiểm tra, ghi", lần sau bằng cách đúng (cách 1 ngay bên dưới). Chạy với database của bài 14 (chương trình tự tạo bảng <code>tickets</code>), cách chạy giống phần "Chạy thử" bài 15:</p>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "sync"
+
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+// SAI: đọc, kiểm tra, rồi mới ghi. Ba bước rời nhau
+func buyNaive(ctx context.Context, db *pgxpool.Pool) bool {
+    var stock int
+    db.QueryRow(ctx, `SELECT stock FROM tickets WHERE id = 1`).Scan(&stock)
+    if stock < 1 {
+        return false // hết vé
+    }
+    db.Exec(ctx, `UPDATE tickets SET stock = $1 WHERE id = 1`, stock-1)
+    return true
+}
+
+// ĐÚNG: điều kiện nằm trong chính câu UPDATE. Một câu lệnh là nguyên tử
+func buySafe(ctx context.Context, db *pgxpool.Pool) bool {
+    tag, err := db.Exec(ctx, `UPDATE tickets SET stock = stock - 1 WHERE id = 1 AND stock >= 1`)
+    return err == nil && tag.RowsAffected() == 1
+}
+
+// 50 người cùng mua khi chỉ còn 10 vé
+func rush(ctx context.Context, db *pgxpool.Pool, buy func(context.Context, *pgxpool.Pool) bool) int {
+    db.Exec(ctx, `UPDATE tickets SET stock = 10 WHERE id = 1`) // đặt lại kho: 10 vé
+    var mu sync.Mutex
+    sold := 0
+    var wg sync.WaitGroup
+    for range 50 {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            if buy(ctx, db) {
+                mu.Lock()
+                sold++
+                mu.Unlock()
+            }
+        }()
+    }
+    wg.Wait()
+    return sold
+}
+
+func main() {
+    ctx := context.Background()
+    db, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+    if err != nil {
+        fmt.Println(err)
+        os.Exit(1)
+    }
+    defer db.Close()
+
+    db.Exec(ctx, `CREATE TABLE IF NOT EXISTS tickets (id int PRIMARY KEY, stock int NOT NULL)`)
+    db.Exec(ctx, `INSERT INTO tickets VALUES (1, 10) ON CONFLICT DO NOTHING`)
+
+    fmt.Println("cách sai: bán được", rush(ctx, db, buyNaive), "vé (kho chỉ có 10)")
+    fmt.Println("cách đúng: bán được", rush(ctx, db, buySafe), "vé")
+}
+</pre>
+<pre lang="out">
+$ DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go run .
+cách sai: bán được 50 vé (kho chỉ có 10)
+cách đúng: bán được 10 vé
+</pre>
+<p>Con số của cách sai có thể khác trên máy bạn (lúc 50, lúc 23...) nhưng gần như luôn lớn hơn 10: nhiều goroutine cùng đọc được <code>stock = 10</code> trước khi ai kịp ghi. Cách đúng luôn ra đúng 10. Đây không phải lỗi của Go: viết bằng Node.js hay Java, chạy trên nhiều bản server, cũng hỏng y như vậy.</p>
+
 <h3>Cách 1: điều kiện nằm ngay trong câu UPDATE (nên dùng đầu tiên)</h3>
 <pre lang="sql" mark="good">
 UPDATE tickets SET stock = stock - 1
@@ -174,39 +253,207 @@ err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Giới hạn số lớp an toàn khi chạy song song</summary>
-<p>Viết lại <code>CreateClass</code> sao cho một giáo viên không bao giờ có quá <code>quota</code> lớp, kể cả khi 10 request tới cùng lúc trên 3 bản server. Viết test chạy 10 goroutine cùng tạo lớp và kiểm tra chỉ đúng <code>quota</code> lớp được tạo.</p>
+<p>Viết <code>CreateClassWithQuota(ctx, teacherID, name, quota)</code>: tạo lớp mới, nhưng giáo viên không bao giờ có quá <code>quota</code> lớp, kể cả khi 10 request tới cùng lúc trên 3 bản server. Viết test cho 10 goroutine cùng tạo lớp và kiểm tra đúng <code>quota</code> lớp được tạo.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Cách "đếm rồi mới thêm" bị đúng lỗi bán vé ở trên: 10 request cùng đếm được 0. Phải làm sao để các request của <b>cùng một giáo viên</b> xếp hàng, từng cái một đếm và thêm.</li>
+<li>Không khoá được "những lớp chưa tồn tại". Nhưng khoá được một dòng chắc chắn có thật và đại diện cho giáo viên: dòng của họ trong bảng <code>users</code>, bằng <code>SELECT ... FOR UPDATE</code> trong một transaction.</li>
+<li>Trong cùng transaction: khoá, đếm, nếu chưa đủ thì <code>INSERT</code>. Dùng <code>pgx.BeginFunc</code> (bài 15) để khỏi tự viết commit / rollback.</li>
+<li>Test: <code>sync.WaitGroup</code> và 10 goroutine (bài 09), đếm số lần thành công và số lần nhận <code>ErrQuotaExceeded</code>, rồi đếm lại trong database. Test cần database thật, đọc địa chỉ từ <code>DATABASE_URL</code>, không có thì <code>t.Skip</code>.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go">
-func (s *Store) CreateClassWithQuota(ctx context.Context, c Class, quota int) (Class, error) {
-    return c, pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
-        // Khoá dòng giáo viên: mọi request tạo lớp của CÙNG giáo viên xếp hàng tại đây
-        if _, err := tx.Exec(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, c.TeacherID); err != nil {
+<pre lang="sh">
+mkdir quota && cd quota
+go mod init quota
+go get github.com/jackc/pgx/v5
+</pre>
+<pre lang="go" file="store.go" check="no">
+package main
+
+import (
+    "context"
+    "errors"
+
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+var ErrQuotaExceeded = errors.New("đã đủ số lớp của gói")
+
+type Store struct {
+    db *pgxpool.Pool
+}
+
+// CreateClassWithQuota tạo lớp, nhưng không bao giờ để giáo viên có quá `quota` lớp,
+// kể cả khi nhiều request tới cùng lúc trên nhiều bản server
+func (s *Store) CreateClassWithQuota(ctx context.Context, teacherID int64, name string, quota int) (int64, error) {
+    var id int64
+    err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+        // 1. Khoá dòng của giáo viên. Request thứ hai của CÙNG giáo viên đứng chờ ở đây
+        //    tới khi transaction của request thứ nhất commit hoặc rollback
+        if _, err := tx.Exec(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, teacherID); err != nil {
             return err
         }
+        // 2. Đếm: lúc này không ai khác đang tạo lớp cho giáo viên này
         var n int
-        if err := tx.QueryRow(ctx, `SELECT count(*) FROM classes WHERE teacher_id = $1`, c.TeacherID).Scan(&n); err != nil {
+        if err := tx.QueryRow(ctx, `SELECT count(*) FROM classes WHERE teacher_id = $1`, teacherID).Scan(&n); err != nil {
             return err
         }
         if n >= quota {
-            return domain.ErrQuotaExceeded
+            return ErrQuotaExceeded // BeginFunc thấy lỗi thì tự rollback
         }
+        // 3. Tạo
         return tx.QueryRow(ctx,
-            `INSERT INTO classes (teacher_id, name, capacity) VALUES ($1, $2, $3) RETURNING id, created_at`,
-            c.TeacherID, c.Name, c.Capacity).Scan(&c.ID, &c.CreatedAt)
-    })
+            `INSERT INTO classes (teacher_id, name, capacity) VALUES ($1, $2, 30) RETURNING id`,
+            teacherID, name).Scan(&id)
+    }) // hàm trả nil thì BeginFunc tự commit, mở khoá cho request đang chờ
+    return id, err
 }
 </pre>
-<p>Không thể khoá "những dòng chưa tồn tại", nên ta khoá một dòng chắc chắn tồn tại và đại diện cho giáo viên: chính dòng <code>users</code>. Các giáo viên khác nhau không chặn nhau. Test: tạo 10 goroutine cùng gọi, đếm số lần thành công phải bằng <code>quota</code>, số lần <code>ErrQuotaExceeded</code> bằng phần còn lại.</p>
-</details>
-</details>
-<details class="ex"><summary>Đọc EXPLAIN</summary>
-<p>Tạo bảng <code>assignments</code> với 1 triệu dòng giả bằng <code>INSERT ... SELECT ... FROM generate_series(1, 1000000)</code> (chỉ làm trên Postgres chạy bằng Docker ở máy bạn). So sánh <code>EXPLAIN ANALYZE</code> của truy vấn danh sách theo lớp trước và sau khi tạo index. Thử thêm <code>OFFSET 500000</code> để thấy offset chậm thế nào.</p>
-<details class="sol"><summary>Gợi ý</summary>
-<pre lang="sql">
-INSERT INTO assignments (class_id, title, due_date)
-SELECT (random() * 5000)::int + 1, 'Bài ' || g, date '2026-01-01' + (g % 300)
-FROM generate_series(1, 1000000) g;   -- cần có sẵn các lớp id 1..5001 vì có khoá ngoại
-ANALYZE assignments;                  -- cập nhật thống kê cho bộ lập kế hoạch
+<pre lang="go" file="store_test.go" check="no">
+package main
+
+import (
+    "context"
+    "errors"
+    "fmt"
+    "os"
+    "sync"
+    "testing"
+
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestQuotaUnderConcurrency(t *testing.T) {
+    url := os.Getenv("DATABASE_URL")
+    if url == "" {
+        t.Skip("cần DATABASE_URL trỏ tới database có dữ liệu bài 14")
+    }
+    ctx := context.Background()
+    db, err := pgxpool.New(ctx, url)
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer db.Close()
+    s := &Store{db: db}
+
+    // Dọn: Thầy Nam (id 8) bắt đầu với 0 lớp
+    if _, err := db.Exec(ctx, `DELETE FROM classes WHERE teacher_id = 8`); err != nil {
+        t.Fatal(err)
+    }
+
+    const quota = 3
+    var mu sync.Mutex
+    ok, rejected := 0, 0
+    var wg sync.WaitGroup
+    for i := range 10 { // 10 request cùng lúc
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            _, err := s.CreateClassWithQuota(ctx, 8, fmt.Sprintf("Lớp thử %d", i), quota)
+            mu.Lock()
+            defer mu.Unlock()
+            switch {
+            case err == nil:
+                ok++
+            case errors.Is(err, ErrQuotaExceeded):
+                rejected++
+            default:
+                t.Errorf("lỗi lạ: %v", err)
+            }
+        }()
+    }
+    wg.Wait()
+
+    var inDB int
+    db.QueryRow(ctx, `SELECT count(*) FROM classes WHERE teacher_id = 8`).Scan(&inDB)
+    t.Logf("thành công %d, bị từ chối %d, trong database có %d lớp", ok, rejected, inDB)
+    if ok != quota || rejected != 10-quota || inDB != quota {
+        t.Errorf("muốn đúng %d lớp được tạo", quota)
+    }
+}
 </pre>
+<pre lang="out">
+$ DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go test -v -race .
+=== RUN   TestQuotaUnderConcurrency
+    store_test.go:57: thành công 3, bị từ chối 7, trong database có 3 lớp
+--- PASS: TestQuotaUnderConcurrency (0.07s)
+PASS
+ok  	quota	1.699s
+</pre>
+<p><b>Thử bỏ <code>FOR UPDATE</code></b> trong <code>store.go</code> rồi chạy lại test:</p>
+<pre lang="out">
+$ DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go test .
+--- FAIL: TestQuotaUnderConcurrency (0.05s)
+    store_test.go:57: thành công 9, bị từ chối 1, trong database có 9 lớp
+    store_test.go:59: muốn đúng 3 lớp được tạo
+FAIL
+</pre>
+<p><b>Giải thích:</b> không có khoá, nhiều transaction cùng đếm được 0, 1 hoặc 2 lớp rồi cùng thêm, ra 9 lớp. Có khoá, transaction thứ hai đứng chờ ở dòng <code>FOR UPDATE</code> tới khi transaction thứ nhất commit, lúc đó nó mới đếm và thấy lớp vừa được thêm. Giáo viên khác nhau khoá dòng khác nhau, nên không chặn nhau. Test để <code>t.Skip</code> khi thiếu <code>DATABASE_URL</code>, nhờ vậy <code>go test ./...</code> trên máy không có database vẫn chạy được.</p>
+<p>Đây chính là lỗi đã được nhắc ở bài 13 (service tạo lớp "đếm rồi mới tạo"), giờ bạn đã biết cách sửa.</p>
+</details>
+</details>
+<details class="ex"><summary>Đọc EXPLAIN trên bảng 1 triệu dòng</summary>
+<p>Tạo một database riêng có bảng <code>assignments</code> với 1 triệu dòng giả, rồi so sánh <code>EXPLAIN ANALYZE</code> của truy vấn "20 bài mới nhất của lớp 42" trước và sau khi tạo index. Thử thêm phân trang <code>OFFSET 500000</code> để thấy offset chậm thế nào, so với phân trang keyset.</p>
+<p>Làm trên Postgres ở máy bạn (không làm trên database thật của công ty). Bảng chiếm khoảng 70MB.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<p>Mở <code>psql</code> rồi dán lần lượt. <code>\c bench</code> là lệnh của psql để chuyển sang database <code>bench</code>, <code>\timing on</code> in thời gian của mỗi câu.</p>
+<pre lang="sql">
+CREATE DATABASE bench;
+\c bench
+CREATE TABLE classes (
+    id   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name text NOT NULL
+);
+CREATE TABLE assignments (
+    id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    class_id  bigint NOT NULL REFERENCES classes(id),
+    title     text NOT NULL,
+    due_date  date NOT NULL
+);
+
+-- 5.000 lớp, rồi 1 triệu bài tập chia đều cho các lớp
+-- generate_series(1, 5000) sinh ra các số 1, 2, ..., 5000, giống một vòng for
+INSERT INTO classes (name) SELECT 'Lớp ' || g FROM generate_series(1, 5000) g;
+INSERT INTO assignments (class_id, title, due_date)
+SELECT (g % 5000) + 1, 'Bài ' || g, date '2026-01-01' + (g % 300)
+FROM generate_series(1, 1000000) g;
+ANALYZE assignments;   -- cập nhật thống kê cho bộ lập kế hoạch
+\timing on
+
+EXPLAIN ANALYZE
+SELECT id, title FROM assignments
+WHERE class_id = 42 ORDER BY due_date DESC LIMIT 20;
+</pre>
+<p>Kết quả là kế hoạch "Trước khi có index" ở mục EXPLAIN đầu bài (khoảng 10ms, <code>Seq Scan</code>). Tạo index rồi chạy lại đúng câu đó:</p>
+<pre lang="sql">
+CREATE INDEX idx_assignments_class_due ON assignments (class_id, due_date DESC);
+
+EXPLAIN ANALYZE
+SELECT id, title FROM assignments
+WHERE class_id = 42 ORDER BY due_date DESC LIMIT 20;
+</pre>
+<p>Ra kế hoạch "Sau khi CREATE INDEX" (khoảng 0,05ms, <code>Index Scan</code>). Tiếp theo, so sánh hai cách lấy "trang thứ 25.000":</p>
+<pre lang="sql">
+-- OFFSET: bỏ qua 500.000 dòng đầu
+EXPLAIN ANALYZE
+SELECT id, title FROM assignments ORDER BY id LIMIT 20 OFFSET 500000;
+
+-- Keyset: "lấy 20 dòng sau id 500000"
+EXPLAIN ANALYZE
+SELECT id, title FROM assignments WHERE id > 500000 ORDER BY id LIMIT 20;
+</pre>
+<pre lang="out">
+ Limit  (actual time=36.588..36.590 rows=20 loops=1)
+   ->  Index Scan using assignments_pkey on assignments  (actual time=0.007..28.386 rows=500020 loops=1)
+ Execution Time: 36.596 ms
+
+ Limit  (actual time=0.010..0.012 rows=20 loops=1)
+   ->  Index Scan using assignments_pkey on assignments  (actual time=0.009..0.011 rows=20 loops=1)
+         Index Cond: (id > 500000)
+ Execution Time: 0.018 ms
+</pre>
+<p><b>Giải thích:</b> cả hai đều dùng index, nhưng <code>OFFSET</code> vẫn phải đi qua <code>rows=500020</code> dòng rồi vứt 500.000 dòng đầu, mất 36ms. Keyset nhảy thẳng tới <code>id &gt; 500000</code> bằng index và chỉ đọc 20 dòng, mất 0,02ms: nhanh hơn khoảng 2.000 lần, và trang sâu đến đâu cũng nhanh như trang đầu. Số mili giây trên máy bạn sẽ khác, tỉ lệ thì tương tự.</p>
+<p>Dọn dẹp khi xong: <code>\c postgres</code> rồi <code>DROP DATABASE bench;</code></p>
 </details>
 </details>

@@ -110,6 +110,69 @@
 <h2>Bài tập</h2>
 <details class="ex"><summary>Thiết kế hệ thống của riêng bạn</summary>
 <p>Chọn một sản phẩm bạn từng làm frontend (sàn thương mại, app đặt lịch, mạng xã hội nội bộ...). Viết một trang thiết kế gồm: ước lượng tải (người dùng, request/giây lúc cao điểm, dung lượng dữ liệu mỗi năm), lược đồ database các bảng chính, danh sách endpoint chính, việc nào chạy nền, chỗ nào có tranh chấp dữ liệu và cách xử lý, cache gì, giới hạn gì.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Bắt đầu từ con số: bao nhiêu người dùng, mỗi người làm gì bao nhiêu lần mỗi ngày, lúc cao điểm gấp mấy lần lúc bình thường. Nhân ra request mỗi giây.</li>
+<li>Liệt kê danh từ của sản phẩm thành bảng (bài 14). Mỗi bảng: khoá chính, khoá ngoại, ràng buộc.</li>
+<li>Liệt kê việc người dùng làm thành endpoint (bài 12). Mỗi endpoint: ai được gọi.</li>
+<li>Tìm chỗ "hai người cùng làm một lúc" (bài 16) và việc chậm có thể đưa ra nền (bài 20).</li>
+<li>Cuối cùng mới nghĩ tới cache (bài 17): chỉ cache khi đã biết chỗ nào đọc nhiều.</li>
+</ol>
+<details class="sol"><summary>Xem một bài mẫu: app đặt lịch cắt tóc</summary>
+<p><b>Sản phẩm:</b> 2.000 tiệm cắt tóc, mỗi tiệm 3 thợ. Khách xem giờ trống và đặt lịch, tiệm xác nhận, hệ thống nhắc khách trước giờ hẹn.</p>
+<p><b>1. Ước lượng tải</b></p>
+<ul>
+<li>Khách: 2.000 tiệm × 40 lượt / ngày = 80.000 lượt đặt / ngày. Mỗi lượt đặt, khách xem khoảng 10 trang: 800.000 request đọc / ngày.</li>
+<li>Trung bình: 800.000 / 86.400 giây ≈ 10 request / giây. Cao điểm (tối thứ Sáu, gấp khoảng 10 lần): 100 request / giây. Một server Go và một Postgres nhỏ là dư sức.</li>
+<li>Dữ liệu: 80.000 lịch × 365 ngày ≈ 29 triệu dòng / năm, mỗi dòng khoảng 200 byte ≈ 6 GB / năm kể cả index. Cần index đúng, chưa cần chia nhỏ database.</li>
+</ul>
+<p><b>2. Bảng chính</b></p>
+<pre lang="sql">
+CREATE TABLE shops    (id bigint PRIMARY KEY, owner_id bigint NOT NULL REFERENCES users(id), name text NOT NULL, tz text NOT NULL DEFAULT 'Asia/Ho_Chi_Minh');
+CREATE TABLE barbers  (id bigint PRIMARY KEY, shop_id bigint NOT NULL REFERENCES shops(id), name text NOT NULL);
+CREATE TABLE bookings (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    barber_id   bigint NOT NULL REFERENCES barbers(id),
+    customer_id bigint NOT NULL REFERENCES users(id),
+    starts_at   timestamptz NOT NULL,
+    status      text NOT NULL CHECK (status IN ('pending', 'confirmed', 'cancelled')),
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+-- Một thợ không có hai lịch còn hiệu lực cùng một giờ: database tự chặn đặt trùng
+CREATE UNIQUE INDEX bookings_no_double ON bookings (barber_id, starts_at) WHERE status <> 'cancelled';
+CREATE INDEX bookings_customer ON bookings (customer_id, starts_at DESC);
+</pre>
+<p><b>3. Endpoint chính</b></p>
+<table>
+<tr><th>Endpoint</th><th>Ai được gọi</th><th>Kiểm quyền</th></tr>
+<tr><td><code>GET /v1/shops/{id}/slots?date=</code></td><td>Mọi người</td><td>Công khai. Chỉ trả giờ trống, không trả tên khách</td></tr>
+<tr><td><code>POST /v1/bookings</code></td><td>Khách đã đăng nhập</td><td><code>customer_id</code> lấy từ phiên, không lấy từ body. Có <code>Idempotency-Key</code></td></tr>
+<tr><td><code>GET /v1/me/bookings</code></td><td>Khách</td><td><code>WHERE customer_id = me</code></td></tr>
+<tr><td><code>POST /v1/bookings/{id}/confirm</code></td><td>Chủ tiệm</td><td>JOIN <code>barbers</code>, <code>shops</code>, <code>WHERE shops.owner_id = me</code>. Không phải tiệm mình: 404</td></tr>
+<tr><td><code>POST /v1/bookings/{id}/cancel</code></td><td>Khách của lịch hoặc chủ tiệm</td><td>Một trong hai điều kiện trên, ngay trong câu UPDATE</td></tr>
+</table>
+<p><b>4. Tranh chấp dữ liệu</b></p>
+<ul>
+<li>Hai khách cùng đặt thợ A lúc 18:00: không "kiểm tra giờ trống rồi mới chèn". Cứ chèn, chỉ mục UNIQUE <code>bookings_no_double</code> từ chối người thứ hai (lỗi <code>23505</code>), API trả <code>409</code> "Giờ này vừa có người đặt".</li>
+<li>Khách bấm "Đặt" hai lần vì mạng chậm: <code>Idempotency-Key</code> (bài 20) trả lại đúng kết quả lần đầu.</li>
+</ul>
+<p><b>5. Việc chạy nền</b></p>
+<ul>
+<li>Đặt lịch thành công: trong cùng transaction chèn việc "báo cho tiệm" vào bảng <code>jobs</code>.</li>
+<li>Nhắc khách trước 2 giờ: việc định kỳ mỗi 5 phút tìm lịch sắp tới chưa nhắc, bảng <code>reminders_sent(booking_id)</code> chống nhắc trùng.</li>
+<li>Gửi SMS / push: có timeout 5 giây, thử lại tối đa 5 lần, chờ tăng dần.</li>
+</ul>
+<p><b>6. Cache và giới hạn</b></p>
+<ul>
+<li>Trang giờ trống được xem nhiều nhất. Cache 30 giây trong Redis theo <code>(shop, ngày)</code>, xoá khi có lịch mới của tiệm đó. Lịch có bị cache cũ 30 giây cũng không sao vì quyết định cuối cùng nằm ở chỉ mục UNIQUE.</li>
+<li>Giới hạn: mỗi khách tối đa 3 lịch đang chờ, 10 lần đặt mỗi giờ. Đăng nhập 5 lần sai mỗi 15 phút.</li>
+</ul>
+<p><b>7. Xoá dữ liệu</b></p>
+<ul>
+<li>Lịch cũ hơn 2 năm: xoá bằng việc định kỳ, mỗi lần 10.000 dòng để không khoá bảng lâu.</li>
+<li>Khách xoá tài khoản: ẩn danh <code>customer_id</code> trên lịch cũ (tiệm vẫn cần thống kê), xoá số điện thoại, email.</li>
+</ul>
+</details>
 <details class="sol"><summary>Cách tự đánh giá</summary>
 <ul>
 <li>Mỗi con số ước lượng có phép tính đi kèm.</li>

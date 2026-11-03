@@ -51,14 +51,22 @@
 
 <h2 id="redis"><a href="#redis" class="anchor" aria-hidden="true">#</a>Redis</h2>
 <p>Redis là một kho key-value chạy trong RAM, mỗi lệnh thường mất dưới 1ms. Ngoài làm cache, nó còn được dùng cho: phiên đăng nhập, đếm giới hạn tần suất, khoá phân tán, hàng đợi đơn giản, bảng xếp hạng.</p>
-<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">docker</span> run -d --name redis -p <span class="n">6379</span>:<span class="n">6379</span> redis:<span class="n">7</span>
-<span class="k">docker</span> exec -it redis redis-cli</code></pre></div>
+<p>Chạy Redis trên máy (chọn một cách):</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c"># Docker</span>
+<span class="k">docker</span> run -d --name redis -p <span class="n">6379</span>:<span class="n">6379</span> redis:<span class="n">7</span>
+<span class="k">docker</span> exec -it redis redis-cli     <span class="c"># mở cửa sổ gõ lệnh Redis</span>
+
+<span class="c"># Hoặc Homebrew</span>
+<span class="k">brew</span> install redis
+<span class="k">brew</span> services start redis
+redis-cli</code></pre></div>
 <div class="code"><div class="code-h"><span>redis-cli</span><button class="copy" type="button">Sao chép</button></div><pre><code>SET user:42:name &quot;Lan&quot; EX 60     # lưu, hết hạn sau 60 giây
 GET user:42:name                  # &quot;Lan&quot;
 TTL user:42:name                  # còn bao nhiêu giây
 INCR rl:login:1.2.3.4             # tăng bộ đếm (nguyên tử), trả về giá trị mới
 DEL user:42:name</code></pre></div>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;github.com/redis/go-redis/v9&quot;</span>
+<p>Phần sau mũi tên trong <code>redis-cli</code> là chú thích để bạn đọc, đừng gõ. Trong Go dùng thư viện <code>go-redis</code> (cài: <code>go get github.com/redis/go-redis/v9</code>). Trích đoạn các lệnh tương ứng:</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;github.com/redis/go-redis/v9&quot;</span>
 
 rdb := redis.<span class="f">NewClient</span>(&amp;redis.Options{Addr: <span class="s">&quot;localhost:6379&quot;</span>})
 <span class="c">// Hoặc từ URL: opt, _ := redis.ParseURL(os.Getenv(&quot;REDIS_URL&quot;)); rdb := redis.NewClient(opt)</span>
@@ -71,7 +79,7 @@ name, err := rdb.<span class="f">Get</span>(ctx, <span class="s">&quot;user:42:n
 
 <h2 id="cache-aside-mau-dung-nhieu-nhat"><a href="#cache-aside-mau-dung-nhieu-nhat" class="anchor" aria-hidden="true">#</a>Cache-aside: mẫu dùng nhiều nhất</h2>
 <figure class="dg"><svg viewBox="0 0 500 448" style="min-width:500px;max-width:500px" role="img" aria-label="Đọc: thử cache trước, không có thì lấy từ database rồi ghi vào cache"><line x1="80" y1="66" x2="80" y2="438" class="lf"/><g class="nd go"><rect x="20" y="10" width="120" height="54" rx="10"/><text x="80" y="42" class="tt" text-anchor="middle">Service</text></g><line x1="250" y1="66" x2="250" y2="438" class="lf"/><g class="nd cache"><rect x="190" y="10" width="120" height="54" rx="10"/><text x="250" y="42" class="tt" text-anchor="middle">Redis</text></g><line x1="420" y1="66" x2="420" y2="438" class="lf"/><g class="nd db"><rect x="360" y="10" width="120" height="54" rx="10"/><text x="420" y="42" class="tt" text-anchor="middle">Postgres</text></g><line x1="80" y1="90" x2="246" y2="90" class="ln" marker-end="url(#ar)"/><text x="165" y="83" class="tl" text-anchor="middle">GET class:42:summary</text><line x1="250" y1="132" x2="84" y2="132" class="ln ds" marker-end="url(#ar)"/><text x="165" y="125" class="tl" text-anchor="middle">không có (miss)</text><line x1="80" y1="174" x2="416" y2="174" class="ln" marker-end="url(#ar)"/><text x="250" y="167" class="tl" text-anchor="middle">truy vấn tổng hợp (50ms)</text><line x1="420" y1="216" x2="84" y2="216" class="ln ds" marker-end="url(#ar)"/><text x="250" y="209" class="tl" text-anchor="middle">kết quả</text><line x1="80" y1="274" x2="246" y2="274" class="ln" marker-end="url(#ar)"/><text x="165" y="251" class="tl" text-anchor="middle">SET class:42:summary</text><text x="165" y="267" class="tl" text-anchor="middle">... EX 300</text><line x1="10" y1="322" x2="490" y2="322" class="dv"/><rect x="169.44" y="310" width="161.12" height="22" rx="11" class="dvb"/><text x="250" y="326" class="ts" text-anchor="middle">lần sau, trong 5 phút</text><line x1="80" y1="354" x2="246" y2="354" class="ln" marker-end="url(#ar)"/><text x="165" y="347" class="tl" text-anchor="middle">GET class:42:summary</text><line x1="250" y1="396" x2="84" y2="396" class="ln ds" marker-end="url(#ar)"/><text x="165" y="389" class="tl" text-anchor="middle">có (hit), 0,5ms</text></svg><figcaption>Đọc: thử cache trước, không có thì lấy từ database rồi ghi vào cache</figcaption></figure>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Service) <span class="f">ClassSummary</span>(ctx context.Context, classID <span class="t">int64</span>) (Summary, <span class="t">error</span>) {
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Service) <span class="f">ClassSummary</span>(ctx context.Context, classID <span class="t">int64</span>) (Summary, <span class="t">error</span>) {
     key := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;class:%d:summary:v1&quot;</span>, classID)
 
     <span class="k">if</span> b, err := s.rdb.<span class="f">Get</span>(ctx, key).<span class="f">Bytes</span>(); err == <span class="b">nil</span> {
@@ -93,11 +101,91 @@ name, err := rdb.<span class="f">Get</span>(ctx, <span class="s">&quot;user:42:n
     }
     <span class="k">return</span> sum, <span class="b">nil</span>
 }</code></pre></div>
+<p><b>Chạy thử.</b> Chương trình hoàn chỉnh dưới giả lập một truy vấn database mất 300ms và đo thời gian khi có / không có cache:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">mkdir</span> cache-demo &amp;&amp; <span class="k">cd</span> cache-demo
+<span class="k">go</span> mod init cache-demo
+<span class="k">go</span> get github.com/redis/<span class="k">go</span>-redis/v9</code></pre></div>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/redis/go-redis/v9&quot;</span>
+)
+
+<span class="k">type</span> Summary <span class="k">struct</span> {
+    ClassID   <span class="t">int64</span>   <span class="s">`json:&quot;classId&quot;`</span>
+    Students  <span class="t">int</span>     <span class="s">`json:&quot;students&quot;`</span>
+    AvgScore  <span class="t">float64</span> <span class="s">`json:&quot;avgScore&quot;`</span>
+}
+
+<span class="c">// Giả lập truy vấn tổng hợp nặng trên database: mất 300ms</span>
+<span class="k">func</span> <span class="f">computeSummary</span>(ctx context.Context, classID <span class="t">int64</span>) (Summary, <span class="t">error</span>) {
+    time.<span class="f">Sleep</span>(<span class="n">300</span> * time.Millisecond)
+    <span class="k">return</span> Summary{ClassID: classID, Students: <span class="n">4</span>, AvgScore: <span class="n">6.4</span>}, <span class="b">nil</span>
+}
+
+<span class="c">// Cache-aside: thử cache, không có thì tính rồi ghi vào cache</span>
+<span class="k">func</span> <span class="f">classSummary</span>(ctx context.Context, rdb *redis.Client, classID <span class="t">int64</span>) (Summary, <span class="t">string</span>, <span class="t">error</span>) {
+    key := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;class:%d:summary:v1&quot;</span>, classID)
+
+    b, err := rdb.<span class="f">Get</span>(ctx, key).<span class="f">Bytes</span>()
+    <span class="k">if</span> err == <span class="b">nil</span> {
+        <span class="k">var</span> sum Summary
+        <span class="k">if</span> json.<span class="f">Unmarshal</span>(b, &amp;sum) == <span class="b">nil</span> {
+            <span class="k">return</span> sum, <span class="s">&quot;hit&quot;</span>, <span class="b">nil</span> <span class="c">// có trong cache</span>
+        }
+    } <span class="k">else</span> <span class="k">if</span> !errors.<span class="f">Is</span>(err, redis.Nil) { <span class="c">// redis.Nil = khoá không tồn tại, không phải lỗi thật</span>
+        fmt.<span class="f">Println</span>(<span class="s">&quot;  (redis lỗi, đọc thẳng database:&quot;</span>, err, <span class="s">&quot;)&quot;</span>)
+    }
+
+    sum, err := <span class="f">computeSummary</span>(ctx, classID) <span class="c">// miss: hỏi database</span>
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> Summary{}, <span class="s">&quot;&quot;</span>, err
+    }
+    <span class="k">if</span> b, err := json.<span class="f">Marshal</span>(sum); err == <span class="b">nil</span> {
+        rdb.<span class="f">Set</span>(ctx, key, b, <span class="n">5</span>*time.Minute) <span class="c">// ghi cache, hết hạn sau 5 phút</span>
+    }
+    <span class="k">return</span> sum, <span class="s">&quot;miss&quot;</span>, <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    ctx := context.<span class="f">Background</span>()
+    rdb := redis.<span class="f">NewClient</span>(&amp;redis.Options{Addr: os.<span class="f">Getenv</span>(<span class="s">&quot;REDIS_ADDR&quot;</span>)})
+    <span class="k">defer</span> rdb.<span class="f">Close</span>()
+    rdb.<span class="f">Del</span>(ctx, <span class="s">&quot;class:42:summary:v1&quot;</span>) <span class="c">// bắt đầu sạch</span>
+
+    <span class="k">for</span> i := <span class="n">1</span>; i &lt;= <span class="n">3</span>; i++ {
+        start := time.<span class="f">Now</span>()
+        sum, kind, _ := <span class="f">classSummary</span>(ctx, rdb, <span class="n">42</span>)
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;lần %d: %s, %+v, mất %v\n&quot;</span>, i, kind, sum, time.<span class="f">Since</span>(start).<span class="f">Round</span>(time.Millisecond))
+    }
+
+    rdb.<span class="f">Del</span>(ctx, <span class="s">&quot;class:42:summary:v1&quot;</span>) <span class="c">// dữ liệu đổi (có bài nộp mới): xoá cache</span>
+    start := time.<span class="f">Now</span>()
+    _, kind, _ := <span class="f">classSummary</span>(ctx, rdb, <span class="n">42</span>)
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;sau khi xoá cache: %s, mất %v\n&quot;</span>, kind, time.<span class="f">Since</span>(start).<span class="f">Round</span>(time.Millisecond))
+
+    ttl := rdb.<span class="f">TTL</span>(ctx, <span class="s">&quot;class:42:summary:v1&quot;</span>).<span class="f">Val</span>()
+    fmt.<span class="f">Println</span>(<span class="s">&quot;cache còn sống:&quot;</span>, ttl.<span class="f">Round</span>(time.Second))
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">REDIS_ADDR=localhost:6379 go run .</span>
+lần 1: miss, {ClassID:42 Students:4 AvgScore:6.4}, mất 305ms
+lần 2: hit, {ClassID:42 Students:4 AvgScore:6.4}, mất 1ms
+lần 3: hit, {ClassID:42 Students:4 AvgScore:6.4}, mất 0s
+sau khi xoá cache: miss, mất 304ms
+cache còn sống: 5m0s</pre></div>
+<p>Lần đầu phải hỏi database (300ms), hai lần sau lấy từ Redis (dưới 1ms, in ra <code>0s</code> vì làm tròn). Xoá cache thì lần sau lại phải hỏi database. Xem tận mắt dữ liệu trong Redis: mở <code>redis-cli</code> và gõ <code>GET class:42:summary:v1</code>, sẽ thấy chuỗi JSON.</p>
 <aside class="prod"><p>Cache phải là thứ <b>có cũng được, mất cũng được</b>. Redis sập thì hệ thống chậm đi, không được chết theo. Và luôn có <b>TTL</b>: dù bạn quên xoá cache ở đâu đó, dữ liệu sai cũng chỉ tồn tại tối đa bằng TTL.</p></aside>
 <p>Hậu tố <code>:v1</code> trong khoá: khi đổi cấu trúc <code>Summary</code>, tăng lên <code>v2</code>, bản code mới không đọc nhầm dữ liệu cache dạng cũ.</p>
 
 <h2 id="xoa-cache-khi-du-lieu-doi"><a href="#xoa-cache-khi-du-lieu-doi" class="anchor" aria-hidden="true">#</a>Xoá cache khi dữ liệu đổi</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Service) <span class="f">Submit</span>(ctx context.Context, sub Submission) <span class="t">error</span> {
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Service) <span class="f">Submit</span>(ctx context.Context, sub Submission) <span class="t">error</span> {
     <span class="k">if</span> err := s.store.<span class="f">Submit</span>(ctx, sub); err != <span class="b">nil</span> { <span class="c">// 1. ghi database trước</span>
         <span class="k">return</span> err
     }
@@ -110,7 +198,62 @@ name, err := rdb.<span class="f">Get</span>(ctx, <span class="s">&quot;user:42:n
 <h2 id="cache-stampede-hang-nghin-request-cung-tinh-lai"><a href="#cache-stampede-hang-nghin-request-cung-tinh-lai" class="anchor" aria-hidden="true">#</a>Cache stampede: hàng nghìn request cùng tính lại</h2>
 <p>Trang chủ được cache 60 giây, 2.000 request mỗi giây. Đúng lúc cache hết hạn, 2.000 request cùng thấy "miss" và cùng chạy truy vấn nặng. Database quá tải, chậm lại, nhiều request hơn bị miss... Đây gọi là <i>cache stampede</i> (hay thundering herd).</p>
 <p>Cách chặn trong một tiến trình: <code>singleflight</code>. Các lời gọi cùng khoá đang chạy thì chờ và dùng chung kết quả của lời gọi đầu tiên.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;golang.org/x/sync/singleflight&quot;</span>
+<p>Chạy thử để thấy hiệu quả (không cần Redis, cần <code>go get golang.org/x/sync</code>):</p>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;sync/atomic&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;golang.org/x/sync/singleflight&quot;</span>
+)
+
+<span class="k">var</span> dbCalls atomic.Int64 <span class="c">// đếm số lần thật sự hỏi database</span>
+
+<span class="k">func</span> <span class="f">loadHomeFeed</span>() (<span class="t">string</span>, <span class="t">error</span>) {
+    dbCalls.<span class="f">Add</span>(<span class="n">1</span>)
+    time.<span class="f">Sleep</span>(<span class="n">200</span> * time.Millisecond) <span class="c">// truy vấn nặng</span>
+    <span class="k">return</span> <span class="s">&quot;bảng tin trang chủ&quot;</span>, <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">var</span> group singleflight.Group
+    <span class="k">var</span> wg sync.WaitGroup
+
+    <span class="c">// 1.000 request cùng lúc, đúng lúc cache vừa hết hạn</span>
+    <span class="k">for</span> <span class="k">range</span> <span class="n">1000</span> {
+        wg.<span class="f">Add</span>(<span class="n">1</span>)
+        <span class="k">go</span> <span class="k">func</span>() {
+            <span class="k">defer</span> wg.<span class="f">Done</span>()
+            <span class="c">// Cùng khoá &quot;home-feed&quot;: chỉ MỘT goroutine chạy loadHomeFeed, số còn lại chờ và nhận chung kết quả</span>
+            v, err, _ := group.<span class="f">Do</span>(<span class="s">&quot;home-feed&quot;</span>, <span class="k">func</span>() (<span class="t">any</span>, <span class="t">error</span>) {
+                <span class="k">return</span> <span class="f">loadHomeFeed</span>()
+            })
+            _ = v.(<span class="t">string</span>) <span class="c">// Do trả về any, đổi lại thành string</span>
+            _ = err
+        }()
+    }
+    wg.<span class="f">Wait</span>()
+    fmt.<span class="f">Println</span>(<span class="s">&quot;1000 request, số lần hỏi database:&quot;</span>, dbCalls.<span class="f">Load</span>())
+
+    <span class="c">// So sánh: không có singleflight</span>
+    dbCalls.<span class="f">Store</span>(<span class="n">0</span>)
+    <span class="k">for</span> <span class="k">range</span> <span class="n">1000</span> {
+        wg.<span class="f">Add</span>(<span class="n">1</span>)
+        <span class="k">go</span> <span class="k">func</span>() {
+            <span class="k">defer</span> wg.<span class="f">Done</span>()
+            <span class="f">loadHomeFeed</span>()
+        }()
+    }
+    wg.<span class="f">Wait</span>()
+    fmt.<span class="f">Println</span>(<span class="s">&quot;không có singleflight, số lần hỏi database:&quot;</span>, dbCalls.<span class="f">Load</span>())
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>1000 request, số lần hỏi database: 1
+không có singleflight, số lần hỏi database: 1000</pre></div>
+<p>Cách dùng trong service thật (trích đoạn):</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;golang.org/x/sync/singleflight&quot;</span>
 
 <span class="k">type</span> Service <span class="k">struct</span> {
     group singleflight.Group
@@ -135,7 +278,7 @@ name, err := rdb.<span class="f">Get</span>(ctx, <span class="s">&quot;user:42:n
 <h2 id="gioi-han-tan-suat-rate-limit"><a href="#gioi-han-tan-suat-rate-limit" class="anchor" aria-hidden="true">#</a>Giới hạn tần suất (rate limit)</h2>
 <p>Chặn dò mật khẩu, spam gửi OTP / email, một người dùng ngốn hết tài nguyên. Hai cách:</p>
 <h3>Trong một tiến trình: token bucket</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;golang.org/x/time/rate&quot;</span>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;golang.org/x/time/rate&quot;</span>
 
 <span class="c">// Mỗi giây thêm 5 &quot;vé&quot;, tối đa dồn 10 vé: cho phép bùng 10 request rồi 5 request mỗi giây</span>
 lim := rate.<span class="f">NewLimiter</span>(<span class="n">5</span>, <span class="n">10</span>)
@@ -144,8 +287,9 @@ lim := rate.<span class="f">NewLimiter</span>(<span class="n">5</span>, <span cl
     http.<span class="f">Error</span>(w, <span class="s">&quot;Quá nhiều yêu cầu&quot;</span>, http.StatusTooManyRequests)
     <span class="k">return</span>
 }</code></pre></div>
+<p><code>rate.NewLimiter(5, 10)</code>: hình dung một cái xô chứa tối đa 10 vé, mỗi giây được bỏ thêm 5 vé. Mỗi request lấy một vé, hết vé thì bị từ chối. Nhờ vậy cho phép bùng lên một chút (10 request liền) nhưng về lâu dài không quá 5 request mỗi giây.</p>
 <h3>Dùng chung nhiều server: đếm trong Redis</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Cửa sổ cố định: tối đa 5 lần đăng nhập sai mỗi 15 phút cho mỗi email</span>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Cửa sổ cố định: tối đa 5 lần đăng nhập sai mỗi 15 phút cho mỗi email</span>
 <span class="k">func</span> (s *Service) <span class="f">allowLogin</span>(ctx context.Context, email <span class="t">string</span>) (<span class="t">bool</span>, <span class="t">error</span>) {
     key := <span class="s">&quot;rl:login:&quot;</span> + email
     n, err := s.rdb.<span class="f">Incr</span>(ctx, key).<span class="f">Result</span>() <span class="c">// INCR là nguyên tử</span>
@@ -157,11 +301,77 @@ lim := rate.<span class="f">NewLimiter</span>(<span class="n">5</span>, <span cl
     }
     <span class="k">return</span> n &lt;= <span class="n">5</span>, <span class="b">nil</span>
 }</code></pre></div>
+<p>Chạy thử cả hai cách (cần Redis, cài thêm <code>go get golang.org/x/time</code>):</p>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/redis/go-redis/v9&quot;</span>
+    <span class="s">&quot;golang.org/x/time/rate&quot;</span>
+)
+
+<span class="c">// Cửa sổ cố định trong Redis: tối đa 5 lần đăng nhập mỗi 15 phút cho mỗi email</span>
+<span class="k">func</span> <span class="f">allowLogin</span>(ctx context.Context, rdb *redis.Client, email <span class="t">string</span>) (<span class="t">bool</span>, <span class="t">error</span>) {
+    key := <span class="s">&quot;rl:login:&quot;</span> + email
+    n, err := rdb.<span class="f">Incr</span>(ctx, key).<span class="f">Result</span>() <span class="c">// tăng 1, trả về giá trị mới. Nguyên tử: không ai chen vào được</span>
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="b">true</span>, err
+    }
+    <span class="k">if</span> n == <span class="n">1</span> {
+        rdb.<span class="f">Expire</span>(ctx, key, <span class="n">15</span>*time.Minute) <span class="c">// lần đầu trong cửa sổ: đặt hạn</span>
+    }
+    <span class="k">return</span> n &lt;= <span class="n">5</span>, <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="c">// 1. Token bucket trong một tiến trình: thêm 5 vé mỗi giây, dồn tối đa 10 vé</span>
+    lim := rate.<span class="f">NewLimiter</span>(<span class="n">5</span>, <span class="n">10</span>)
+    allowed := <span class="n">0</span>
+    <span class="k">for</span> <span class="k">range</span> <span class="n">15</span> { <span class="c">// 15 request dồn dập trong cùng một lúc</span>
+        <span class="k">if</span> lim.<span class="f">Allow</span>() {
+            allowed++
+        }
+    }
+    fmt.<span class="f">Println</span>(<span class="s">&quot;token bucket: 15 request dồn dập, cho qua&quot;</span>, allowed)
+    time.<span class="f">Sleep</span>(time.Second) <span class="c">// chờ 1 giây: thêm 5 vé</span>
+    allowed = <span class="n">0</span>
+    <span class="k">for</span> <span class="k">range</span> <span class="n">15</span> {
+        <span class="k">if</span> lim.<span class="f">Allow</span>() {
+            allowed++
+        }
+    }
+    fmt.<span class="f">Println</span>(<span class="s">&quot;token bucket: sau 1 giây, cho qua thêm&quot;</span>, allowed)
+
+    <span class="c">// 2. Đếm trong Redis: dùng chung cho mọi bản server</span>
+    ctx := context.<span class="f">Background</span>()
+    rdb := redis.<span class="f">NewClient</span>(&amp;redis.Options{Addr: os.<span class="f">Getenv</span>(<span class="s">&quot;REDIS_ADDR&quot;</span>)})
+    <span class="k">defer</span> rdb.<span class="f">Close</span>()
+    rdb.<span class="f">Del</span>(ctx, <span class="s">&quot;rl:login:lan@gmail.com&quot;</span>)
+    <span class="k">for</span> i := <span class="n">1</span>; i &lt;= <span class="n">7</span>; i++ {
+        ok, _ := <span class="f">allowLogin</span>(ctx, rdb, <span class="s">&quot;lan@gmail.com&quot;</span>)
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;đăng nhập lần %d: cho phép = %v\n&quot;</span>, i, ok)
+    }
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">REDIS_ADDR=localhost:6379 go run .</span>
+token bucket: 15 request dồn dập, cho qua 10
+token bucket: sau 1 giây, cho qua thêm 5
+đăng nhập lần 1: cho phép = true
+đăng nhập lần 2: cho phép = true
+đăng nhập lần 3: cho phép = true
+đăng nhập lần 4: cho phép = true
+đăng nhập lần 5: cho phép = true
+đăng nhập lần 6: cho phép = false
+đăng nhập lần 7: cho phép = false</pre></div>
+<p>Token bucket nằm trong bộ nhớ một tiến trình: chạy 3 bản server thì mỗi bản đếm riêng, người dùng được gấp 3. Bộ đếm Redis thì mọi bản server cùng nhìn một con số. Chạy lại chương trình trong vòng 15 phút: dòng <code>rdb.Del</code> ở đầu xoá bộ đếm nên lại được 5 lần. Bỏ dòng đó đi thì từ lần chạy thứ hai mọi lần đều bị chặn.</p>
 <aside class="warn"><p>Đoạn trên có điểm yếu nhỏ: nếu server chết giữa <code>INCR</code> và <code>EXPIRE</code>, khoá không bao giờ hết hạn và người đó bị khoá mãi. Cách chắc chắn là gộp hai lệnh vào một <b>script Lua</b> hoặc một <code>MULTI/EXEC</code> pipeline để Redis chạy nguyên khối. Đây chính là loại lỗi "hai bước rời nhau" bạn đã gặp ở database.</p></aside>
 <aside class="real"><p>Các dịch vụ lớn trả về header cho client biết giới hạn: GitHub API dùng <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code>. Có một bản nháp chuẩn IETF cho header <code>RateLimit</code> đang được nhiều nơi áp dụng.</p></aside>
 
 <h2 id="cache-http-cho-client"><a href="#cache-http-cho-client" class="anchor" aria-hidden="true">#</a>Cache HTTP cho client</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Dữ liệu công khai, ít đổi: cho CDN và trình duyệt cache 5 phút</span>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Dữ liệu công khai, ít đổi: cho CDN và trình duyệt cache 5 phút</span>
 w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Cache-Control&quot;</span>, <span class="s">&quot;public, max-age=300&quot;</span>)
 
 <span class="c">// Dữ liệu riêng của người dùng: CDN không được cache</span>
@@ -172,26 +382,61 @@ w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&qu
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Cache có singleflight và TTL lệch ngẫu nhiên</summary>
-<p>Viết hàm generic <code>GetOrLoad[T any](ctx, rdb, group, key, ttl, load func(ctx) (T, error)) (T, error)</code>: thử Redis, miss thì dùng singleflight gọi <code>load</code>, ghi vào Redis với TTL cộng thêm ngẫu nhiên tối đa 10%. Redis lỗi thì vẫn trả được kết quả từ <code>load</code>.</p>
+<p>Gộp ba ý trong bài thành một hàm dùng lại được: <code>GetOrLoad[T any](ctx, rdb, group, key, ttl, load) (T, error)</code>.</p>
+<ul>
+<li>thử đọc từ Redis trước.</li>
+<li>miss thì dùng singleflight gọi <code>load</code>: 100 request cùng lúc chỉ gọi <code>load</code> một lần.</li>
+<li>ghi kết quả vào Redis với TTL cộng thêm một khoảng ngẫu nhiên tối đa 10%, để các khoá không cùng hết hạn một lúc.</li>
+<li>Redis lỗi thì vẫn trả được kết quả từ <code>load</code>.</li>
+</ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Hàm generic (bài 06) vì mỗi chỗ dùng cache một kiểu dữ liệu khác: <code>Feed</code>, <code>Summary</code>... <code>load</code> có kiểu <code>func(context.Context) (T, error)</code>.</li>
+<li>Bước đọc giống <code>classSummary</code> ở trên: <code>rdb.Get(ctx, key).Bytes()</code> rồi <code>json.Unmarshal</code> vào một biến kiểu <code>T</code>.</li>
+<li><code>g.Do(key, func() (any, error) {...})</code> trả về <code>any</code>, đổi lại thành <code>T</code> bằng <code>v.(T)</code>.</li>
+<li>Số ngẫu nhiên: <code>rand.Int64N(n)</code> của package <code>math/rand/v2</code> cho số từ 0 đến n-1. <code>time.Duration</code> bản chất là số nano giây (<code>int64</code>), nên đổi qua lại được.</li>
+<li>Viết <code>main</code> kiểm tra: 100 goroutine cùng gọi, đếm số lần <code>load</code> chạy. Rồi thử với một Redis không tồn tại (<code>Addr: "localhost:1"</code>).</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> GetOrLoad[T <span class="t">any</span>](ctx context.Context, rdb *redis.Client, g *singleflight.Group,
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">mkdir</span> getorload &amp;&amp; <span class="k">cd</span> getorload
+<span class="k">go</span> mod init getorload
+<span class="k">go</span> get github.com/redis/<span class="k">go</span>-redis/v9 golang.org/x/sync</code></pre></div>
+<div class="code"><div class="code-h"><span>cache.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;math/rand/v2&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/redis/go-redis/v9&quot;</span>
+    <span class="s">&quot;golang.org/x/sync/singleflight&quot;</span>
+)
+
+<span class="c">// GetOrLoad: thử Redis. Miss thì chỉ MỘT goroutine gọi load (singleflight),</span>
+<span class="c">// ghi kết quả vào Redis với TTL lệch ngẫu nhiên tối đa 10%. Redis lỗi vẫn trả được kết quả.</span>
+<span class="k">func</span> GetOrLoad[T <span class="t">any</span>](ctx context.Context, rdb *redis.Client, g *singleflight.Group,
     key <span class="t">string</span>, ttl time.Duration, load <span class="k">func</span>(context.Context) (T, <span class="t">error</span>)) (T, <span class="t">error</span>) {
 
     <span class="k">var</span> zero T
+
+    <span class="c">// 1. Thử cache. Lỗi gì (không có khoá, Redis sập, JSON hỏng) cũng bỏ qua, đi tiếp bước 2</span>
     <span class="k">if</span> b, err := rdb.<span class="f">Get</span>(ctx, key).<span class="f">Bytes</span>(); err == <span class="b">nil</span> {
         <span class="k">var</span> v T
         <span class="k">if</span> json.<span class="f">Unmarshal</span>(b, &amp;v) == <span class="b">nil</span> {
             <span class="k">return</span> v, <span class="b">nil</span>
         }
     }
+
+    <span class="c">// 2. Miss: các goroutine cùng khoá chờ chung một lần load</span>
     v, err, _ := g.<span class="f">Do</span>(key, <span class="k">func</span>() (<span class="t">any</span>, <span class="t">error</span>) {
         val, err := <span class="f">load</span>(ctx)
         <span class="k">if</span> err != <span class="b">nil</span> {
             <span class="k">return</span> <span class="b">nil</span>, err
         }
         <span class="k">if</span> b, err := json.<span class="f">Marshal</span>(val); err == <span class="b">nil</span> {
-            jitter := time.<span class="f">Duration</span>(rand.<span class="f">Int64N</span>(<span class="t">int64</span>(ttl / <span class="n">10</span>))) <span class="c">// math/rand/v2</span>
-            rdb.<span class="f">Set</span>(ctx, key, b, ttl+jitter)
+            jitter := time.<span class="f">Duration</span>(rand.<span class="f">Int64N</span>(<span class="t">int64</span>(ttl / <span class="n">10</span>))) <span class="c">// 0 đến 10% của ttl</span>
+            rdb.<span class="f">Set</span>(ctx, key, b, ttl+jitter)                      <span class="c">// lỗi ghi cache: bỏ qua</span>
         }
         <span class="k">return</span> val, <span class="b">nil</span>
     })
@@ -200,6 +445,70 @@ w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&qu
     }
     <span class="k">return</span> v.(T), <span class="b">nil</span>
 }</code></pre></div>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;sync/atomic&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/redis/go-redis/v9&quot;</span>
+    <span class="s">&quot;golang.org/x/sync/singleflight&quot;</span>
+)
+
+<span class="k">type</span> Feed <span class="k">struct</span> {
+    Items []<span class="t">string</span> <span class="s">`json:&quot;items&quot;`</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    ctx := context.<span class="f">Background</span>()
+    rdb := redis.<span class="f">NewClient</span>(&amp;redis.Options{Addr: os.<span class="f">Getenv</span>(<span class="s">&quot;REDIS_ADDR&quot;</span>)})
+    <span class="k">defer</span> rdb.<span class="f">Close</span>()
+    rdb.<span class="f">Del</span>(ctx, <span class="s">&quot;home-feed:v1&quot;</span>)
+    <span class="k">var</span> g singleflight.Group
+
+    <span class="k">var</span> loads atomic.Int64
+    load := <span class="k">func</span>(ctx context.Context) (Feed, <span class="t">error</span>) { <span class="c">// giả lập database chậm</span>
+        loads.<span class="f">Add</span>(<span class="n">1</span>)
+        time.<span class="f">Sleep</span>(<span class="n">200</span> * time.Millisecond)
+        <span class="k">return</span> Feed{Items: []<span class="t">string</span>{<span class="s">&quot;Bài Toán mới&quot;</span>, <span class="s">&quot;Lịch họp phụ huynh&quot;</span>}}, <span class="b">nil</span>
+    }
+
+    <span class="c">// 1. 100 request cùng lúc khi cache trống</span>
+    <span class="k">var</span> wg sync.WaitGroup
+    <span class="k">for</span> <span class="k">range</span> <span class="n">100</span> {
+        wg.<span class="f">Add</span>(<span class="n">1</span>)
+        <span class="k">go</span> <span class="k">func</span>() {
+            <span class="k">defer</span> wg.<span class="f">Done</span>()
+            <span class="k">if</span> _, err := <span class="f">GetOrLoad</span>(ctx, rdb, &amp;g, <span class="s">&quot;home-feed:v1&quot;</span>, time.Minute, load); err != <span class="b">nil</span> {
+                fmt.<span class="f">Println</span>(<span class="s">&quot;lỗi:&quot;</span>, err)
+            }
+        }()
+    }
+    wg.<span class="f">Wait</span>()
+    fmt.<span class="f">Println</span>(<span class="s">&quot;100 request đồng thời, số lần load:&quot;</span>, loads.<span class="f">Load</span>())
+
+    <span class="c">// 2. Request sau: lấy từ Redis, không load nữa</span>
+    feed, _ := <span class="f">GetOrLoad</span>(ctx, rdb, &amp;g, <span class="s">&quot;home-feed:v1&quot;</span>, time.Minute, load)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;request sau:&quot;</span>, feed.Items, <span class="s">&quot;| số lần load:&quot;</span>, loads.<span class="f">Load</span>())
+    fmt.<span class="f">Println</span>(<span class="s">&quot;TTL trong Redis:&quot;</span>, rdb.<span class="f">TTL</span>(ctx, <span class="s">&quot;home-feed:v1&quot;</span>).<span class="f">Val</span>().<span class="f">Round</span>(time.Second), <span class="s">&quot;(từ 60 đến 66 giây)&quot;</span>)
+
+    <span class="c">// 3. Redis sập: vẫn trả được kết quả, chỉ chậm hơn</span>
+    dead := redis.<span class="f">NewClient</span>(&amp;redis.Options{Addr: <span class="s">&quot;localhost:1&quot;</span>, MaxRetries: -<span class="n">1</span>})
+    feed, err := <span class="f">GetOrLoad</span>(ctx, dead, &amp;g, <span class="s">&quot;home-feed:v1&quot;</span>, time.Minute, load)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;Redis sập:&quot;</span>, feed.Items, err)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">REDIS_ADDR=localhost:6379 go run .</span>
+100 request đồng thời, số lần load: 1
+request sau: [Bài Toán mới Lịch họp phụ huynh] | số lần load: 1
+TTL trong Redis: 1m3s (từ 60 đến 66 giây)
+redis: 2026/11/03 15:59:48 pool.go:770: redis: connection pool: failed to dial after 5 attempts: dial tcp [::1]:1: connect: connection refused
+redis: 2026/11/03 15:59:48 pool.go:770: redis: connection pool: failed to dial after 5 attempts: dial tcp [::1]:1: connect: connection refused
+Redis sập: [Bài Toán mới Lịch họp phụ huynh] &lt;nil&gt;</pre></div>
+<p><b>Giải thích:</b> hai dòng <code>redis: ... connection refused</code> là thư viện go-redis tự ghi log khi không kết nối được (một lần lúc đọc, một lần lúc ghi). Dù vậy, dòng cuối vẫn có dữ liệu và lỗi là <code>&lt;nil&gt;</code>: cache sập, người dùng vẫn được phục vụ, chỉ chậm hơn. TTL mỗi lần chạy một khác, trong khoảng 60 đến 66 giây.</p>
 <p>Lưu ý: hàm <code>load</code> chạy với <code>ctx</code> của request đầu tiên. Nếu request đó bị huỷ, các request đang chờ cũng nhận lỗi theo. Ở hệ thống thật người ta dùng <code>context.WithoutCancel(ctx)</code> (Go 1.21+) kèm timeout riêng cho việc tải chung.</p>
 </details>
 </details>

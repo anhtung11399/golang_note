@@ -67,107 +67,222 @@
 <aside class="real"><p><code>net/http</code> của Go tạo <b>một goroutine cho mỗi kết nối</b>. Bạn viết handler như thể chỉ có một người dùng, gọi database, chờ, trả kết quả. Hàng nghìn người dùng cùng lúc là hàng nghìn goroutine, mỗi cái chỉ tốn vài KB bộ nhớ lúc đầu. Một luồng hệ điều hành thường tốn cỡ 1MB trở lên cho stack, nên mô hình "mỗi request một luồng" của các server đời cũ khó mở rộng hơn nhiều.</p></aside>
 
 <h2 id="goroutine-them-chu-go"><a href="#goroutine-them-chu-go" class="anchor" aria-hidden="true">#</a>Goroutine: thêm chữ go</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">sendEmail</span>(to <span class="t">string</span>) {
-    time.<span class="f">Sleep</span>(time.Second) <span class="c">// giả lập gửi chậm</span>
+<p>Đặt chữ <code>go</code> trước một lời gọi hàm thì hàm đó chạy <b>song song</b>, còn dòng code tiếp theo chạy ngay mà không chờ. Gần giống gọi một hàm <code>async</code> mà không <code>await</code>.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">sendEmail</span>(to <span class="t">string</span>) {
+    time.<span class="f">Sleep</span>(time.Second) <span class="c">// giả lập gửi chậm mất 1 giây</span>
     fmt.<span class="f">Println</span>(<span class="s">&quot;đã gửi&quot;</span>, to)
 }
 
 <span class="k">func</span> <span class="f">main</span>() {
     <span class="k">go</span> <span class="f">sendEmail</span>(<span class="s">&quot;an@x.vn&quot;</span>)   <span class="c">// chạy ở goroutine mới, main không chờ</span>
-    <span class="k">go</span> <span class="f">sendEmail</span>(<span class="s">&quot;binh@x.vn&quot;</span>)
+    <span class="k">go</span> <span class="f">sendEmail</span>(<span class="s">&quot;binh@x.vn&quot;</span>) <span class="c">// goroutine thứ hai, chạy cùng lúc với cái trên</span>
     fmt.<span class="f">Println</span>(<span class="s">&quot;main chạy tiếp ngay&quot;</span>)
-    time.<span class="f">Sleep</span>(<span class="n">2</span> * time.Second) <span class="c">// tạm thời: chờ cho goroutine kịp chạy (cách đúng ở dưới)</span>
+
+    time.<span class="f">Sleep</span>(<span class="n">2</span> * time.Second) <span class="c">// TẠM: đợi 2 giây cho goroutine kịp chạy (cách đúng ở phần sau)</span>
 }</code></pre></div>
-<aside class="warn"><p>Khi hàm <code>main</code> kết thúc, chương trình dừng ngay, mọi goroutine đang chạy dở bị bỏ. <code>time.Sleep</code> để chờ là cách sai. Phải đồng bộ bằng <code>WaitGroup</code> hoặc channel.</p></aside>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>main chạy tiếp ngay
+đã gửi binh@x.vn
+đã gửi an@x.vn</pre></div>
+<p>Dòng "main chạy tiếp ngay" in ra <b>trước</b>, vì <code>main</code> không chờ. Hai dòng "đã gửi" in ra sau khoảng 1 giây (không phải 2 giây: hai email gửi cùng lúc), và thứ tự giữa chúng có thể đảo giữa các lần chạy.</p>
+<p>Thử xoá dòng <code>time.Sleep(2 * time.Second)</code> rồi chạy: chỉ in "main chạy tiếp ngay", không có email nào.</p>
+<aside class="warn"><p>Khi hàm <code>main</code> kết thúc, chương trình dừng ngay, mọi goroutine đang chạy dở bị bỏ. Ngủ một khoảng để chờ là cách sai: không biết phải ngủ bao lâu. Phải đồng bộ bằng <code>WaitGroup</code> hoặc channel.</p></aside>
 
 <h2 id="sync-waitgroup-cho-mot-nhom-viec-xong"><a href="#sync-waitgroup-cho-mot-nhom-viec-xong" class="anchor" aria-hidden="true">#</a>sync.WaitGroup: chờ một nhóm việc xong</h2>
-<p>Giống <code>await Promise.all([...])</code>:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">main</span>() {
+<p><code>WaitGroup</code> là một bộ đếm: <code>Add(1)</code> tăng lên khi giao một việc, <code>Done()</code> giảm xuống khi việc xong, <code>Wait()</code> chờ tới khi bộ đếm về 0. Giống <code>await Promise.all([...])</code>:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">sendEmail</span>(to <span class="t">string</span>) {
+    time.<span class="f">Sleep</span>(<span class="n">500</span> * time.Millisecond)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;đã gửi&quot;</span>, to)
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
     emails := []<span class="t">string</span>{<span class="s">&quot;an@x.vn&quot;</span>, <span class="s">&quot;binh@x.vn&quot;</span>, <span class="s">&quot;chi@x.vn&quot;</span>}
+    start := time.<span class="f">Now</span>()
+
     <span class="k">var</span> wg sync.WaitGroup
     <span class="k">for</span> _, e := <span class="k">range</span> emails {
-        wg.<span class="f">Add</span>(<span class="n">1</span>)
-        <span class="k">go</span> <span class="k">func</span>() {
-            <span class="k">defer</span> wg.<span class="f">Done</span>()
+        wg.<span class="f">Add</span>(<span class="n">1</span>)     <span class="c">// còn 1 việc nữa phải chờ</span>
+        <span class="k">go</span> <span class="k">func</span>() {   <span class="c">// hàm ẩn danh chạy ở goroutine mới</span>
+            <span class="k">defer</span> wg.<span class="f">Done</span>() <span class="c">// việc này xong (defer: chạy kể cả khi sendEmail lỗi)</span>
             <span class="f">sendEmail</span>(e)
-        }()
+        }()           <span class="c">// () ở cuối: gọi luôn hàm vừa viết</span>
     }
-    wg.<span class="f">Wait</span>() <span class="c">// chờ tới khi cả 3 gọi Done</span>
-    fmt.<span class="f">Println</span>(<span class="s">&quot;gửi xong tất cả&quot;</span>)
+    wg.<span class="f">Wait</span>() <span class="c">// đứng chờ tới khi cả 3 gọi Done</span>
+
+    fmt.<span class="f">Println</span>(<span class="s">&quot;gửi xong tất cả sau&quot;</span>, time.<span class="f">Since</span>(start).<span class="f">Round</span>(<span class="n">100</span>*time.Millisecond))
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>đã gửi chi@x.vn
+đã gửi an@x.vn
+đã gửi binh@x.vn
+gửi xong tất cả sau 500ms</pre></div>
+<p>Ba email, mỗi email 0,5 giây, nhưng tổng chỉ 0,5 giây vì chạy song song. Gửi lần lượt sẽ mất 1,5 giây. Thứ tự ba dòng "đã gửi" thay đổi mỗi lần chạy, còn dòng cuối luôn nằm cuối.</p>
 <p>Từ Go 1.25 có cách viết gọn <code>wg.Go(func() { sendEmail(e) })</code>, tự lo <code>Add</code> và <code>Done</code>.</p>
 
 <h3>errgroup: Promise.all có lỗi và huỷ</h3>
-<p>Trong thực tế bạn cần thêm hai thứ: lấy lỗi đầu tiên, và huỷ các việc còn lại khi một việc lỗi. Package <code>golang.org/x/sync/errgroup</code> làm đúng việc đó, và được dùng rất nhiều:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Trang tổng quan cần 3 nguồn dữ liệu độc lập: gọi song song thay vì lần lượt</span>
-<span class="k">func</span> (s *Service) <span class="f">Dashboard</span>(ctx context.Context, userID <span class="t">int64</span>) (Dashboard, <span class="t">error</span>) {
+<p>Trong thực tế bạn cần thêm hai thứ: lấy lỗi đầu tiên, và huỷ các việc còn lại khi một việc lỗi. Package <code>golang.org/x/sync/errgroup</code> làm đúng việc đó, và được dùng rất nhiều. Đây là thư viện ngoài (do đội Go duy trì), cài trước khi chạy:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> get golang.org/x/sync</code></pre></div>
+<p>Ví dụ: trang tổng quan của phụ huynh cần 3 loại dữ liệu độc lập. Gọi song song thay vì lần lượt:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;golang.org/x/sync/errgroup&quot;</span>
+)
+
+<span class="k">type</span> Dashboard <span class="k">struct</span> {
+    Classes  []<span class="t">string</span>
+    DueToday <span class="t">int</span>
+    Unread   <span class="t">int</span>
+}
+
+<span class="c">// Giả lập 3 truy vấn database, mỗi cái mất 300ms</span>
+<span class="k">func</span> <span class="f">classesOf</span>(ctx context.Context) ([]<span class="t">string</span>, <span class="t">error</span>) {
+    time.<span class="f">Sleep</span>(<span class="n">300</span> * time.Millisecond)
+    <span class="k">return</span> []<span class="t">string</span>{<span class="s">&quot;5A&quot;</span>, <span class="s">&quot;Tiếng Anh tối thứ 3&quot;</span>}, <span class="b">nil</span>
+}
+<span class="k">func</span> <span class="f">dueToday</span>(ctx context.Context) (<span class="t">int</span>, <span class="t">error</span>) { time.<span class="f">Sleep</span>(<span class="n">300</span> * time.Millisecond); <span class="k">return</span> <span class="n">2</span>, <span class="b">nil</span> }
+<span class="k">func</span> <span class="f">unread</span>(ctx context.Context) (<span class="t">int</span>, <span class="t">error</span>)   { time.<span class="f">Sleep</span>(<span class="n">300</span> * time.Millisecond); <span class="k">return</span> <span class="n">5</span>, <span class="b">nil</span> }
+
+<span class="k">func</span> <span class="f">loadDashboard</span>(ctx context.Context) (Dashboard, <span class="t">error</span>) {
     <span class="k">var</span> d Dashboard
-    g, ctx := errgroup.<span class="f">WithContext</span>(ctx)
-    g.<span class="f">Go</span>(<span class="k">func</span>() <span class="t">error</span> {
+    g, ctx := errgroup.<span class="f">WithContext</span>(ctx) <span class="c">// một nhóm việc, ctx bị huỷ khi có việc lỗi</span>
+
+    g.<span class="f">Go</span>(<span class="k">func</span>() <span class="t">error</span> { <span class="c">// g.Go = chạy hàm ở goroutine mới, giống go func()</span>
         <span class="k">var</span> err <span class="t">error</span>
-        d.Classes, err = s.store.<span class="f">ClassesOf</span>(ctx, userID)
+        d.Classes, err = <span class="f">classesOf</span>(ctx)
         <span class="k">return</span> err
     })
     g.<span class="f">Go</span>(<span class="k">func</span>() <span class="t">error</span> {
         <span class="k">var</span> err <span class="t">error</span>
-        d.DueToday, err = s.store.<span class="f">DueToday</span>(ctx, userID)
+        d.DueToday, err = <span class="f">dueToday</span>(ctx)
         <span class="k">return</span> err
     })
     g.<span class="f">Go</span>(<span class="k">func</span>() <span class="t">error</span> {
         <span class="k">var</span> err <span class="t">error</span>
-        d.Unread, err = s.store.<span class="f">UnreadCount</span>(ctx, userID)
+        d.Unread, err = <span class="f">unread</span>(ctx)
         <span class="k">return</span> err
     })
-    <span class="k">if</span> err := g.<span class="f">Wait</span>(); err != <span class="b">nil</span> { <span class="c">// lỗi đầu tiên; ctx đã bị huỷ để các việc khác dừng sớm</span>
+
+    <span class="k">if</span> err := g.<span class="f">Wait</span>(); err != <span class="b">nil</span> { <span class="c">// chờ cả 3. Có lỗi thì nhận lỗi ĐẦU TIÊN</span>
         <span class="k">return</span> Dashboard{}, err
     }
     <span class="k">return</span> d, <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    start := time.<span class="f">Now</span>()
+    d, err := <span class="f">loadDashboard</span>(context.<span class="f">Background</span>())
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%+v %v\n&quot;</span>, d, err)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;mất&quot;</span>, time.<span class="f">Since</span>(start).<span class="f">Round</span>(<span class="n">100</span>*time.Millisecond)) <span class="c">// ~300ms, không phải 900ms</span>
 }</code></pre></div>
-<p>Ba truy vấn mỗi cái 30ms chạy lần lượt mất 90ms, chạy song song mất khoảng 30ms. Mỗi goroutine ghi vào một trường <b>khác nhau</b> của <code>d</code>, nên không tranh chấp.</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>{Classes:[5A Tiếng Anh tối thứ 3] DueToday:2 Unread:5} &lt;nil&gt;
+mất 300ms</pre></div>
+<p>Mỗi goroutine ghi vào một trường <b>khác nhau</b> của <code>d</code>, nên không giẫm chân nhau. <code>context</code> (tham số <code>ctx</code>) là cách báo "dừng lại" cho các việc đang chạy, bài 10 giải thích kỹ. Tạm hiểu: <code>context.Background()</code> là "không có hạn chót, không ai huỷ".</p>
 
 <h2 id="channel-duong-ong-giua-cac-goroutine"><a href="#channel-duong-ong-giua-cac-goroutine" class="anchor" aria-hidden="true">#</a>Channel: đường ống giữa các goroutine</h2>
-<p>Channel là một hàng đợi có kiểu dữ liệu, an toàn khi dùng đồng thời. Goroutine này gửi vào, goroutine khác nhận ra.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>ch := <span class="b">make</span>(<span class="k">chan</span> <span class="t">int</span>)      <span class="c">// channel không đệm: gửi chờ tới khi có người nhận</span>
-<span class="k">go</span> <span class="k">func</span>() {
-    ch &lt;- <span class="n">42</span>              <span class="c">// gửi</span>
-}()
-v := &lt;-ch                 <span class="c">// nhận: chờ tới khi có giá trị</span>
-fmt.<span class="f">Println</span>(v)
+<p>Channel là một hàng đợi có kiểu dữ liệu, an toàn khi dùng đồng thời. Goroutine này gửi vào, goroutine khác nhận ra. Mũi tên <code>&lt;-</code> chỉ hướng dữ liệu đi:</p>
+<ul>
+<li><code>ch &lt;- 42</code>: gửi 42 <b>vào</b> channel</li>
+<li><code>v := &lt;-ch</code>: lấy một giá trị <b>ra</b> khỏi channel, gán vào v</li>
+</ul>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-buf := <span class="b">make</span>(<span class="k">chan</span> <span class="t">string</span>, <span class="n">100</span>) <span class="c">// channel có đệm 100 chỗ: gửi chỉ chờ khi đầy</span></code></pre></div>
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    ch := <span class="b">make</span>(<span class="k">chan</span> <span class="t">string</span>) <span class="c">// channel chở string. Không đệm: người gửi chờ tới khi có người nhận</span>
+
+    <span class="k">go</span> <span class="k">func</span>() {
+        time.<span class="f">Sleep</span>(<span class="n">500</span> * time.Millisecond) <span class="c">// giả lập việc mất thời gian</span>
+        ch &lt;- <span class="s">&quot;kết quả từ goroutine&quot;</span>       <span class="c">// gửi vào channel</span>
+    }()
+
+    fmt.<span class="f">Println</span>(<span class="s">&quot;đang chờ...&quot;</span>)
+    v := &lt;-ch <span class="c">// ĐỨNG CHỜ ở đây tới khi có giá trị, giống await</span>
+    fmt.<span class="f">Println</span>(<span class="s">&quot;nhận được:&quot;</span>, v)
+
+    buf := <span class="b">make</span>(<span class="k">chan</span> <span class="t">int</span>, <span class="n">3</span>) <span class="c">// channel có đệm 3 chỗ: gửi chỉ phải chờ khi đã đầy</span>
+    buf &lt;- <span class="n">1</span>
+    buf &lt;- <span class="n">2</span> <span class="c">// gửi được ngay dù chưa ai nhận, vì còn chỗ trong đệm</span>
+    fmt.<span class="f">Println</span>(&lt;-buf, &lt;-buf, <span class="b">len</span>(buf))
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>đang chờ...
+nhận được: kết quả từ goroutine
+1 2 0</pre></div>
 <p>Câu châm ngôn của Go: <i>"Đừng giao tiếp bằng cách chia sẻ bộ nhớ, hãy chia sẻ bộ nhớ bằng cách giao tiếp."</i> Thay vì nhiều goroutine cùng sửa một biến (phải khoá), hãy để một goroutine sở hữu dữ liệu và những goroutine khác gửi yêu cầu qua channel.</p>
 
 <h3>Worker pool: giới hạn số việc chạy cùng lúc</h3>
-<p>Có 10.000 ảnh cần tạo ảnh thu nhỏ. Mở 10.000 goroutine cùng lúc sẽ ngốn hết RAM và làm nghẽn dịch vụ lưu trữ. Mẫu chuẩn là một nhóm cố định N "thợ" nhận việc từ một channel:</p>
-<figure class="dg"><svg viewBox="0 0 711.0400000000002 86" style="min-width:600px;max-width:711.0400000000002px" role="img" aria-label="Một channel việc, N worker, một channel kết quả"><g class="nd fe"><rect x="10" y="10" width="126.80000000000001" height="66" rx="10"/><text x="73.4" y="40" class="tt" text-anchor="middle">Producer</text><text x="73.4" y="58" class="ts" text-anchor="middle">gửi 10.000 việc</text></g><line x1="138.8" y1="43" x2="236.88000000000002" y2="43" class="ln" marker-end="url(#ar)"/><text x="188.84000000000003" y="34" class="tl" text-anchor="middle">jobs (chan)</text><g class="nd go"><rect x="240.88000000000002" y="10" width="180.56" height="66" rx="10"/><text x="331.16" y="40" class="tt" text-anchor="middle">8 worker</text><text x="331.16" y="58" class="ts" text-anchor="middle">mỗi cái lấy việc, xử lý</text></g><line x1="423.44000000000005" y1="43" x2="543.3600000000001" y2="43" class="ln" marker-end="url(#ar)"/><text x="484.4000000000001" y="34" class="tl" text-anchor="middle">results (chan)</text><g class="nd db"><rect x="547.3600000000001" y="10" width="153.68" height="66" rx="10"/><text x="624.2000000000002" y="40" class="tt" text-anchor="middle">Gom kết quả</text><text x="624.2000000000002" y="58" class="ts" text-anchor="middle">đếm thành công, lỗi</text></g></svg><figcaption>Một channel việc, N worker, một channel kết quả</figcaption></figure>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">process</span>(ctx context.Context, ids []<span class="t">int64</span>, workers <span class="t">int</span>) (ok, failed <span class="t">int</span>) {
-    jobs := <span class="b">make</span>(<span class="k">chan</span> <span class="t">int64</span>)
-    results := <span class="b">make</span>(<span class="k">chan</span> <span class="t">error</span>)
+<p>Có 10.000 ảnh cần tạo ảnh thu nhỏ. Mở 10.000 goroutine cùng lúc sẽ ngốn hết RAM và làm nghẽn dịch vụ lưu trữ. Mẫu chuẩn là một nhóm cố định N "thợ" (worker) cùng nhận việc từ một channel:</p>
+<figure class="dg"><svg viewBox="0 0 711.0400000000002 86" style="min-width:600px;max-width:711.0400000000002px" role="img" aria-label="Một channel việc, N worker, một channel kết quả"><g class="nd fe"><rect x="10" y="10" width="126.80000000000001" height="66" rx="10"/><text x="73.4" y="40" class="tt" text-anchor="middle">Producer</text><text x="73.4" y="58" class="ts" text-anchor="middle">gửi 10.000 việc</text></g><line x1="138.8" y1="43" x2="236.88000000000002" y2="43" class="ln" marker-end="url(#ar)"/><text x="188.84000000000003" y="34" class="tl" text-anchor="middle">jobs (chan)</text><g class="nd go"><rect x="240.88000000000002" y="10" width="180.56" height="66" rx="10"/><text x="331.16" y="40" class="tt" text-anchor="middle">N worker</text><text x="331.16" y="58" class="ts" text-anchor="middle">mỗi cái lấy việc, xử lý</text></g><line x1="423.44000000000005" y1="43" x2="543.3600000000001" y2="43" class="ln" marker-end="url(#ar)"/><text x="484.4000000000001" y="34" class="tl" text-anchor="middle">results (chan)</text><g class="nd db"><rect x="547.3600000000001" y="10" width="153.68" height="66" rx="10"/><text x="624.2000000000002" y="40" class="tt" text-anchor="middle">Gom kết quả</text><text x="624.2000000000002" y="58" class="ts" text-anchor="middle">đếm thành công, lỗi</text></g></svg><figcaption>Một channel việc, N worker, một channel kết quả</figcaption></figure>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
+<span class="k">import</span> (
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="c">// Giả lập tạo ảnh thu nhỏ: mất 100ms, ảnh có id chia hết cho 7 thì lỗi</span>
+<span class="k">func</span> <span class="f">makeThumbnail</span>(id <span class="t">int</span>) <span class="t">error</span> {
+    time.<span class="f">Sleep</span>(<span class="n">100</span> * time.Millisecond)
+    <span class="k">if</span> id%<span class="n">7</span> == <span class="n">0</span> {
+        <span class="k">return</span> errors.<span class="f">New</span>(<span class="s">&quot;ảnh hỏng&quot;</span>)
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">process</span>(ids []<span class="t">int</span>, workers <span class="t">int</span>) (ok, failed <span class="t">int</span>) {
+    jobs := <span class="b">make</span>(<span class="k">chan</span> <span class="t">int</span>)      <span class="c">// đường ống chở việc</span>
+    results := <span class="b">make</span>(<span class="k">chan</span> <span class="t">error</span>) <span class="c">// đường ống chở kết quả</span>
+
+    <span class="c">// 1. Mở đúng `workers` goroutine. Mỗi cái lặp: lấy việc, làm, gửi kết quả</span>
     <span class="k">var</span> wg sync.WaitGroup
     <span class="k">for</span> <span class="k">range</span> workers {
         wg.<span class="f">Add</span>(<span class="n">1</span>)
         <span class="k">go</span> <span class="k">func</span>() {
             <span class="k">defer</span> wg.<span class="f">Done</span>()
-            <span class="k">for</span> id := <span class="k">range</span> jobs { <span class="c">// nhận tới khi jobs bị đóng</span>
-                results &lt;- <span class="f">makeThumbnail</span>(ctx, id)
+            <span class="k">for</span> id := <span class="k">range</span> jobs { <span class="c">// nhận lần lượt, dừng khi jobs bị đóng và đã hết việc</span>
+                results &lt;- <span class="f">makeThumbnail</span>(id)
             }
         }()
     }
 
-    <span class="k">go</span> <span class="k">func</span>() { <span class="c">// gửi việc rồi đóng jobs để các worker biết là hết</span>
-        <span class="k">defer</span> <span class="b">close</span>(jobs)
+    <span class="c">// 2. Một goroutine bỏ việc vào jobs, xong thì đóng jobs để các worker biết là hết</span>
+    <span class="k">go</span> <span class="k">func</span>() {
         <span class="k">for</span> _, id := <span class="k">range</span> ids {
-            <span class="k">select</span> {
-            <span class="k">case</span> jobs &lt;- id:
-            <span class="k">case</span> &lt;-ctx.<span class="f">Done</span>():
-                <span class="k">return</span>
-            }
+            jobs &lt;- id
         }
+        <span class="b">close</span>(jobs)
     }()
 
-    <span class="k">go</span> <span class="k">func</span>() { wg.<span class="f">Wait</span>(); <span class="b">close</span>(results) }() <span class="c">// mọi worker xong → đóng results</span>
+    <span class="c">// 3. Khi mọi worker đã xong thì đóng results, để vòng for bên dưới dừng</span>
+    <span class="k">go</span> <span class="k">func</span>() {
+        wg.<span class="f">Wait</span>()
+        <span class="b">close</span>(results)
+    }()
 
+    <span class="c">// 4. main gom kết quả</span>
     <span class="k">for</span> err := <span class="k">range</span> results {
         <span class="k">if</span> err != <span class="b">nil</span> {
             failed++
@@ -176,42 +291,108 @@ buf := <span class="b">make</span>(<span class="k">chan</span> <span class="t">s
         }
     }
     <span class="k">return</span> ok, failed
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    ids := <span class="b">make</span>([]<span class="t">int</span>, <span class="n">40</span>) <span class="c">// 40 ảnh, id từ 1 đến 40</span>
+    <span class="k">for</span> i := <span class="k">range</span> ids {
+        ids[i] = i + <span class="n">1</span>
+    }
+
+    start := time.<span class="f">Now</span>()
+    ok, failed := <span class="f">process</span>(ids, <span class="n">8</span>)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;thành công:&quot;</span>, ok, <span class="s">&quot;lỗi:&quot;</span>, failed)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;mất&quot;</span>, time.<span class="f">Since</span>(start).<span class="f">Round</span>(<span class="n">100</span>*time.Millisecond)) <span class="c">// 40 việc / 8 thợ x 100ms</span>
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>thành công: 35 lỗi: 5
+mất 500ms</pre></div>
+<p><b>Giải thích:</b> 40 ảnh, 8 worker, mỗi ảnh 100ms: mỗi worker làm khoảng 5 ảnh, tổng khoảng 500ms. Không bao giờ có quá 8 ảnh được xử lý cùng lúc. Có 5 id chia hết cho 7 (7, 14, 21, 28, 35) nên 5 lỗi. Thử đổi số worker thành 1 rồi 40 để thấy thời gian thay đổi.</p>
 <aside class="tip"><p>Quy tắc đóng channel: <b>chỉ bên gửi được đóng</b>, và chỉ đóng khi chắc chắn không còn ai gửi nữa. Gửi vào channel đã đóng gây panic. Nhận từ channel đã đóng thì nhận được zero value ngay lập tức, <code>for range</code> trên channel sẽ dừng.</p>
-<p>Với trường hợp đơn giản, <code>errgroup</code> có sẵn <code>g.SetLimit(8)</code> để giới hạn số goroutine, ngắn hơn nhiều so với tự viết pool.</p></aside>
+<p>Với trường hợp đơn giản, <code>errgroup</code> có sẵn <code>g.SetLimit(8)</code> để giới hạn số goroutine, ngắn hơn nhiều so với tự viết pool (xem bài tập cuối bài).</p></aside>
 
 <h2 id="select-cho-nhieu-thu-cung-luc"><a href="#select-cho-nhieu-thu-cung-luc" class="anchor" aria-hidden="true">#</a>select: chờ nhiều thứ cùng lúc</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">select</span> {
-<span class="k">case</span> res := &lt;-resultCh:
-    fmt.<span class="f">Println</span>(<span class="s">&quot;có kết quả&quot;</span>, res)
-<span class="k">case</span> &lt;-time.<span class="f">After</span>(<span class="n">2</span> * time.Second):
-    fmt.<span class="f">Println</span>(<span class="s">&quot;quá 2 giây, bỏ&quot;</span>)
-<span class="k">case</span> &lt;-ctx.<span class="f">Done</span>():
-    fmt.<span class="f">Println</span>(<span class="s">&quot;request đã bị huỷ&quot;</span>)
+<p><code>select</code> giống <code>switch</code>, nhưng mỗi <code>case</code> là một thao tác với channel. Nó chờ tới khi một case sẵn sàng, rồi chạy đúng case đó. Giống <code>Promise.race</code>:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="c">// Giả lập gọi dịch vụ ngoài mất `d` thời gian, trả kết quả qua channel</span>
+<span class="k">func</span> <span class="f">callAPI</span>(d time.Duration) <span class="k">chan</span> <span class="t">string</span> {
+    ch := <span class="b">make</span>(<span class="k">chan</span> <span class="t">string</span>, <span class="n">1</span>)
+    <span class="k">go</span> <span class="k">func</span>() {
+        time.<span class="f">Sleep</span>(d)
+        ch &lt;- <span class="s">&quot;dữ liệu&quot;</span>
+    }()
+    <span class="k">return</span> ch
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="c">// Lần 1: dịch vụ trả lời sau 100ms, hạn chờ 1 giây</span>
+    <span class="k">select</span> {
+    <span class="k">case</span> res := &lt;-<span class="f">callAPI</span>(<span class="n">100</span> * time.Millisecond):
+        fmt.<span class="f">Println</span>(<span class="s">&quot;có kết quả:&quot;</span>, res)
+    <span class="k">case</span> &lt;-time.<span class="f">After</span>(time.Second): <span class="c">// time.After trả về channel, có giá trị sau 1 giây</span>
+        fmt.<span class="f">Println</span>(<span class="s">&quot;quá 1 giây, bỏ&quot;</span>)
+    }
+
+    <span class="c">// Lần 2: dịch vụ chậm 3 giây, hạn chờ 1 giây</span>
+    <span class="k">select</span> {
+    <span class="k">case</span> res := &lt;-<span class="f">callAPI</span>(<span class="n">3</span> * time.Second):
+        fmt.<span class="f">Println</span>(<span class="s">&quot;có kết quả:&quot;</span>, res)
+    <span class="k">case</span> &lt;-time.<span class="f">After</span>(time.Second):
+        fmt.<span class="f">Println</span>(<span class="s">&quot;quá 1 giây, bỏ&quot;</span>)
+    }
 }</code></pre></div>
-<p><code>select</code> chờ tới khi một trong các <code>case</code> sẵn sàng, rồi chạy đúng case đó. Giống <code>Promise.race</code> nhưng cho channel. Bài 10 nói về <code>ctx.Done()</code>.</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>có kết quả: dữ liệu
+quá 1 giây, bỏ</pre></div>
+<p>Trong code thật, case hay gặp nhất là <code>case &lt;-ctx.Done():</code> nghĩa là "request đã bị huỷ" (bài 10).</p>
 
 <h2 id="mutex-khi-buoc-phai-dung-chung-du-lieu"><a href="#mutex-khi-buoc-phai-dung-chung-du-lieu" class="anchor" aria-hidden="true">#</a>Mutex: khi buộc phải dùng chung dữ liệu</h2>
-<p>Nhiều goroutine cùng đọc và ghi một biến mà không đồng bộ gọi là <b>data race</b>. Kết quả sai một cách ngẫu nhiên, và với map còn làm sập chương trình.</p>
-<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> count <span class="t">int</span>
-<span class="k">var</span> wg sync.WaitGroup
-<span class="k">for</span> <span class="k">range</span> <span class="n">1000</span> {
-    wg.<span class="f">Add</span>(<span class="n">1</span>)
-    <span class="k">go</span> <span class="k">func</span>() {
-        <span class="k">defer</span> wg.<span class="f">Done</span>()
-        count++ <span class="c">// đọc, cộng, ghi: 3 bước, các goroutine xen vào nhau</span>
-    }()
-}
-wg.<span class="f">Wait</span>()
-fmt.<span class="f">Println</span>(count) <span class="c">// thường KHÔNG phải 1000</span></code></pre></div>
-<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Counter <span class="k">struct</span> {
-    mu sync.Mutex
+<p>Nhiều goroutine cùng đọc và ghi một biến mà không đồng bộ gọi là <b>data race</b>. Kết quả sai một cách ngẫu nhiên, và với map còn làm sập chương trình. Chạy chương trình này vài lần:</p>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    count := <span class="n">0</span>
+    <span class="k">var</span> wg sync.WaitGroup
+    <span class="k">for</span> <span class="k">range</span> <span class="n">1000</span> {
+        wg.<span class="f">Add</span>(<span class="n">1</span>)
+        <span class="k">go</span> <span class="k">func</span>() {
+            <span class="k">defer</span> wg.<span class="f">Done</span>()
+            count++ <span class="c">// thật ra là 3 bước: đọc count, cộng 1, ghi lại. Các goroutine xen vào nhau</span>
+        }()
+    }
+    wg.<span class="f">Wait</span>()
+    fmt.<span class="f">Println</span>(count) <span class="c">// mong 1000</span>
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">go run .</span>
+947
+<span class="t-p">$</span> <span class="t-c">go run .</span>
+982</pre></div>
+<p>Mỗi lần ra một số khác, hiếm khi đúng 1000 (trên máy nhiều nhân). Hai goroutine cùng đọc <code>count = 5</code>, cùng cộng thành 6, cùng ghi 6: mất một lần đếm.</p>
+<p>Sửa bằng <code>sync.Mutex</code> (mutual exclusion, "khoá loại trừ"): chỉ một goroutine được vào đoạn giữa <code>Lock()</code> và <code>Unlock()</code> tại một thời điểm, những goroutine khác xếp hàng chờ:</p>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+)
+
+<span class="k">type</span> Counter <span class="k">struct</span> {
+    mu sync.Mutex     <span class="c">// khoá bảo vệ map bên dưới</span>
     n  <span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>
 }
 
 <span class="k">func</span> (c *Counter) <span class="f">Inc</span>(key <span class="t">string</span>) {
-    c.mu.<span class="f">Lock</span>()
-    <span class="k">defer</span> c.mu.<span class="f">Unlock</span>()
+    c.mu.<span class="f">Lock</span>()         <span class="c">// xin khoá, ai đang giữ thì chờ</span>
+    <span class="k">defer</span> c.mu.<span class="f">Unlock</span>() <span class="c">// trả khoá khi hàm kết thúc</span>
     c.n[key]++
 }
 
@@ -219,18 +400,38 @@ fmt.<span class="f">Println</span>(count) <span class="c">// thường KHÔNG ph
     c.mu.<span class="f">Lock</span>()
     <span class="k">defer</span> c.mu.<span class="f">Unlock</span>()
     <span class="k">return</span> c.n[key]
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    c := &amp;Counter{n: <span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>{}}
+    <span class="k">var</span> wg sync.WaitGroup
+    <span class="k">for</span> <span class="k">range</span> <span class="n">1000</span> {
+        wg.<span class="f">Add</span>(<span class="n">1</span>)
+        <span class="k">go</span> <span class="k">func</span>() {
+            <span class="k">defer</span> wg.<span class="f">Done</span>()
+            c.<span class="f">Inc</span>(<span class="s">&quot;lượt xem&quot;</span>)
+        }()
+    }
+    wg.<span class="f">Wait</span>()
+    fmt.<span class="f">Println</span>(c.<span class="f">Get</span>(<span class="s">&quot;lượt xem&quot;</span>))
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>1000</pre></div>
 <p>Biến thể: <code>sync.RWMutex</code> cho nhiều người đọc cùng lúc, chỉ ghi mới khoá độc quyền. Với một bộ đếm số đơn giản, dùng <code>sync/atomic</code>: <code>var n atomic.Int64; n.Add(1)</code>.</p>
 
 <h3>Bộ phát hiện race có sẵn</h3>
-<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> test -race ./...   <span class="c"># chạy test với bộ phát hiện race</span>
-<span class="k">go</span> run -race .        <span class="c"># chạy chương trình với bộ phát hiện race</span></code></pre></div>
-<div class="code"><div class="code-h"><span>Kết quả khi có race</span><button class="copy" type="button">Sao chép</button></div><pre><code>WARNING: DATA RACE
-Write at 0x00c000012345 by goroutine 8:
+<p>Chạy lại chương trình đếm sai ở trên với cờ <code>-race</code>:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> run -race .        <span class="c"># chạy chương trình với bộ phát hiện race</span>
+<span class="k">go</span> test -race ./...   <span class="c"># chạy test với bộ phát hiện race (dùng trong CI)</span></code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre>==================
+WARNING: DATA RACE
+Read at 0x00c000012345 by goroutine 8:
   main.main.func1()
-      /app/main.go:14 +0x44
+      /Users/ban/race/main.go:15 +0x44
 Previous write at 0x00c000012345 by goroutine 7:
-  ...</code></pre></div>
+  main.main.func1()
+      /Users/ban/race/main.go:15 +0x58
+...</pre></div>
+<p>Báo cáo chỉ đúng dòng 15 (<code>count++</code>): hai goroutine cùng đụng vào một ô nhớ, một đọc một ghi.</p>
 <aside class="prod"><p>Luôn chạy <code>go test -race</code> trong CI. Bộ phát hiện chỉ tìm thấy race ở đoạn code thật sự chạy trong lúc test, nên test càng phủ nhiều nhánh càng tốt.</p></aside>
 
 <h2 id="nhung-loi-dong-thoi-hay-gap"><a href="#nhung-loi-dong-thoi-hay-gap" class="anchor" aria-hidden="true">#</a>Những lỗi đồng thời hay gặp</h2>
@@ -242,62 +443,182 @@ Previous write at 0x00c000012345 by goroutine 7:
 <tr><td>Goroutine không giới hạn</td><td>Tải tăng là hết RAM, dịch vụ phía sau bị dồn</td><td>Worker pool, <code>errgroup.SetLimit</code>, semaphore</td></tr>
 <tr><td>Panic trong goroutine tự tạo</td><td>Cả tiến trình dừng</td><td>Goroutine chạy nền có <code>defer recover()</code></td></tr>
 </table>
+<p>Muốn tận mắt thấy deadlock, chạy chương trình 3 dòng này: nó gửi vào channel không đệm mà không có ai nhận, nên đứng chờ mãi, và Go phát hiện ra.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">func</span> <span class="f">main</span>() {
+    ch := <span class="b">make</span>(<span class="k">chan</span> <span class="t">int</span>)
+    ch &lt;- <span class="n">1</span> <span class="c">// không goroutine nào nhận: chờ mãi mãi</span>
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre>fatal error: all goroutines are asleep - deadlock!
+
+goroutine 1 [chan send]:
+main.main()
+	/Users/ban/deadlock/main.go:5 +0x34
+exit status 2</pre></div>
+<p>Go chỉ rõ goroutine nào đang kẹt (<code>chan send</code>: đang gửi vào channel) ở dòng nào (<code>main.go:5</code>).</p>
 
 <div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Handler HTTP chạy <code>go sendWelcomeEmail(user)</code> rồi trả response ngay. Rủi ro lớn nhất trong môi trường production là gì?</p><div class="qo"><button type="button" class="opt">Goroutine sẽ chạy trước khi response được gửi</button><button type="button" class="opt" data-ok>Nếu server tắt (deploy bản mới) hoặc goroutine panic, email bị mất hoặc cả server sập, và không có cơ chế thử lại</button><button type="button" class="opt">Go không cho tạo goroutine trong handler</button></div><p class="why" hidden>Việc nền quan trọng nên đưa vào hàng đợi bền vững có thử lại (bài 20). Goroutine "bắn rồi quên" chỉ hợp với việc không quan trọng, và phải có recover.</p></div>
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Kiểm tra nhiều trang web song song</summary>
-<p>Cho danh sách 20 URL. Kiểm tra mỗi URL trả status gì, chạy tối đa 5 request cùng lúc, mỗi request tối đa 3 giây. In kết quả theo đúng thứ tự danh sách ban đầu.</p>
+<p>Cho danh sách URL. Với mỗi URL, gửi request GET và ghi lại status (<code>200 OK</code>, <code>404 Not Found</code>...) hoặc lỗi. Yêu cầu:</p>
+<ul>
+<li>chạy tối đa <b>3</b> request cùng lúc (không phải tất cả một lúc, không phải lần lượt từng cái).</li>
+<li>mỗi request tối đa 3 giây.</li>
+<li>in kết quả theo <b>đúng thứ tự</b> danh sách ban đầu, dù request nào xong trước.</li>
+</ul>
+<p>Kết quả mong muốn (cần có mạng, chữ lỗi có thể khác tuỳ máy):</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>https://go.dev -&gt; 200 OK
+https://go.dev/khong-co-trang-nay -&gt; 404 Not Found
+https://pkg.go.dev -&gt; 200 OK
+https://ten-mien-khong-ton-tai.vn -&gt; lỗi: Get &quot;https://ten-mien-khong-ton-tai.vn&quot;: dial tcp: lookup ten-mien-khong-ton-tai.vn: no such host</pre></div>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Cài errgroup: <code>go get golang.org/x/sync</code>. Tạo nhóm: <code>var g errgroup.Group</code>, rồi <code>g.SetLimit(3)</code>: từ giờ <code>g.Go</code> tự chờ khi đã có 3 việc đang chạy.</li>
+<li>Giữ thứ tự: tạo trước <code>out := make([]string, len(urls))</code>. Goroutine thứ <code>i</code> chỉ ghi vào <code>out[i]</code>. Không ai ghi chung ô với ai nên không có race, và thứ tự giữ nguyên.</li>
+<li>Gửi request: tạo <code>client := &amp;http.Client{Timeout: 3 * time.Second}</code>, gọi <code>resp, err := client.Get(u)</code>. Có lỗi (mạng, tên miền sai) thì ghi lỗi. Không lỗi thì ghi <code>resp.Status</code>, và <b>nhớ</b> <code>resp.Body.Close()</code>.</li>
+<li>Trong <code>g.Go</code>, luôn <code>return nil</code> kể cả khi URL lỗi, để các URL khác vẫn được kiểm tra.</li>
+<li><code>g.Wait()</code> rồi in <code>out</code>.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">checkAll</span>(ctx context.Context, urls []<span class="t">string</span>) []<span class="t">string</span> {
-    out := <span class="b">make</span>([]<span class="t">string</span>, <span class="b">len</span>(urls)) <span class="c">// mỗi goroutine ghi vào ô riêng → không race, giữ thứ tự</span>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">mkdir</span> checkurl &amp;&amp; <span class="k">cd</span> checkurl
+<span class="k">go</span> mod init checkurl
+<span class="k">go</span> get golang.org/x/sync   <span class="c"># thêm errgroup vào go.mod</span></code></pre></div>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;golang.org/x/sync/errgroup&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">checkAll</span>(urls []<span class="t">string</span>) []<span class="t">string</span> {
+    out := <span class="b">make</span>([]<span class="t">string</span>, <span class="b">len</span>(urls)) <span class="c">// ô thứ i dành cho url thứ i</span>
     client := &amp;http.Client{Timeout: <span class="n">3</span> * time.Second}
 
-    g, ctx := errgroup.<span class="f">WithContext</span>(ctx)
-    g.<span class="f">SetLimit</span>(<span class="n">5</span>)
+    <span class="k">var</span> g errgroup.Group
+    g.<span class="f">SetLimit</span>(<span class="n">3</span>) <span class="c">// tối đa 3 goroutine chạy cùng lúc</span>
+
     <span class="k">for</span> i, u := <span class="k">range</span> urls {
         g.<span class="f">Go</span>(<span class="k">func</span>() <span class="t">error</span> {
-            req, err := http.<span class="f">NewRequestWithContext</span>(ctx, http.MethodGet, u, <span class="b">nil</span>)
-            <span class="k">if</span> err != <span class="b">nil</span> {
-                out[i] = <span class="s">&quot;URL sai: &quot;</span> + err.<span class="f">Error</span>()
-                <span class="k">return</span> <span class="b">nil</span>
-            }
-            resp, err := client.<span class="f">Do</span>(req)
+            resp, err := client.<span class="f">Get</span>(u)
             <span class="k">if</span> err != <span class="b">nil</span> {
                 out[i] = <span class="s">&quot;lỗi: &quot;</span> + err.<span class="f">Error</span>()
-                <span class="k">return</span> <span class="b">nil</span> <span class="c">// không trả lỗi để các URL khác vẫn chạy</span>
+                <span class="k">return</span> <span class="b">nil</span> <span class="c">// không trả lỗi, để các URL khác vẫn chạy</span>
             }
-            resp.Body.<span class="f">Close</span>()
+            resp.Body.<span class="f">Close</span>() <span class="c">// bắt buộc: trả kết nối lại để dùng lại</span>
             out[i] = resp.Status
             <span class="k">return</span> <span class="b">nil</span>
         })
     }
-    g.<span class="f">Wait</span>()
+    g.<span class="f">Wait</span>() <span class="c">// chờ tất cả xong</span>
     <span class="k">return</span> out
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    urls := []<span class="t">string</span>{
+        <span class="s">&quot;https://go.dev&quot;</span>,
+        <span class="s">&quot;https://go.dev/khong-co-trang-nay&quot;</span>,
+        <span class="s">&quot;https://pkg.go.dev&quot;</span>,
+        <span class="s">&quot;https://ten-mien-khong-ton-tai.vn&quot;</span>,
+    }
+    <span class="k">for</span> i, status := <span class="k">range</span> <span class="f">checkAll</span>(urls) {
+        fmt.<span class="f">Println</span>(urls[i], <span class="s">&quot;-&gt;&quot;</span>, status)
+    }
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">go run .</span>
+https://go.dev -&gt; 200 OK
+https://go.dev/khong-co-trang-nay -&gt; 404 Not Found
+https://pkg.go.dev -&gt; 200 OK
+https://ten-mien-khong-ton-tai.vn -&gt; lỗi: Get &quot;https://ten-mien-khong-ton-tai.vn&quot;: dial tcp: lookup ten-mien-khong-ton-tai.vn: no such host</pre></div>
+<p><b>Giải thích:</b> 404 không phải lỗi của <code>client.Get</code>: server vẫn trả lời, chỉ là trả "không có trang này". <code>err</code> chỉ khác <code>nil</code> khi không nói chuyện được với server (sai tên miền, mất mạng, quá 3 giây). Khác <code>fetch</code> của JS ở chỗ nào? Không khác gì: <code>fetch</code> cũng không throw khi gặp 404.</p>
 <p>Hai chi tiết thực tế: <code>http.Client</code> mặc định <b>không có timeout</b> (bài 11), nên luôn tự đặt. Và luôn <code>Close()</code> body của response, nếu không kết nối không được dùng lại và bị rò rỉ.</p>
 </details>
 </details>
 <details class="ex"><summary>Tìm và sửa race</summary>
-<p>Chạy đoạn "đếm count++" ở trên với <code>go run -race .</code>, đọc báo cáo, rồi sửa bằng ba cách: <code>sync.Mutex</code>, <code>atomic.Int64</code>, và một goroutine duy nhất nhận số qua channel rồi cộng.</p>
-<details class="sol"><summary>Gợi ý cách thứ ba</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>ch := <span class="b">make</span>(<span class="k">chan</span> <span class="t">int</span>)
-done := <span class="b">make</span>(<span class="k">chan</span> <span class="t">int</span>)
-<span class="k">go</span> <span class="k">func</span>() { <span class="c">// goroutine duy nhất sở hữu biến tổng</span>
-    total := <span class="n">0</span>
-    <span class="k">for</span> n := <span class="k">range</span> ch {
-        total += n
+<p>Chạy chương trình "đếm count++" sai ở trên với <code>go run -race .</code> và đọc báo cáo. Sau đó sửa theo ba cách, mỗi cách đều phải in đúng <code>1000</code>:</p>
+<ol class="steps">
+<li>Dùng <code>sync.Mutex</code> khoá quanh <code>count++</code>.</li>
+<li>Dùng <code>atomic.Int64</code> thay cho <code>int</code>: <code>var count atomic.Int64</code>, cộng bằng <code>count.Add(1)</code>, đọc bằng <code>count.Load()</code>.</li>
+<li>Không dùng chung biến: mọi goroutine gửi số 1 vào một channel, chỉ <b>một</b> goroutine nhận và cộng.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;sync/atomic&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">withMutex</span>() <span class="t">int</span> {
+    <span class="k">var</span> mu sync.Mutex
+    count := <span class="n">0</span>
+    <span class="k">var</span> wg sync.WaitGroup
+    <span class="k">for</span> <span class="k">range</span> <span class="n">1000</span> {
+        wg.<span class="f">Add</span>(<span class="n">1</span>)
+        <span class="k">go</span> <span class="k">func</span>() {
+            <span class="k">defer</span> wg.<span class="f">Done</span>()
+            mu.<span class="f">Lock</span>()
+            count++ <span class="c">// chỉ một goroutine ở đây tại một thời điểm</span>
+            mu.<span class="f">Unlock</span>()
+        }()
     }
-    done &lt;- total
-}()
-<span class="k">var</span> wg sync.WaitGroup
-<span class="k">for</span> <span class="k">range</span> <span class="n">1000</span> {
-    wg.<span class="f">Add</span>(<span class="n">1</span>)
-    <span class="k">go</span> <span class="k">func</span>() { <span class="k">defer</span> wg.<span class="f">Done</span>(); ch &lt;- <span class="n">1</span> }()
+    wg.<span class="f">Wait</span>()
+    <span class="k">return</span> count
 }
-wg.<span class="f">Wait</span>()
-<span class="b">close</span>(ch)
-fmt.<span class="f">Println</span>(&lt;-done) <span class="c">// 1000</span></code></pre></div>
+
+<span class="k">func</span> <span class="f">withAtomic</span>() <span class="t">int64</span> {
+    <span class="k">var</span> count atomic.Int64 <span class="c">// phép cộng là một bước duy nhất, không xen vào được</span>
+    <span class="k">var</span> wg sync.WaitGroup
+    <span class="k">for</span> <span class="k">range</span> <span class="n">1000</span> {
+        wg.<span class="f">Add</span>(<span class="n">1</span>)
+        <span class="k">go</span> <span class="k">func</span>() {
+            <span class="k">defer</span> wg.<span class="f">Done</span>()
+            count.<span class="f">Add</span>(<span class="n">1</span>)
+        }()
+    }
+    wg.<span class="f">Wait</span>()
+    <span class="k">return</span> count.<span class="f">Load</span>()
+}
+
+<span class="k">func</span> <span class="f">withChannel</span>() <span class="t">int</span> {
+    ch := <span class="b">make</span>(<span class="k">chan</span> <span class="t">int</span>)
+    done := <span class="b">make</span>(<span class="k">chan</span> <span class="t">int</span>)
+
+    <span class="k">go</span> <span class="k">func</span>() { <span class="c">// goroutine DUY NHẤT sở hữu biến total, không ai khác đụng vào</span>
+        total := <span class="n">0</span>
+        <span class="k">for</span> n := <span class="k">range</span> ch { <span class="c">// nhận tới khi ch bị đóng</span>
+            total += n
+        }
+        done &lt;- total <span class="c">// báo kết quả</span>
+    }()
+
+    <span class="k">var</span> wg sync.WaitGroup
+    <span class="k">for</span> <span class="k">range</span> <span class="n">1000</span> {
+        wg.<span class="f">Add</span>(<span class="n">1</span>)
+        <span class="k">go</span> <span class="k">func</span>() {
+            <span class="k">defer</span> wg.<span class="f">Done</span>()
+            ch &lt;- <span class="n">1</span> <span class="c">// không cộng, chỉ gửi</span>
+        }()
+    }
+    wg.<span class="f">Wait</span>()     <span class="c">// mọi goroutine đã gửi xong</span>
+    <span class="b">close</span>(ch)     <span class="c">// báo cho bên nhận: hết rồi</span>
+    <span class="k">return</span> &lt;-done <span class="c">// chờ tổng</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    fmt.<span class="f">Println</span>(<span class="s">&quot;mutex:  &quot;</span>, <span class="f">withMutex</span>())
+    fmt.<span class="f">Println</span>(<span class="s">&quot;atomic: &quot;</span>, <span class="f">withAtomic</span>())
+    fmt.<span class="f">Println</span>(<span class="s">&quot;channel:&quot;</span>, <span class="f">withChannel</span>())
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>mutex:   1000
+atomic:  1000
+channel: 1000</pre></div>
+<p>Chạy <code>go run -race .</code> với lời giải này: không còn cảnh báo nào. Trong thực tế, bộ đếm đơn giản dùng <code>atomic</code>, dữ liệu phức tạp (map, nhiều trường) dùng <code>Mutex</code>, còn channel hợp khi dữ liệu chảy qua nhiều bước xử lý.</p>
 </details>
 </details>
 </div>

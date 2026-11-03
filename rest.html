@@ -100,12 +100,31 @@
 <p>Có một chuẩn chính thức cho việc này là <b>Problem Details for HTTP APIs</b> (RFC 9457, <code>Content-Type: application/problem+json</code>). Dùng chuẩn hay tự định nghĩa đều được, quan trọng nhất là <b>mọi</b> endpoint trả cùng một dạng.</p>
 
 <h2 id="validate-khong-tin-du-lieu-nao"><a href="#validate-khong-tin-du-lieu-nao" class="anchor" aria-hidden="true">#</a>Validate: không tin dữ liệu nào</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> CreateAssignmentReq <span class="k">struct</span> {
-    Title    <span class="t">string</span> <span class="s">`json:&quot;title&quot;`</span>
-    DueDate  <span class="t">string</span> <span class="s">`json:&quot;dueDate&quot;`</span>  <span class="c">// &quot;2026-11-10&quot;</span>
-    Count    <span class="t">int</span>    <span class="s">`json:&quot;count&quot;`</span>
+<p>Mỗi kiểu request có một method <code>Validate()</code>, kiểm tra <b>hết</b> các trường rồi trả về một lỗi chứa danh sách ô sai, để frontend tô đỏ đúng ô (không dừng ở ô sai đầu tiên). Chạy thử:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+    <span class="s">&quot;unicode/utf8&quot;</span>
+)
+
+<span class="c">// Lỗi chứa nhiều ô sai: tên ô -&gt; câu báo lỗi</span>
+<span class="k">type</span> FieldsError <span class="k">struct</span> {
+    Fields <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>
 }
 
+<span class="k">func</span> (e *FieldsError) <span class="f">Error</span>() <span class="t">string</span> { <span class="k">return</span> <span class="s">&quot;dữ liệu không hợp lệ&quot;</span> }
+
+<span class="k">type</span> CreateAssignmentReq <span class="k">struct</span> {
+    Title   <span class="t">string</span> <span class="s">`json:&quot;title&quot;`</span>
+    DueDate <span class="t">string</span> <span class="s">`json:&quot;dueDate&quot;`</span> <span class="c">// &quot;2026-11-10&quot;</span>
+    Count   <span class="t">int</span>    <span class="s">`json:&quot;count&quot;`</span>
+}
+
+<span class="c">// Pointer receiver vì Validate còn chuẩn hoá dữ liệu (bỏ khoảng trắng thừa)</span>
 <span class="k">func</span> (r *CreateAssignmentReq) <span class="f">Validate</span>() <span class="t">error</span> {
     r.Title = strings.<span class="f">TrimSpace</span>(r.Title)
     fields := <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{}
@@ -122,7 +141,33 @@
         <span class="k">return</span> &amp;FieldsError{Fields: fields}
     }
     <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    body := <span class="s">`{&quot;title&quot;: &quot;   &quot;, &quot;dueDate&quot;: &quot;10/11/2026&quot;, &quot;count&quot;: 3}`</span> <span class="c">// client gửi lên</span>
+    <span class="k">var</span> req CreateAssignmentReq
+    json.<span class="f">Unmarshal</span>([]<span class="t">byte</span>(body), &amp;req)
+
+    <span class="k">if</span> err := req.<span class="f">Validate</span>(); err != <span class="b">nil</span> {
+        fe := err.(*FieldsError) <span class="c">// ở đây biết chắc kiểu nên ép thẳng. Code thật dùng errors.As</span>
+        <span class="c">// Đây chính là phần &quot;fields&quot; trong response lỗi ở mục trên</span>
+        out, _ := json.<span class="f">MarshalIndent</span>(<span class="k">map</span>[<span class="t">string</span>]<span class="t">any</span>{
+            <span class="s">&quot;error&quot;</span>: <span class="k">map</span>[<span class="t">string</span>]<span class="t">any</span>{<span class="s">&quot;code&quot;</span>: <span class="s">&quot;INVALID&quot;</span>, <span class="s">&quot;message&quot;</span>: <span class="s">&quot;Kiểm tra lại các ô được đánh dấu&quot;</span>, <span class="s">&quot;fields&quot;</span>: fe.Fields},
+        }, <span class="s">&quot;&quot;</span>, <span class="s">&quot;  &quot;</span>)
+        fmt.<span class="f">Println</span>(<span class="t">string</span>(out))
+    }
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>{
+  &quot;error&quot;: {
+    &quot;code&quot;: &quot;INVALID&quot;,
+    &quot;fields&quot;: {
+      &quot;dueDate&quot;: &quot;Ngày không hợp lệ (YYYY-MM-DD)&quot;,
+      &quot;title&quot;: &quot;Nội dung từ 1 đến 200 ký tự&quot;
+    },
+    &quot;message&quot;: &quot;Kiểm tra lại các ô được đánh dấu&quot;
+  }
+}</pre></div>
+<p><code>count</code> = 3 hợp lệ nên không có trong danh sách lỗi. <code>time.DateOnly</code> là mẫu ngày <code>"2006-01-02"</code> có sẵn: ngày gửi lên dạng <code>10/11/2026</code> không khớp mẫu nên bị báo sai. <code>json.MarshalIndent</code> in JSON có thụt lề cho dễ đọc, và luôn xếp khoá theo chữ cái.</p>
 <aside class="prod"><p>Mọi giới hạn validate ở backend phải <b>khớp</b> với <code>maxlength</code>, <code>min</code>, <code>max</code> ở form frontend. Frontend validate để trải nghiệm tốt, backend validate để dữ liệu đúng. Thư viện <code>go-playground/validator</code> cho phép viết luật bằng tag (<code>validate:"required,max=200"</code>), rất phổ biến khi struct nhiều trường.</p></aside>
 
 <h2 id="phan-trang-loc-sap-xep"><a href="#phan-trang-loc-sap-xep" class="anchor" aria-hidden="true">#</a>Phân trang, lọc, sắp xếp</h2>
@@ -137,7 +182,7 @@
 <p>Nhanh với mọi độ sâu và không trùng / sót, hợp với cuộn vô hạn và feed. Không nhảy thẳng tới trang 50 được. Cách cài đặt bằng SQL ở bài 16.</p>
 <aside class="real"><p>Stripe dùng cursor: tham số <code>starting_after</code> và trường <code>has_more</code>. GitHub API trả link trang sau trong header <code>Link</code>. Twitter / X, Facebook Graph API đều dùng cursor cho feed.</p></aside>
 <aside class="warn"><p>Luôn đặt <b>giới hạn trên</b> cho <code>size</code> (ví dụ tối đa 100), và chỉ cho sắp xếp / lọc theo <b>danh sách cột cho phép</b>. Tuyệt đối không ghép thẳng tham số <code>sort</code> vào câu SQL (bài 19: SQL injection).</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> sortable = <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> sortable = <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{
     <span class="s">&quot;dueDate&quot;</span>:   <span class="s">&quot;due_date&quot;</span>,
     <span class="s">&quot;createdAt&quot;</span>: <span class="s">&quot;created_at&quot;</span>,
 }
@@ -179,7 +224,13 @@ Idempotency-Key: 8b1f3c3e-6a2c-4c1e-9a77-2f1b1c0d9e11</code></pre></div>
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Thiết kế API cho tính năng điểm danh</summary>
-<p>Giáo viên điểm danh học sinh theo ngày (có mặt / vắng có phép / vắng không phép), phụ huynh xin nghỉ cho con. Viết ra: danh sách endpoint (method + đường dẫn), body request, response, status cho từng trường hợp lỗi.</p>
+<p>Bài này không viết code, chỉ thiết kế trên giấy (hoặc file ghi chú), giống việc bạn làm trước khi bắt tay vào một tính năng ở công ty. Tính năng: giáo viên điểm danh học sinh theo ngày (có mặt / vắng có phép / vắng không phép), phụ huynh xin nghỉ cho con. Viết ra: danh sách endpoint (method + đường dẫn), body request, response, status cho từng trường hợp lỗi.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Liệt kê <b>danh từ</b> (tài nguyên): lớp, học sinh, ngày điểm danh, đơn xin nghỉ. Mỗi danh từ thường thành một đường dẫn.</li>
+<li>Liệt kê <b>ai làm gì</b>: giáo viên xem danh sách ngày hôm nay, giáo viên lưu điểm danh, phụ huynh gửi đơn, giáo viên duyệt đơn. Mỗi việc thành một endpoint, chọn method theo bảng ở đầu bài.</li>
+<li>Với mỗi endpoint, hỏi: ai được gọi (kiểm quyền thế nào), gửi sai thì trả gì (400), không có quyền thì trả gì (404 hay 403), gọi hai lần thì sao (idempotent không).</li>
+</ol>
 <details class="sol"><summary>Một đáp án</summary>
 <table>
 <tr><th>Endpoint</th><th>Ai gọi</th><th>Ghi chú</th></tr>

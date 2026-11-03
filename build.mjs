@@ -1,6 +1,7 @@
 // Dựng trang tĩnh: src/lessons/*.html (đoạn nội dung) → dist/*.html.
 // Trong nội dung bài có thể dùng:
 //   <pre lang="go" file="main.go" mark="bad|good"> code thô (không cần escape) </pre>
+//   <pre lang="out"> kết quả in ra màn hình khi chạy (không có nút sao chép) </pre>
 //   <fig type="flow|seq|stack" caption="..." dir="down"> mô tả sơ đồ </fig>
 //   <quiz q="Câu hỏi">  - sai / + đúng / ? giải thích  </quiz>
 //   <aside class="fe|warn|tip|real|prod"> ... </aside>
@@ -97,8 +98,20 @@ function attrs(s) {
 
 function codeBlock(a, body) {
   const code = body.replace(/^\n/, '').replace(/\s+$/, '');
+  if (a.lang === 'out') {
+    // Mô phỏng ảnh chụp cửa sổ terminal: dòng "$ ..." là lệnh gõ vào, còn lại là chương trình in ra
+    const body = code.split('\n').map((l) => l.startsWith('$ ')
+      ? `<span class="t-p">$</span> <span class="t-c">${esc(l.slice(2))}</span>`
+      : l.startsWith('postgres=# ') ? `<span class="t-p">postgres=#</span> <span class="t-c">${esc(l.slice(11))}</span>` : esc(l)).join('\n');
+    // sim="1": kết quả viết tay để minh hoạ (chưa chạy thật), ghi rõ cho người học biết
+    const sim = a.sim ? '<b class="term-sim">Mô phỏng</b>' : '';
+    const title = a.file || (a.sim ? 'Terminal — kết quả minh hoạ' : 'Terminal — kết quả khi chạy');
+    return `<div class="term${a.sim ? ' sim' : ''}" role="img" aria-label="${esc(title)}"><div class="term-h"><i></i><i></i><i></i><span>${esc(title)}</span>${sim}</div><pre>${body}</pre></div>`;
+  }
   const lang = a.lang || 'text';
-  const label = a.file || LANG_NAME[lang] || lang;
+  // Khối Go không có dòng package là một đoạn trích trong chương trình lớn hơn: ghi rõ để người học không chạy riêng
+  const part = lang === 'go' && !/^package /m.test(code);
+  const label = (a.file || LANG_NAME[lang] || lang) + (part ? ' · trích đoạn' : '');
   const mark = a.mark === 'bad' ? '<span class="mark bad">Sai / nguy hiểm</span>' : a.mark === 'good' ? '<span class="mark good">Đúng / nên làm</span>' : '';
   return `<div class="code${a.mark ? ' ' + a.mark : ''}"><div class="code-h"><span>${esc(label)}</span>${mark}<button class="copy" type="button">Sao chép</button></div><pre><code>${highlight(code, lang)}</code></pre></div>`;
 }

@@ -36,88 +36,165 @@
     <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Định nghĩa và dùng interface nhỏ</li><li>Hiểu "nhận interface, trả struct"</li><li>Viết hàm generic đơn giản</li></ul></div>
   </header>
   <div class="prose"><h2 id="interface-mo-ta-hanh-vi-khong-can-implements"><a href="#interface-mo-ta-hanh-vi-khong-can-implements" class="anchor" aria-hidden="true">#</a>Interface: mô tả hành vi, không cần "implements"</h2>
-<p>Interface trong Go là một danh sách method. Kiểu nào có đủ các method đó thì <b>tự động</b> thoả interface, không cần khai báo <code>implements</code>.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Notifier <span class="k">interface</span> {
-    <span class="f">Notify</span>(ctx context.Context, userID <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span>
+<p>Interface trong Go là một <b>danh sách method</b>. Kiểu nào có đủ các method đó thì <b>tự động</b> thoả interface, không cần viết <code>implements</code>.</p>
+<p>Ví dụ đời thường: hệ thống cần nhắc phụ huynh khi con chưa nộp bài. Nhắc bằng email hay bằng thông báo đẩy (push) thì hàm nhắc không cần quan tâm, miễn là "thứ đó gửi được tin".</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="c">// Interface: &quot;thứ gì có method Notify(userID, msg) error thì là một Notifier&quot;</span>
+<span class="k">type</span> Notifier <span class="k">interface</span> {
+    <span class="f">Notify</span>(userID <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span>
 }
 
-<span class="k">type</span> EmailNotifier <span class="k">struct</span>{ from <span class="t">string</span> }
+<span class="c">// Kiểu thứ nhất: gửi email</span>
+<span class="k">type</span> EmailNotifier <span class="k">struct</span> {
+    from <span class="t">string</span>
+}
 
-<span class="k">func</span> (e *EmailNotifier) <span class="f">Notify</span>(ctx context.Context, userID <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span> {
-    <span class="c">// gửi email...</span>
+<span class="k">func</span> (e *EmailNotifier) <span class="f">Notify</span>(userID <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span> {
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;[email từ %s] gửi người dùng %d: %s\n&quot;</span>, e.from, userID, msg)
     <span class="k">return</span> <span class="b">nil</span>
 }
 
+<span class="c">// Kiểu thứ hai: gửi push. Không có dòng nào nói &quot;PushNotifier implements Notifier&quot;</span>
 <span class="k">type</span> PushNotifier <span class="k">struct</span>{}
 
-<span class="k">func</span> (p *PushNotifier) <span class="f">Notify</span>(ctx context.Context, userID <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span> {
-    <span class="c">// gửi web push...</span>
+<span class="k">func</span> (p *PushNotifier) <span class="f">Notify</span>(userID <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span> {
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;[push] gửi người dùng %d: %s\n&quot;</span>, userID, msg)
     <span class="k">return</span> <span class="b">nil</span>
 }
 
-<span class="c">// Hàm này không biết và không cần biết đang gửi bằng gì</span>
-<span class="k">func</span> <span class="f">remindHomework</span>(ctx context.Context, n Notifier, userID <span class="t">int64</span>) <span class="t">error</span> {
-    <span class="k">return</span> n.<span class="f">Notify</span>(ctx, userID, <span class="s">&quot;Con chưa nộp bài Toán hôm nay&quot;</span>)
+<span class="c">// Hàm này nhận BẤT KỲ Notifier nào, không biết và không cần biết đang gửi bằng gì</span>
+<span class="k">func</span> <span class="f">remindHomework</span>(n Notifier, userID <span class="t">int64</span>) <span class="t">error</span> {
+    <span class="k">return</span> n.<span class="f">Notify</span>(userID, <span class="s">&quot;Con chưa nộp bài Toán hôm nay&quot;</span>)
 }
 
-<span class="f">remindHomework</span>(ctx, &amp;EmailNotifier{from: <span class="s">&quot;no-reply@app.vn&quot;</span>}, <span class="n">42</span>)
-<span class="f">remindHomework</span>(ctx, &amp;PushNotifier{}, <span class="n">42</span>)</code></pre></div>
-<aside class="fe"><p>Rất giống TypeScript: TS cũng kiểm tra theo cấu trúc (structural typing), một object có đủ thuộc tính là thoả interface. Khác biệt: trong Go chỉ tính <b>method</b>, không tính trường dữ liệu, và việc kiểm tra xảy ra cả lúc biên dịch lẫn lúc chạy.</p></aside>
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="f">remindHomework</span>(&amp;EmailNotifier{from: <span class="s">&quot;no-reply@app.vn&quot;</span>}, <span class="n">42</span>)
+    <span class="f">remindHomework</span>(&amp;PushNotifier{}, <span class="n">42</span>)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>[email từ no-reply@app.vn] gửi người dùng 42: Con chưa nộp bài Toán hôm nay
+[push] gửi người dùng 42: Con chưa nộp bài Toán hôm nay</pre></div>
+<p><b>Đọc chương trình:</b> <code>*EmailNotifier</code> và <code>*PushNotifier</code> đều có method <code>Notify</code> với đúng tham số và kiểu trả về như interface yêu cầu, nên cả hai truyền được vào <code>remindHomework</code>. Thử đổi tên method của <code>PushNotifier</code> thành <code>Send</code> rồi chạy: trình biên dịch báo <code>*PushNotifier does not implement Notifier (missing method Notify)</code>.</p>
+<p>Các method dùng receiver con trỏ (<code>*EmailNotifier</code>), nên phải truyền con trỏ <code>&amp;EmailNotifier{...}</code>. Truyền <code>EmailNotifier{...}</code> (không có <code>&amp;</code>) sẽ bị báo lỗi tương tự.</p>
+<aside class="fe"><p>Rất giống TypeScript: TS cũng kiểm tra theo cấu trúc (structural typing), một object có đủ thuộc tính là thoả interface. Khác biệt: trong Go chỉ tính <b>method</b>, không tính trường dữ liệu.</p></aside>
+<aside class="tip"><p>Trong code thật, <code>Notify</code> sẽ nhận thêm tham số đầu tiên <code>ctx context.Context</code> để huỷ được khi request bị huỷ (bài 10). Ở đây bỏ đi cho gọn.</p></aside>
 
 <h2 id="interface-nho-la-interface-tot"><a href="#interface-nho-la-interface-tot" class="anchor" aria-hidden="true">#</a>Interface nhỏ là interface tốt</h2>
-<p>Thư viện chuẩn của Go đầy những interface chỉ có một method. Hai cái nổi tiếng nhất:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Reader <span class="k">interface</span> {
-    <span class="f">Read</span>(p []<span class="t">byte</span>) (n <span class="t">int</span>, err <span class="t">error</span>)
+<p>Thư viện chuẩn của Go đầy những interface chỉ có một method. Hai cái nổi tiếng nhất, nằm trong package <code>io</code>:</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Reader <span class="k">interface</span> {
+    <span class="f">Read</span>(p []<span class="t">byte</span>) (n <span class="t">int</span>, err <span class="t">error</span>) <span class="c">// đọc dữ liệu vào p, trả về số byte đọc được</span>
 }
 <span class="k">type</span> Writer <span class="k">interface</span> {
-    <span class="f">Write</span>(p []<span class="t">byte</span>) (n <span class="t">int</span>, err <span class="t">error</span>)
+    <span class="f">Write</span>(p []<span class="t">byte</span>) (n <span class="t">int</span>, err <span class="t">error</span>) <span class="c">// ghi dữ liệu p ra đâu đó</span>
 }</code></pre></div>
 <p>Vì chỉ cần một method, rất nhiều thứ là <code>io.Reader</code>: file, body của HTTP request, kết nối mạng, chuỗi trong bộ nhớ, dữ liệu giải nén... Một hàm nhận <code>io.Reader</code> làm việc được với tất cả.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Hàm này đọc JSON từ bất kỳ nguồn nào</span>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;io&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+)
+
+<span class="k">type</span> User <span class="k">struct</span> {
+    Name <span class="t">string</span> <span class="s">`json:&quot;name&quot;`</span>
+}
+
+<span class="c">// Hàm này đọc JSON từ BẤT KỲ nguồn nào có method Read</span>
 <span class="k">func</span> <span class="f">decodeUser</span>(r io.Reader) (User, <span class="t">error</span>) {
     <span class="k">var</span> u User
-    err := json.<span class="f">NewDecoder</span>(r).<span class="f">Decode</span>(&amp;u)
+    err := json.<span class="f">NewDecoder</span>(r).<span class="f">Decode</span>(&amp;u) <span class="c">// đọc từ r, ghi kết quả vào u</span>
     <span class="k">return</span> u, err
 }
 
-<span class="f">decodeUser</span>(req.Body)                          <span class="c">// từ HTTP request</span>
-<span class="f">decodeUser</span>(strings.<span class="f">NewReader</span>(<span class="s">`{&quot;name&quot;:&quot;An&quot;}`</span>)) <span class="c">// từ chuỗi, rất tiện để test</span>
-f, _ := os.<span class="f">Open</span>(<span class="s">&quot;user.json&quot;</span>)
-<span class="f">decodeUser</span>(f)                                  <span class="c">// từ file</span></code></pre></div>
-<p>Một interface quen thuộc khác là <code>error</code>: bất kỳ kiểu nào có method <code>Error() string</code> đều là lỗi (bài 07). Và <code>fmt.Stringer</code>: có method <code>String() string</code> thì <code>fmt.Println</code> sẽ dùng nó để in.</p>
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="c">// strings.NewReader biến một chuỗi thành io.Reader: rất tiện để thử và để test</span>
+    u, err := <span class="f">decodeUser</span>(strings.<span class="f">NewReader</span>(<span class="s">`{&quot;name&quot;:&quot;An&quot;}`</span>))
+    fmt.<span class="f">Println</span>(u.Name, err)
 
-<h2 id="interface-giup-tach-lop-va-viet-test"><a href="#interface-giup-tach-lop-va-viet-test" class="anchor" aria-hidden="true">#</a>Interface giúp tách lớp và viết test</h2>
-<p>Đây là lý do thực tế nhất bạn dùng interface ở backend. Lớp nghiệp vụ (service) không gọi thẳng Postgres mà gọi qua một interface. Lúc chạy thật truyền vào bản Postgres, lúc test truyền vào bản giả trong bộ nhớ.</p>
-<figure class="dg"><svg viewBox="0 0 729.6800000000001 86" style="min-width:600px;max-width:729.6800000000001px" role="img" aria-label="Service chỉ phụ thuộc vào interface. Bản thật và bản giả thay cho nhau được"><g class="nd go"><rect x="10" y="10" width="156" height="66" rx="10"/><text x="88" y="40" class="tt" text-anchor="middle">HomeworkService</text><text x="88" y="58" class="ts" text-anchor="middle">nghiệp vụ</text></g><line x1="168" y1="43" x2="236.96" y2="43" class="ln" marker-end="url(#ar)"/><text x="203.48000000000002" y="34" class="tl" text-anchor="middle">gọi qua</text><g class="nd q"><rect x="240.96" y="10" width="220.88000000000002" height="66" rx="10"/><text x="351.40000000000003" y="40" class="tt" text-anchor="middle">interface Store</text><text x="351.40000000000003" y="58" class="ts" text-anchor="middle">GetAssignment, ListByClass...</text></g><line x1="463.84000000000003" y1="43" x2="576.48" y2="43" class="ln" marker-end="url(#ar)"/><text x="521.1600000000001" y="34" class="tl" text-anchor="middle">lúc chạy thật</text><g class="nd db"><rect x="580.48" y="10" width="139.20000000000002" height="66" rx="10"/><text x="650.08" y="40" class="tt" text-anchor="middle">PostgresStore</text><text x="650.08" y="58" class="ts" text-anchor="middle">SQL thật</text></g></svg><figcaption>Service chỉ phụ thuộc vào interface. Bản thật và bản giả thay cho nhau được</figcaption></figure>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Định nghĩa interface ở nơi DÙNG nó (service), chỉ gồm method service cần</span>
-<span class="k">type</span> AssignmentStore <span class="k">interface</span> {
-    <span class="f">Get</span>(ctx context.Context, id <span class="t">int64</span>) (Assignment, <span class="t">error</span>)
-    <span class="f">ListByClass</span>(ctx context.Context, classID <span class="t">int64</span>) ([]Assignment, <span class="t">error</span>)
+    <span class="c">// Trong HTTP server bạn sẽ gọi decodeUser(r.Body), với file: decodeUser(f).</span>
+    <span class="c">// Cùng một hàm, không sửa dòng nào.</span>
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>An &lt;nil&gt;</pre></div>
+<p>Một interface quen thuộc khác là <code>error</code>: bất kỳ kiểu nào có method <code>Error() string</code> đều là lỗi (bài 07). Và <code>fmt.Stringer</code>: kiểu nào có method <code>String() string</code> thì <code>fmt.Println</code> dùng nó để in:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">type</span> Money <span class="t">int64</span>
+
+<span class="c">// Có method String() string nên Money thoả fmt.Stringer</span>
+<span class="k">func</span> (m Money) <span class="f">String</span>() <span class="t">string</span> {
+    <span class="k">return</span> fmt.<span class="f">Sprintf</span>(<span class="s">&quot;%dđ&quot;</span>, <span class="t">int64</span>(m))
 }
 
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">var</span> price Money = <span class="n">49000</span>
+    fmt.<span class="f">Println</span>(price) <span class="c">// Println thấy price có String() nên gọi nó</span>
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>49000đ</pre></div>
+
+<h2 id="interface-giup-tach-lop-va-viet-test"><a href="#interface-giup-tach-lop-va-viet-test" class="anchor" aria-hidden="true">#</a>Interface giúp tách lớp và viết test</h2>
+<p>Đây là lý do thực tế nhất bạn dùng interface ở backend. Lớp nghiệp vụ (service) không gọi thẳng Postgres mà gọi qua một interface. Lúc chạy thật truyền vào bản Postgres, lúc test truyền vào bản giả lưu trong bộ nhớ.</p>
+<figure class="dg"><svg viewBox="0 0 748.8000000000001 86" style="min-width:600px;max-width:748.8000000000001px" role="img" aria-label="Service chỉ phụ thuộc vào interface. Bản thật và bản giả thay cho nhau được"><g class="nd go"><rect x="10" y="10" width="156" height="66" rx="10"/><text x="88" y="40" class="tt" text-anchor="middle">HomeworkService</text><text x="88" y="58" class="ts" text-anchor="middle">nghiệp vụ</text></g><line x1="168" y1="43" x2="236.96" y2="43" class="ln" marker-end="url(#ar)"/><text x="203.48000000000002" y="34" class="tl" text-anchor="middle">gọi qua</text><g class="nd q"><rect x="240.96" y="10" width="240.00000000000003" height="66" rx="10"/><text x="360.96000000000004" y="40" class="tt" text-anchor="middle">interface AssignmentStore</text><text x="360.96000000000004" y="58" class="ts" text-anchor="middle">Get, ListByClass</text></g><line x1="482.96000000000004" y1="43" x2="595.6" y2="43" class="ln" marker-end="url(#ar)"/><text x="540.2800000000001" y="34" class="tl" text-anchor="middle">lúc chạy thật</text><g class="nd db"><rect x="599.6" y="10" width="139.20000000000002" height="66" rx="10"/><text x="669.2" y="40" class="tt" text-anchor="middle">PostgresStore</text><text x="669.2" y="58" class="ts" text-anchor="middle">SQL thật</text></g></svg><figcaption>Service chỉ phụ thuộc vào interface. Bản thật và bản giả thay cho nhau được</figcaption></figure>
+<p>Chương trình dưới chạy được ngay, không cần database: nó dùng bản giả <code>memStore</code>. Khi có database (bài 15), bạn viết thêm <code>PostgresStore</code> có cùng hai method, và <code>HomeworkService</code> không phải sửa dòng nào.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+)
+
+<span class="k">type</span> Assignment <span class="k">struct</span> {
+    ID      <span class="t">int64</span>
+    ClassID <span class="t">int64</span>
+    Title   <span class="t">string</span>
+}
+
+<span class="k">var</span> ErrNotFound = errors.<span class="f">New</span>(<span class="s">&quot;không tìm thấy&quot;</span>)
+
+<span class="c">// 1. Interface đặt ở nơi DÙNG nó (service), chỉ gồm các method service cần</span>
+<span class="k">type</span> AssignmentStore <span class="k">interface</span> {
+    <span class="f">Get</span>(id <span class="t">int64</span>) (Assignment, <span class="t">error</span>)
+    <span class="f">ListByClass</span>(classID <span class="t">int64</span>) ([]Assignment, <span class="t">error</span>)
+}
+
+<span class="c">// 2. Service chỉ biết interface, không biết dữ liệu nằm ở đâu</span>
 <span class="k">type</span> HomeworkService <span class="k">struct</span> {
     store AssignmentStore
 }
 
 <span class="k">func</span> <span class="f">NewHomeworkService</span>(s AssignmentStore) *HomeworkService {
     <span class="k">return</span> &amp;HomeworkService{store: s}
-}</code></pre></div>
-<div class="code"><div class="code-h"><span>homework_test.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Bản giả cho test: không cần database</span>
-<span class="k">type</span> fakeStore <span class="k">struct</span> {
+}
+
+<span class="k">func</span> (h *HomeworkService) <span class="f">CountForClass</span>(classID <span class="t">int64</span>) (<span class="t">int</span>, <span class="t">error</span>) {
+    list, err := h.store.<span class="f">ListByClass</span>(classID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="k">return</span> <span class="n">0</span>, err
+    }
+    <span class="k">return</span> <span class="b">len</span>(list), <span class="b">nil</span>
+}
+
+<span class="c">// 3. Bản giả lưu trong map: dùng khi test, hoặc khi chưa có database</span>
+<span class="k">type</span> memStore <span class="k">struct</span> {
     items <span class="k">map</span>[<span class="t">int64</span>]Assignment
 }
 
-<span class="k">func</span> (f *fakeStore) <span class="f">Get</span>(_ context.Context, id <span class="t">int64</span>) (Assignment, <span class="t">error</span>) {
-    a, ok := f.items[id]
+<span class="k">func</span> (m *memStore) <span class="f">Get</span>(id <span class="t">int64</span>) (Assignment, <span class="t">error</span>) {
+    a, ok := m.items[id]
     <span class="k">if</span> !ok {
         <span class="k">return</span> Assignment{}, ErrNotFound
     }
     <span class="k">return</span> a, <span class="b">nil</span>
 }
 
-<span class="k">func</span> (f *fakeStore) <span class="f">ListByClass</span>(_ context.Context, classID <span class="t">int64</span>) ([]Assignment, <span class="t">error</span>) {
+<span class="k">func</span> (m *memStore) <span class="f">ListByClass</span>(classID <span class="t">int64</span>) ([]Assignment, <span class="t">error</span>) {
     <span class="k">var</span> out []Assignment
-    <span class="k">for</span> _, a := <span class="k">range</span> f.items {
+    <span class="k">for</span> _, a := <span class="k">range</span> m.items {
         <span class="k">if</span> a.ClassID == classID {
             out = <span class="b">append</span>(out, a)
         }
@@ -125,78 +202,155 @@ f, _ := os.<span class="f">Open</span>(<span class="s">&quot;user.json&quot;</sp
     <span class="k">return</span> out, <span class="b">nil</span>
 }
 
-svc := <span class="f">NewHomeworkService</span>(&amp;fakeStore{items: <span class="k">map</span>[<span class="t">int64</span>]Assignment{<span class="n">1</span>: {ID: <span class="n">1</span>, ClassID: <span class="n">5</span>}}})</code></pre></div>
+<span class="k">func</span> <span class="f">main</span>() {
+    store := &amp;memStore{items: <span class="k">map</span>[<span class="t">int64</span>]Assignment{
+        <span class="n">1</span>: {ID: <span class="n">1</span>, ClassID: <span class="n">5</span>, Title: <span class="s">&quot;Toán trang 12&quot;</span>},
+        <span class="n">2</span>: {ID: <span class="n">2</span>, ClassID: <span class="n">5</span>, Title: <span class="s">&quot;Văn: tả cây&quot;</span>},
+        <span class="n">3</span>: {ID: <span class="n">3</span>, ClassID: <span class="n">6</span>, Title: <span class="s">&quot;Anh unit 3&quot;</span>},
+    }}
+    svc := <span class="f">NewHomeworkService</span>(store) <span class="c">// truyền bản giả vào chỗ cần AssignmentStore</span>
+
+    n, _ := svc.<span class="f">CountForClass</span>(<span class="n">5</span>)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;lớp 5 có&quot;</span>, n, <span class="s">&quot;bài&quot;</span>)
+
+    _, err := store.<span class="f">Get</span>(<span class="n">99</span>)
+    fmt.<span class="f">Println</span>(err)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>lớp 5 có 2 bài
+không tìm thấy</pre></div>
 <aside class="prod"><p>Câu thần chú của dân Go: <b>"Accept interfaces, return structs"</b> (nhận interface, trả về struct cụ thể). Và <b>định nghĩa interface ở phía dùng</b>, không phải phía cài đặt. PostgresStore có thể có 30 method, nhưng mỗi service chỉ khai báo interface 2, 3 method nó thật sự cần. Đừng tạo interface khi chỉ có một cài đặt và không cần test thay thế: Go không phải Java.</p></aside>
 
 <h3>Kiểm tra lúc biên dịch rằng một kiểu thoả interface</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Dòng này không chạy gì cả, chỉ để trình biên dịch báo lỗi nếu *PostgresStore thiếu method</span>
-<span class="k">var</span> _ AssignmentStore = (*PostgresStore)(<span class="b">nil</span>)</code></pre></div>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Dòng này không chạy gì cả. Nó chỉ để trình biên dịch báo lỗi ngay</span>
+<span class="c">// nếu *memStore thiếu method nào của AssignmentStore</span>
+<span class="k">var</span> _ AssignmentStore = (*memStore)(<span class="b">nil</span>)</code></pre></div>
+<p>Đặt dòng này ở cấp file (ngoài mọi hàm), ngay dưới khai báo kiểu. Bạn sẽ thấy nó rất nhiều trong code Go thật.</p>
 
 <h2 id="any-type-assertion-va-type-switch"><a href="#any-type-assertion-va-type-switch" class="anchor" aria-hidden="true">#</a>any, type assertion và type switch</h2>
-<p><code>any</code> (tên khác của <code>interface{}</code>) là interface không có method nào, nên mọi giá trị đều thoả. Giống <code>unknown</code> trong TypeScript: muốn dùng phải kiểm tra kiểu trước.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> v <span class="t">any</span> = <span class="s">&quot;xin chào&quot;</span>
+<p><code>any</code> (tên khác của <code>interface{}</code>) là interface không có method nào, nên mọi giá trị đều thoả. Giống <code>unknown</code> trong TypeScript: muốn dùng thì phải kiểm tra kiểu trước.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-s, ok := v.(<span class="t">string</span>)  <span class="c">// type assertion có kiểm tra: ok = false nếu không phải string</span>
-n := v.(<span class="t">int</span>)         <span class="c">// KHÔNG kiểm tra: sai kiểu là panic</span>
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
 
-<span class="k">switch</span> x := v.(<span class="k">type</span>) { <span class="c">// type switch</span>
-<span class="k">case</span> <span class="t">string</span>:
-    fmt.<span class="f">Println</span>(<span class="s">&quot;chuỗi dài&quot;</span>, <span class="b">len</span>(x))
-<span class="k">case</span> <span class="t">int</span>:
-    fmt.<span class="f">Println</span>(<span class="s">&quot;số&quot;</span>, x)
-<span class="k">case</span> <span class="b">nil</span>:
-    fmt.<span class="f">Println</span>(<span class="s">&quot;nil&quot;</span>)
-<span class="k">default</span>:
-    fmt.<span class="f">Printf</span>(<span class="s">&quot;kiểu khác: %T\n&quot;</span>, x)
+<span class="k">func</span> <span class="f">describe</span>(v <span class="t">any</span>) { <span class="c">// nhận giá trị kiểu gì cũng được</span>
+    <span class="c">// type switch: rẽ nhánh theo KIỂU thật của v. x có kiểu tương ứng trong từng case</span>
+    <span class="k">switch</span> x := v.(<span class="k">type</span>) {
+    <span class="k">case</span> <span class="t">string</span>:
+        fmt.<span class="f">Println</span>(<span class="s">&quot;chuỗi dài&quot;</span>, <span class="b">len</span>(x)) <span class="c">// ở đây x là string</span>
+    <span class="k">case</span> <span class="t">int</span>:
+        fmt.<span class="f">Println</span>(<span class="s">&quot;số nguyên&quot;</span>, x*<span class="n">2</span>) <span class="c">// ở đây x là int, nhân được</span>
+    <span class="k">case</span> <span class="b">nil</span>:
+        fmt.<span class="f">Println</span>(<span class="s">&quot;nil&quot;</span>)
+    <span class="k">default</span>:
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;kiểu khác: %T\n&quot;</span>, x)
+    }
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="f">describe</span>(<span class="s">&quot;xin chào&quot;</span>)
+    <span class="f">describe</span>(<span class="n">21</span>)
+    <span class="f">describe</span>(<span class="b">nil</span>)
+    <span class="f">describe</span>(<span class="n">3.14</span>)
+
+    <span class="k">var</span> v <span class="t">any</span> = <span class="s">&quot;xin chào&quot;</span>
+    s, ok := v.(<span class="t">string</span>) <span class="c">// type assertion có kiểm tra: &quot;v có phải string không?&quot;</span>
+    fmt.<span class="f">Println</span>(s, ok)
+    n, ok := v.(<span class="t">int</span>) <span class="c">// không phải int: n = 0, ok = false, không lỗi</span>
+    fmt.<span class="f">Println</span>(n, ok)
+    <span class="c">// v.(int) mà KHÔNG nhận ok thì sai kiểu là panic. Luôn dùng dạng có ok</span>
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>chuỗi dài 9
+số nguyên 42
+nil
+kiểu khác: float64
+xin chào true
+0 false</pre></div>
+<p><code>len("xin chào")</code> là 9 chứ không phải 8, vì chữ <code>à</code> chiếm 2 byte (bài 02).</p>
 <aside class="tip"><p>Hạn chế dùng <code>any</code> trong code nghiệp vụ, giống như hạn chế <code>any</code> trong TypeScript. Nơi hợp lý để gặp nó: đọc JSON không biết trước cấu trúc (<code>map[string]any</code>), log, và các thư viện chung.</p></aside>
 
 <h3>Cạm bẫy: interface chứa con trỏ nil thì không nil</h3>
 <p>Một giá trị interface gồm hai phần: <b>kiểu</b> và <b>giá trị</b>. Nó chỉ bằng <code>nil</code> khi <b>cả hai</b> đều trống.</p>
-<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> MyErr <span class="k">struct</span>{}
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">type</span> MyErr <span class="k">struct</span>{}
+
 <span class="k">func</span> (*MyErr) <span class="f">Error</span>() <span class="t">string</span> { <span class="k">return</span> <span class="s">&quot;lỗi&quot;</span> }
 
-<span class="k">func</span> <span class="f">check</span>() <span class="t">error</span> {
+<span class="c">// SAI: trả về một biến con trỏ kiểu cụ thể, dù giá trị là nil</span>
+<span class="k">func</span> <span class="f">checkBad</span>() <span class="t">error</span> {
     <span class="k">var</span> e *MyErr = <span class="b">nil</span>
-    <span class="k">return</span> e <span class="c">// trả về interface error có kiểu *MyErr, giá trị nil</span>
+    <span class="k">return</span> e <span class="c">// interface error lúc này: kiểu = *MyErr, giá trị = nil -&gt; KHÔNG phải nil</span>
 }
 
-<span class="k">if</span> err := <span class="f">check</span>(); err != <span class="b">nil</span> {
-    fmt.<span class="f">Println</span>(<span class="s">&quot;có lỗi!&quot;</span>) <span class="c">// DÒNG NÀY CHẠY, dù bạn tưởng không có lỗi</span>
+<span class="c">// ĐÚNG: không có lỗi thì trả thẳng nil</span>
+<span class="k">func</span> <span class="f">checkGood</span>() <span class="t">error</span> {
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">if</span> err := <span class="f">checkBad</span>(); err != <span class="b">nil</span> {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;checkBad: có lỗi!&quot;</span>) <span class="c">// dòng này CHẠY, dù bạn tưởng không có lỗi</span>
+    }
+    <span class="k">if</span> err := <span class="f">checkGood</span>(); err != <span class="b">nil</span> {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;checkGood: có lỗi!&quot;</span>)
+    } <span class="k">else</span> {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;checkGood: không lỗi&quot;</span>)
+    }
 }</code></pre></div>
-<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">check</span>() <span class="t">error</span> {
-    <span class="c">// ...</span>
-    <span class="k">return</span> <span class="b">nil</span> <span class="c">// trả thẳng nil, không trả biến con trỏ kiểu cụ thể</span>
-}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>checkBad: có lỗi!
+checkGood: không lỗi</pre></div>
 
 <h2 id="embedding-ghep-thay-vi-ke-thua"><a href="#embedding-ghep-thay-vi-ke-thua" class="anchor" aria-hidden="true">#</a>Embedding: ghép thay vì kế thừa</h2>
-<p>Go không có kế thừa. Muốn dùng lại, bạn <b>nhúng</b> một kiểu vào kiểu khác. Trường và method của kiểu được nhúng được "đưa lên" kiểu ngoài.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Timestamps <span class="k">struct</span> {
+<p>Go không có kế thừa (<code>extends</code>). Muốn dùng lại, bạn <b>nhúng</b> một kiểu vào kiểu khác: viết tên kiểu mà không đặt tên trường. Trường và method của kiểu được nhúng được "đưa lên" kiểu ngoài.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="k">type</span> Timestamps <span class="k">struct</span> {
     CreatedAt time.Time
     UpdatedAt time.Time
 }
 
-<span class="k">func</span> (t *Timestamps) <span class="f">Touch</span>() { t.UpdatedAt = time.<span class="f">Now</span>() }
-
-<span class="k">type</span> Class <span class="k">struct</span> {
-    Timestamps        <span class="c">// nhúng: không đặt tên trường</span>
-    ID   <span class="t">int64</span>
-    Name <span class="t">string</span>
+<span class="k">func</span> (t *Timestamps) <span class="f">Touch</span>() {
+    t.UpdatedAt = time.<span class="f">Date</span>(<span class="n">2026</span>, <span class="n">11</span>, <span class="n">3</span>, <span class="n">9</span>, <span class="n">0</span>, <span class="n">0</span>, <span class="n">0</span>, time.UTC) <span class="c">// code thật dùng time.Now()</span>
 }
 
-c := Class{Name: <span class="s">&quot;5A&quot;</span>}
-c.<span class="f">Touch</span>()             <span class="c">// gọi method của Timestamps như của Class</span>
-fmt.<span class="f">Println</span>(c.UpdatedAt)</code></pre></div>
+<span class="k">type</span> Class <span class="k">struct</span> {
+    Timestamps <span class="c">// nhúng: chỉ có tên kiểu, không có tên trường</span>
+    ID         <span class="t">int64</span>
+    Name       <span class="t">string</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    c := Class{Name: <span class="s">&quot;5A&quot;</span>}
+    c.<span class="f">Touch</span>() <span class="c">// gọi method của Timestamps như thể của Class</span>
+    fmt.<span class="f">Println</span>(c.Name, c.UpdatedAt.<span class="f">Format</span>(<span class="s">&quot;02/01/2006 15:04&quot;</span>))
+    <span class="c">// c.UpdatedAt là cách viết tắt của c.Timestamps.UpdatedAt</span>
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>5A 03/11/2026 09:00</pre></div>
+<p><code>Format("02/01/2006 15:04")</code>: Go định dạng ngày bằng một <b>ngày mẫu</b> cố định (2 tháng 1 năm 2006, 15:04), thay vì <code>DD/MM/YYYY</code>. Lạ, nhưng quen nhanh.</p>
 <p>Interface cũng nhúng được vào nhau:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> ReadWriter <span class="k">interface</span> {
-    io.Reader
-    io.Writer
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> ReadWriter <span class="k">interface</span> {
+    io.Reader <span class="c">// có đủ method của Reader</span>
+    io.Writer <span class="c">// và của Writer</span>
 }</code></pre></div>
 <aside class="fe"><p>Giống React chuyển từ class component kế thừa sang ghép component và hook: "composition over inheritance". Go chỉ cho bạn con đường ghép.</p></aside>
 
 <h2 id="generics-tu-go-1-18"><a href="#generics-tu-go-1-18" class="anchor" aria-hidden="true">#</a>Generics (từ Go 1.18)</h2>
-<p>Generics cho phép viết hàm / kiểu dùng được cho nhiều kiểu dữ liệu, giống <code>function f&lt;T&gt;(x: T)</code> trong TypeScript.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// [T any]: tham số kiểu T, không ràng buộc gì</span>
+<p>Generics cho phép viết hàm / kiểu dùng được cho nhiều kiểu dữ liệu, giống <code>function f&lt;T&gt;(x: T)</code> trong TypeScript. Go dùng ngoặc vuông <code>[T any]</code> thay cho ngoặc nhọn <code>&lt;T&gt;</code>.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;cmp&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+)
+
+<span class="c">// TS: function Map&lt;T, U&gt;(items: T[], f: (x: T) =&gt; U): U[]</span>
 <span class="k">func</span> Map[T, U <span class="t">any</span>](items []T, f <span class="k">func</span>(T) U) []U {
     out := <span class="b">make</span>([]U, <span class="n">0</span>, <span class="b">len</span>(items))
     <span class="k">for</span> _, it := <span class="k">range</span> items {
@@ -205,59 +359,148 @@ fmt.<span class="f">Println</span>(c.UpdatedAt)</code></pre></div>
     <span class="k">return</span> out
 }
 
-names := <span class="f">Map</span>(users, <span class="k">func</span>(u User) <span class="t">string</span> { <span class="k">return</span> u.Name })
-
-<span class="c">// Ràng buộc: T phải so sánh lớn nhỏ được</span>
+<span class="c">// cmp.Ordered là RÀNG BUỘC: T phải là kiểu so sánh lớn nhỏ được (số, chuỗi)</span>
 <span class="k">func</span> MaxOf[T cmp.Ordered](items []T) (T, <span class="t">bool</span>) {
-    <span class="k">var</span> zero T
+    <span class="k">var</span> zero T <span class="c">// zero value của T: 0 với số, &quot;&quot; với chuỗi</span>
     <span class="k">if</span> <span class="b">len</span>(items) == <span class="n">0</span> {
         <span class="k">return</span> zero, <span class="b">false</span>
     }
     m := items[<span class="n">0</span>]
     <span class="k">for</span> _, x := <span class="k">range</span> items[<span class="n">1</span>:] {
-        <span class="k">if</span> x &gt; m {
+        <span class="k">if</span> x &gt; m { <span class="c">// được dùng &gt; vì T bị ràng buộc là Ordered</span>
             m = x
         }
     }
     <span class="k">return</span> m, <span class="b">true</span>
 }
 
-<span class="c">// Kiểu generic: response phân trang dùng cho mọi loại tài nguyên</span>
+<span class="c">// Kiểu generic: response phân trang dùng chung cho mọi loại dữ liệu</span>
 <span class="k">type</span> Page[T <span class="t">any</span>] <span class="k">struct</span> {
-    Items []T <span class="s">`json:&quot;items&quot;`</span>
-    Total <span class="t">int</span> <span class="s">`json:&quot;total&quot;`</span>
-    Page  <span class="t">int</span> <span class="s">`json:&quot;page&quot;`</span>
+    Items []T
+    Total <span class="t">int</span>
+}
+
+<span class="k">type</span> User <span class="k">struct</span>{ Name <span class="t">string</span> }
+
+<span class="k">func</span> <span class="f">main</span>() {
+    users := []User{{<span class="s">&quot;An&quot;</span>}, {<span class="s">&quot;Bình&quot;</span>}}
+    names := <span class="f">Map</span>(users, <span class="k">func</span>(u User) <span class="t">string</span> { <span class="k">return</span> u.Name }) <span class="c">// Go tự suy ra T = User, U = string</span>
+    fmt.<span class="f">Println</span>(names)
+
+    fmt.<span class="f">Println</span>(<span class="f">MaxOf</span>([]<span class="t">int</span>{<span class="n">3</span>, <span class="n">9</span>, <span class="n">4</span>}))
+    fmt.<span class="f">Println</span>(<span class="f">MaxOf</span>([]<span class="t">string</span>{<span class="s">&quot;lê&quot;</span>, <span class="s">&quot;an&quot;</span>, <span class="s">&quot;minh&quot;</span>}))
+    fmt.<span class="f">Println</span>(<span class="f">MaxOf</span>([]<span class="t">float64</span>{}))
+
+    p := Page[User]{Items: users, Total: <span class="n">2</span>} <span class="c">// tạo kiểu generic thì ghi rõ T</span>
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%+v\n&quot;</span>, p)
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>[An Bình]
+9 true
+minh true
+0 false
+{Items:[{Name:An} {Name:Bình}] Total:2}</pre></div>
+<p><code>fmt.Println(MaxOf(...))</code> in cả hai giá trị trả về. <code>"minh"</code> lớn nhất vì chuỗi so sánh theo thứ tự chữ cái.</p>
 <aside class="tip"><p>Thư viện chuẩn đã có sẵn nhiều hàm generic: package <code>slices</code> (Sort, Contains, Index, Max...), <code>maps</code>, <code>cmp</code>. Dùng generics khi bạn sắp chép cùng một đoạn code cho nhiều kiểu. Đừng dùng chỉ vì nó có: interface thường là lựa chọn đơn giản hơn khi cái bạn cần là <i>hành vi</i> khác nhau.</p></aside>
 
 <div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Kiểu <code>*FileLogger</code> có method <code>Write(p []byte) (int, error)</code>. Cần làm gì để truyền nó vào hàm nhận <code>io.Writer</code>?</p><div class="qo"><button type="button" class="opt">Thêm dòng implements io.Writer vào khai báo struct</button><button type="button" class="opt" data-ok>Không cần làm gì, nó đã thoả io.Writer</button><button type="button" class="opt">Phải nhúng io.Writer vào struct FileLogger</button></div><p class="why" hidden>Interface trong Go được thoả một cách ngầm định: có đủ method với đúng chữ ký là đủ.</p></div>
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Thông báo nhiều kênh</summary>
-<p>Viết kiểu <code>MultiNotifier</code> chứa một danh sách <code>Notifier</code>, bản thân nó cũng thoả <code>Notifier</code>: gọi lần lượt từng kênh, kênh lỗi thì vẫn chạy tiếp các kênh khác, cuối cùng trả về tất cả lỗi gộp lại (gợi ý: <code>errors.Join</code>).</p>
+<p>Dùng lại <code>Notifier</code> ở đầu bài. Viết kiểu <code>MultiNotifier</code> chứa một danh sách <code>Notifier</code>, và <b>bản thân nó cũng là một <code>Notifier</code></b>: gọi lần lượt từng kênh, kênh nào lỗi thì vẫn gửi tiếp các kênh khác, cuối cùng trả về tất cả lỗi gộp lại.</p>
+<p>Thử với ba kênh: email (thành công), SMS (luôn lỗi "hết tiền"), push (thành công). Kết quả mong muốn:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>[email] 42: Con chưa nộp bài
+[push] 42: Con chưa nộp bài
+lỗi: sms: hết tiền</pre></div>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Một kiểu có thể dựa trên slice: <code>type MultiNotifier []Notifier</code>. Nó là slice, nhưng gắn method được.</li>
+<li>Viết method <code>func (m MultiNotifier) Notify(userID int64, msg string) error</code>. Có đúng chữ ký như interface, nên <code>MultiNotifier</code> tự động là <code>Notifier</code>.</li>
+<li>Trong method: duyệt <code>m</code>, gọi <code>Notify</code> của từng kênh. Lỗi thì gom vào một slice <code>[]error</code>, không <code>return</code> sớm.</li>
+<li>Cuối cùng <code>return errors.Join(errs...)</code>: gộp nhiều lỗi thành một. Không có lỗi nào thì nó trả <code>nil</code>.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> MultiNotifier []Notifier
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-<span class="k">func</span> (m MultiNotifier) <span class="f">Notify</span>(ctx context.Context, userID <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span> {
+<span class="k">import</span> (
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+)
+
+<span class="k">type</span> Notifier <span class="k">interface</span> {
+    <span class="f">Notify</span>(userID <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span>
+}
+
+<span class="c">// Ba kênh để thử</span>
+<span class="k">type</span> Email <span class="k">struct</span>{}
+
+<span class="k">func</span> (Email) <span class="f">Notify</span>(id <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span> {
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;[email] %d: %s\n&quot;</span>, id, msg)
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="k">type</span> SMS <span class="k">struct</span>{}
+
+<span class="k">func</span> (SMS) <span class="f">Notify</span>(id <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span> {
+    <span class="k">return</span> errors.<span class="f">New</span>(<span class="s">&quot;sms: hết tiền&quot;</span>) <span class="c">// giả lập kênh luôn lỗi</span>
+}
+
+<span class="k">type</span> Push <span class="k">struct</span>{}
+
+<span class="k">func</span> (Push) <span class="f">Notify</span>(id <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span> {
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;[push] %d: %s\n&quot;</span>, id, msg)
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="c">// MultiNotifier là một slice các Notifier...</span>
+<span class="k">type</span> MultiNotifier []Notifier
+
+<span class="c">// ...và cũng là một Notifier, vì có method Notify đúng chữ ký</span>
+<span class="k">func</span> (m MultiNotifier) <span class="f">Notify</span>(userID <span class="t">int64</span>, msg <span class="t">string</span>) <span class="t">error</span> {
     <span class="k">var</span> errs []<span class="t">error</span>
     <span class="k">for</span> _, n := <span class="k">range</span> m {
-        <span class="k">if</span> err := n.<span class="f">Notify</span>(ctx, userID, msg); err != <span class="b">nil</span> {
-            errs = <span class="b">append</span>(errs, err)
+        <span class="k">if</span> err := n.<span class="f">Notify</span>(userID, msg); err != <span class="b">nil</span> {
+            errs = <span class="b">append</span>(errs, err) <span class="c">// ghi nhận lỗi rồi gửi tiếp kênh sau</span>
         }
     }
     <span class="k">return</span> errors.<span class="f">Join</span>(errs...) <span class="c">// không có lỗi nào thì trả về nil</span>
 }
 
-<span class="k">var</span> _ Notifier = <span class="f">MultiNotifier</span>(<span class="b">nil</span>) <span class="c">// kiểm tra lúc biên dịch</span>
+<span class="c">// Trình biên dịch kiểm tra giúp: MultiNotifier có thoả Notifier không</span>
+<span class="k">var</span> _ Notifier = <span class="f">MultiNotifier</span>(<span class="b">nil</span>)
 
-n := MultiNotifier{&amp;EmailNotifier{}, &amp;PushNotifier{}}</code></pre></div>
-<p>Đây là mẫu <i>composite</i>: bên gọi vẫn chỉ thấy một <code>Notifier</code>. Một kiểu dựa trên slice cũng có method được.</p>
+<span class="k">func</span> <span class="f">main</span>() {
+    all := MultiNotifier{Email{}, SMS{}, Push{}}
+    <span class="k">if</span> err := all.<span class="f">Notify</span>(<span class="n">42</span>, <span class="s">&quot;Con chưa nộp bài&quot;</span>); err != <span class="b">nil</span> {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;lỗi:&quot;</span>, err)
+    }
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>[email] 42: Con chưa nộp bài
+[push] 42: Con chưa nộp bài
+lỗi: sms: hết tiền</pre></div>
+<p><b>Giải thích:</b> lỗi của SMS không chặn push. Ở đây các method dùng receiver giá trị (<code>func (Email) Notify</code>, không đặt tên receiver vì không dùng tới), nên truyền <code>Email{}</code> không cần <code>&amp;</code>. Đây là mẫu <i>composite</i>: bên gọi chỉ thấy một <code>Notifier</code>, không biết bên trong có mấy kênh.</p>
 </details>
 </details>
 <details class="ex"><summary>Hàm GroupBy generic</summary>
-<p>Viết <code>GroupBy[T any, K comparable](items []T, key func(T) K) map[K][]T</code>. Dùng nó để gom danh sách bài tập theo môn học.</p>
+<p>Viết <code>GroupBy[T any, K comparable](items []T, key func(T) K) map[K][]T</code>: nhận một danh sách và một hàm lấy "khoá" của từng phần tử, trả về map gom các phần tử cùng khoá. Dùng nó để gom bài tập theo môn học. Kết quả mong muốn:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>Toán: [Trang 12 Trang 15]
+Văn: [Tả cây]</pre></div>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Tương tự <code>lodash.groupBy(items, x =&gt; x.subject)</code>.</li>
+<li>Tạo <code>out := make(map[K][]T)</code>. Duyệt <code>items</code>, tính <code>k := key(it)</code>, rồi <code>out[k] = append(out[k], it)</code>. Khoá chưa có thì <code>out[k]</code> là slice nil, <code>append</code> vào nil vẫn chạy.</li>
+<li>In kết quả theo thứ tự cố định (map duyệt ngẫu nhiên): lấy khoá và sắp xếp như bài 04.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> GroupBy[T <span class="t">any</span>, K <span class="t">comparable</span>](items []T, key <span class="k">func</span>(T) K) <span class="k">map</span>[K][]T {
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;maps&quot;</span>
+    <span class="s">&quot;slices&quot;</span>
+)
+
+<span class="c">// T: kiểu phần tử, bất kỳ. K: kiểu khoá, phải &quot;comparable&quot; (so sánh được bằng ==) mới làm khoá map được</span>
+<span class="k">func</span> GroupBy[T <span class="t">any</span>, K <span class="t">comparable</span>](items []T, key <span class="k">func</span>(T) K) <span class="k">map</span>[K][]T {
     out := <span class="b">make</span>(<span class="k">map</span>[K][]T)
     <span class="k">for</span> _, it := <span class="k">range</span> items {
         k := <span class="f">key</span>(it)
@@ -266,8 +509,31 @@ n := MultiNotifier{&amp;EmailNotifier{}, &amp;PushNotifier{}}</code></pre></div>
     <span class="k">return</span> out
 }
 
-bySubject := <span class="f">GroupBy</span>(assignments, <span class="k">func</span>(a Assignment) <span class="t">string</span> { <span class="k">return</span> a.Subject })</code></pre></div>
-<p><code>comparable</code> là ràng buộc có sẵn: kiểu dùng được với <code>==</code>, điều kiện để làm khoá của map.</p>
+<span class="k">type</span> Assignment <span class="k">struct</span> {
+    Subject <span class="t">string</span>
+    Title   <span class="t">string</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    list := []Assignment{
+        {<span class="s">&quot;Toán&quot;</span>, <span class="s">&quot;Trang 12&quot;</span>},
+        {<span class="s">&quot;Văn&quot;</span>, <span class="s">&quot;Tả cây&quot;</span>},
+        {<span class="s">&quot;Toán&quot;</span>, <span class="s">&quot;Trang 15&quot;</span>},
+    }
+
+    bySubject := <span class="f">GroupBy</span>(list, <span class="k">func</span>(a Assignment) <span class="t">string</span> { <span class="k">return</span> a.Subject })
+
+    <span class="k">for</span> _, subject := <span class="k">range</span> slices.<span class="f">Sorted</span>(maps.<span class="f">Keys</span>(bySubject)) {
+        titles := []<span class="t">string</span>{}
+        <span class="k">for</span> _, a := <span class="k">range</span> bySubject[subject] {
+            titles = <span class="b">append</span>(titles, a.Title)
+        }
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;%s: %v\n&quot;</span>, subject, titles)
+    }
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>Toán: [Trang 12 Trang 15]
+Văn: [Tả cây]</pre></div>
+<p><code>comparable</code> là ràng buộc có sẵn: kiểu dùng được với <code>==</code>, điều kiện để làm khoá của map. Struct <code>Assignment</code> trong ví dụ được tạo không ghi tên trường (<code>{"Toán", "Trang 12"}</code>): được phép, các giá trị điền theo thứ tự khai báo, nhưng code thật nên ghi tên trường cho dễ đọc.</p>
 </details>
 </details>
 </div>

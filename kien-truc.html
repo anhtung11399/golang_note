@@ -38,12 +38,12 @@
   <div class="prose"><h2 id="middleware-nhung-lop-vo-quanh-handler"><a href="#middleware-nhung-lop-vo-quanh-handler" class="anchor" aria-hidden="true">#</a>Middleware: những lớp vỏ quanh handler</h2>
 <p>Có những việc mọi request đều cần: ghi log, gắn request id, chặn panic, kiểm tra đăng nhập, giới hạn tần suất. Thay vì chép vào từng handler, ta bọc handler trong các <b>middleware</b>.</p>
 <p>Trong Go, middleware chỉ là một hàm nhận <code>http.Handler</code> và trả về <code>http.Handler</code> mới:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Middleware <span class="k">func</span>(http.Handler) http.Handler</code></pre></div>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Middleware <span class="k">func</span>(http.Handler) http.Handler</code></pre></div>
 <figure class="dg"><svg viewBox="0 0 535.76 360" style="min-width:535.76px;max-width:535.76px" role="img" aria-label="Request đi vào qua từng lớp, response đi ra theo thứ tự ngược lại"><g class="nd ext"><rect x="10" y="10" width="170" height="52" rx="10"/><text x="95" y="41" class="tt" text-anchor="middle">RequestID</text></g><text x="200" y="41" class="tl" text-anchor="start">gắn mã cho request, đưa vào ctx và header</text><line x1="95" y1="62" x2="95" y2="80" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><g class="nd ext"><rect x="10" y="82" width="170" height="52" rx="10"/><text x="95" y="113" class="tt" text-anchor="middle">Logger</text></g><text x="200" y="113" class="tl" text-anchor="start">đo thời gian, ghi status khi response xong</text><line x1="95" y1="134" x2="95" y2="152" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><g class="nd warn"><rect x="10" y="154" width="170" height="52" rx="10"/><text x="95" y="185" class="tt" text-anchor="middle">Recover</text></g><text x="200" y="185" class="tl" text-anchor="start">chặn panic, trả 500 tử tế</text><line x1="95" y1="206" x2="95" y2="224" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><g class="nd q"><rect x="10" y="226" width="170" height="52" rx="10"/><text x="95" y="257" class="tt" text-anchor="middle">Auth</text></g><text x="200" y="257" class="tl" text-anchor="start">đọc cookie phiên, đưa người dùng vào ctx</text><line x1="95" y1="278" x2="95" y2="296" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><g class="nd go"><rect x="10" y="298" width="170" height="52" rx="10"/><text x="95" y="329" class="tt" text-anchor="middle">Handler</text></g><text x="200" y="329" class="tl" text-anchor="start">nghiệp vụ của endpoint</text></svg><figcaption>Request đi vào qua từng lớp, response đi ra theo thứ tự ngược lại</figcaption></figure>
 <aside class="fe"><p>Giống hệt interceptor của Angular <code>HttpClient</code> hay middleware của Express / Next.js, chỉ là ở phía server. Nếu bạn từng viết <code>app.use((req, res, next) =&gt; ...)</code> trong Express, thì <code>next.ServeHTTP(w, r)</code> chính là <code>next()</code>.</p></aside>
 
 <h3>Request ID</h3>
-<div class="code"><div class="code-h"><span>internal/httpapi/middleware.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">RequestID</span>(next http.Handler) http.Handler {
+<div class="code"><div class="code-h"><span>internal/httpapi/middleware.go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">RequestID</span>(next http.Handler) http.Handler {
     <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
         id := r.Header.<span class="f">Get</span>(<span class="s">&quot;X-Request-ID&quot;</span>)
         <span class="k">if</span> id == <span class="s">&quot;&quot;</span> || <span class="b">len</span>(id) &gt; <span class="n">64</span> {
@@ -58,7 +58,7 @@
 
 <h3>Logger: cần biết status code</h3>
 <p><code>http.ResponseWriter</code> không cho đọc lại status đã ghi. Mẹo chuẩn: bọc nó trong một struct ghi nhớ status.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> statusRecorder <span class="k">struct</span> {
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> statusRecorder <span class="k">struct</span> {
     http.ResponseWriter <span class="c">// nhúng: mọi method khác giữ nguyên</span>
     status <span class="t">int</span>
     bytes  <span class="t">int</span>
@@ -97,7 +97,7 @@
 }</code></pre></div>
 
 <h3>Ghép các middleware</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">Chain</span>(h http.Handler, mws ...Middleware) http.Handler {
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">Chain</span>(h http.Handler, mws ...Middleware) http.Handler {
     <span class="k">for</span> i := <span class="b">len</span>(mws) - <span class="n">1</span>; i &gt;= <span class="n">0</span>; i-- { <span class="c">// bọc từ trong ra ngoài</span>
         h = mws[i](h)
     }
@@ -106,11 +106,84 @@
 
 handler := <span class="f">Chain</span>(mux, RequestID, <span class="f">Logger</span>(logger), Recover)
 <span class="c">// thứ tự chạy khi có request: RequestID → Logger → Recover → mux</span></code></pre></div>
+<p><b>Chạy thử để thấy thứ tự.</b> Chương trình dưới không mở cổng mạng: nó dùng <code>httptest</code> (bài 10) để gửi request giả thẳng vào handler, nên chạy được cả trên Go Playground.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;net/http/httptest&quot;</span>
+)
+
+<span class="k">type</span> Middleware <span class="k">func</span>(http.Handler) http.Handler
+
+<span class="c">// Mỗi middleware in một dòng khi request đi vào, và một dòng khi đi ra</span>
+<span class="k">func</span> <span class="f">Outer</span>(next http.Handler) http.Handler {
+    <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;-&gt; Outer: vào&quot;</span>)
+        next.<span class="f">ServeHTTP</span>(w, r) <span class="c">// chuyển cho lớp bên trong, giống next() của Express</span>
+        fmt.<span class="f">Println</span>(<span class="s">&quot;&lt;- Outer: ra&quot;</span>)
+    })
+}
+
+<span class="k">func</span> <span class="f">Auth</span>(next http.Handler) http.Handler {
+    <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;  -&gt; Auth: kiểm tra đăng nhập&quot;</span>)
+        <span class="k">if</span> r.Header.<span class="f">Get</span>(<span class="s">&quot;Cookie&quot;</span>) == <span class="s">&quot;&quot;</span> {
+            fmt.<span class="f">Println</span>(<span class="s">&quot;  &lt;- Auth: chặn, trả 401, KHÔNG gọi next&quot;</span>)
+            w.<span class="f">WriteHeader</span>(http.StatusUnauthorized)
+            <span class="k">return</span>
+        }
+        next.<span class="f">ServeHTTP</span>(w, r)
+        fmt.<span class="f">Println</span>(<span class="s">&quot;  &lt;- Auth: ra&quot;</span>)
+    })
+}
+
+<span class="k">func</span> <span class="f">Chain</span>(h http.Handler, mws ...Middleware) http.Handler {
+    <span class="k">for</span> i := <span class="b">len</span>(mws) - <span class="n">1</span>; i &gt;= <span class="n">0</span>; i-- { <span class="c">// bọc từ trong ra ngoài</span>
+        h = mws[i](h)
+    }
+    <span class="k">return</span> h
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    hello := http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;    handler: xử lý nghiệp vụ&quot;</span>)
+        w.<span class="f">Write</span>([]<span class="t">byte</span>(<span class="s">&quot;xin chào&quot;</span>))
+    })
+    app := <span class="f">Chain</span>(hello, Outer, Auth) <span class="c">// Outer bọc ngoài cùng</span>
+
+    fmt.<span class="f">Println</span>(<span class="s">&quot;== Request có cookie&quot;</span>)
+    req := httptest.<span class="f">NewRequest</span>(<span class="s">&quot;GET&quot;</span>, <span class="s">&quot;/&quot;</span>, <span class="b">nil</span>)
+    req.Header.<span class="f">Set</span>(<span class="s">&quot;Cookie&quot;</span>, <span class="s">&quot;session=abc&quot;</span>)
+    rec := httptest.<span class="f">NewRecorder</span>()
+    app.<span class="f">ServeHTTP</span>(rec, req)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;status:&quot;</span>, rec.Code, <span class="s">&quot;body:&quot;</span>, rec.Body.<span class="f">String</span>())
+
+    fmt.<span class="f">Println</span>(<span class="s">&quot;== Request không có cookie&quot;</span>)
+    rec = httptest.<span class="f">NewRecorder</span>()
+    app.<span class="f">ServeHTTP</span>(rec, httptest.<span class="f">NewRequest</span>(<span class="s">&quot;GET&quot;</span>, <span class="s">&quot;/&quot;</span>, <span class="b">nil</span>))
+    fmt.<span class="f">Println</span>(<span class="s">&quot;status:&quot;</span>, rec.Code)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>== Request có cookie
+-&gt; Outer: vào
+  -&gt; Auth: kiểm tra đăng nhập
+    handler: xử lý nghiệp vụ
+  &lt;- Auth: ra
+&lt;- Outer: ra
+status: 200 body: xin chào
+== Request không có cookie
+-&gt; Outer: vào
+  -&gt; Auth: kiểm tra đăng nhập
+  &lt;- Auth: chặn, trả 401, KHÔNG gọi next
+&lt;- Outer: ra
+status: 401</pre></div>
+<p>Vào theo thứ tự Outer → Auth → handler, ra theo thứ tự ngược lại, đúng như hình ở đầu bài. Middleware không gọi <code>next.ServeHTTP</code> là chặn request lại: handler không bao giờ chạy.</p>
 <aside class="tip"><p>Middleware chỉ áp dụng cho một số route (ví dụ yêu cầu đăng nhập) thì bọc riêng route đó: <code>mux.Handle("GET /v1/me", RequireAuth(http.HandlerFunc(me)))</code>. Thư viện <code>chi</code> có cú pháp nhóm route tiện hơn (<code>r.Group</code>, <code>r.With</code>), một lý do khiến nó vẫn được dùng nhiều.</p></aside>
 
 <h2 id="log-co-cau-truc-voi-slog"><a href="#log-co-cau-truc-voi-slog" class="anchor" aria-hidden="true">#</a>Log có cấu trúc với slog</h2>
 <p>Log dạng chữ tự do (<code>log.Printf("user %d tạo lớp %s", ...)</code>) đọc bằng mắt thì được, nhưng không lọc được khi có hàng triệu dòng. Log có cấu trúc ghi từng trường riêng, thường dạng JSON, để hệ thống log (Grafana Loki, Elasticsearch, Datadog, Cloud Logging...) tìm kiếm và đếm.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>logger := slog.<span class="f">New</span>(slog.<span class="f">NewJSONHandler</span>(os.Stdout, &amp;slog.HandlerOptions{Level: slog.LevelInfo}))
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code>logger := slog.<span class="f">New</span>(slog.<span class="f">NewJSONHandler</span>(os.Stdout, &amp;slog.HandlerOptions{Level: slog.LevelInfo}))
 slog.<span class="f">SetDefault</span>(logger)
 
 slog.<span class="f">Info</span>(<span class="s">&quot;tạo lớp&quot;</span>, <span class="s">&quot;class_id&quot;</span>, <span class="n">42</span>, <span class="s">&quot;teacher_id&quot;</span>, <span class="n">7</span>)
@@ -126,7 +199,8 @@ slog.<span class="f">Error</span>(<span class="s">&quot;gửi email thất bại
 <tr><td><b>Service</b></td><td>Quy tắc nghiệp vụ: quyền, giới hạn, tính toán, điều phối nhiều store</td><td>Không biết HTTP (không có <code>http.Request</code>), không viết SQL</td></tr>
 <tr><td><b>Store</b> (repository)</td><td>Đọc / ghi database, Redis</td><td>Không quyết định nghiệp vụ</td></tr>
 </table>
-<div class="code"><div class="code-h"><span>internal/service/classes.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> ClassStore <span class="k">interface</span> {
+<p>Ví dụ (trích đoạn từ một dự án, bài tập cuối bài có bản chạy được đầy đủ): giáo viên gói miễn phí chỉ được tạo 1 lớp.</p>
+<div class="code"><div class="code-h"><span>internal/service/classes.go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> ClassStore <span class="k">interface</span> {
     <span class="f">CountByTeacher</span>(ctx context.Context, teacherID <span class="t">int64</span>) (<span class="t">int</span>, <span class="t">error</span>)
     <span class="f">Create</span>(ctx context.Context, c domain.Class) (domain.Class, <span class="t">error</span>)
 }
@@ -155,7 +229,7 @@ slog.<span class="f">Error</span>(<span class="s">&quot;gửi email thất bại
     }
     <span class="k">return</span> s.store.<span class="f">Create</span>(ctx, domain.Class{TeacherID: teacherID, Name: in.Name, CreatedAt: s.<span class="f">clock</span>()})
 }</code></pre></div>
-<div class="code"><div class="code-h"><span>internal/httpapi/classes.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *Handler) <span class="f">createClass</span>(w http.ResponseWriter, r *http.Request) {
+<div class="code"><div class="code-h"><span>internal/httpapi/classes.go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *Handler) <span class="f">createClass</span>(w http.ResponseWriter, r *http.Request) {
     user := <span class="f">MustUser</span>(r.<span class="f">Context</span>()) <span class="c">// middleware Auth đã đưa vào ctx</span>
     <span class="k">var</span> in service.CreateClassInput
     <span class="k">if</span> err := <span class="f">DecodeJSON</span>(w, r, &amp;in); err != <span class="b">nil</span> {
@@ -174,7 +248,7 @@ slog.<span class="f">Error</span>(<span class="s">&quot;gửi email thất bại
 
 <h2 id="cau-hinh-qua-bien-moi-truong"><a href="#cau-hinh-qua-bien-moi-truong" class="anchor" aria-hidden="true">#</a>Cấu hình qua biến môi trường</h2>
 <p>Theo nguyên tắc <i>12-factor app</i>, cấu hình (địa chỉ database, khoá bí mật, cổng) đến từ biến môi trường, không nằm trong code. Cùng một file chạy, đổi biến môi trường là chạy được ở máy bạn, staging hay production.</p>
-<div class="code"><div class="code-h"><span>internal/config/config.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Config <span class="k">struct</span> {
+<div class="code"><div class="code-h"><span>internal/config/config.go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Config <span class="k">struct</span> {
     Addr        <span class="t">string</span>
     DatabaseURL <span class="t">string</span>
     RedisURL    <span class="t">string</span>
@@ -214,7 +288,8 @@ slog.<span class="f">Error</span>(<span class="s">&quot;gửi email thất bại
 
 <h2 id="ghep-moi-thu-trong-main"><a href="#ghep-moi-thu-trong-main" class="anchor" aria-hidden="true">#</a>Ghép mọi thứ trong main</h2>
 <p>Hàm <code>main</code> là nơi duy nhất biết mọi thành phần cụ thể: đọc cấu hình, tạo kết nối, "tiêm" chúng vào service và handler qua các hàm <code>New...</code>. Không cần framework dependency injection.</p>
-<div class="code"><div class="code-h"><span>cmd/api/main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">main</span>() {
+<p>Trích đoạn. Phần <code>pgxpool</code> (database) học ở bài 15. Bản chạy được không cần database nằm trong lời giải bài tập cuối bài.</p>
+<div class="code"><div class="code-h"><span>cmd/api/main.go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">main</span>() {
     <span class="k">if</span> err := <span class="f">run</span>(); err != <span class="b">nil</span> {
         slog.<span class="f">Error</span>(<span class="s">&quot;dừng&quot;</span>, <span class="s">&quot;err&quot;</span>, err)
         os.<span class="f">Exit</span>(<span class="n">1</span>)
@@ -277,15 +352,496 @@ slog.<span class="f">Error</span>(<span class="s">&quot;gửi email thất bại
 <div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> Middleware Logger ghi log <b>trước khi</b> gọi <code>next.ServeHTTP</code>. Thông tin nào nó sẽ không có?</p><div class="qo"><button type="button" class="opt">Method và đường dẫn</button><button type="button" class="opt" data-ok>Status code và thời gian xử lý</button><button type="button" class="opt">Request ID</button></div><p class="why" hidden>Status và thời gian chỉ biết sau khi handler chạy xong, nên phải ghi log sau next.ServeHTTP (hoặc trong defer).</p></div>
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
-<details class="ex"><summary>Nâng cấp API ghi chú của bài 11</summary>
-<p>Tổ chức lại API ghi chú: tách <code>internal/notes</code> (service + store trong bộ nhớ có interface), <code>internal/httpapi</code> (handler + middleware RequestID, Logger, Recover), <code>cmd/api/main.go</code> đọc <code>ADDR</code> từ biến môi trường và tắt an toàn. Thêm một route <code>GET /panic</code> chỉ để thử: gọi nó phải nhận 500 và server vẫn chạy.</p>
-<details class="sol"><summary>Tiêu chí tự kiểm tra</summary>
+<details class="ex"><summary>Tổ chức lại API ghi chú theo lớp</summary>
+<p>Lấy API ghi chú của bài 11 (bản có <code>GET /notes</code>, <code>POST /notes</code>, <code>GET /notes/{id}</code>), tổ chức lại thành dự án nhiều package:</p>
 <ul>
-<li><code>internal/notes</code> không import <code>net/http</code>.</li>
-<li>Test service chạy được không cần HTTP, test handler dùng <code>httptest</code> với store giả.</li>
-<li>Mỗi dòng log có <code>request_id</code>, <code>status</code>, <code>duration_ms</code>, và response có header <code>X-Request-ID</code> trùng giá trị đó.</li>
-<li>Chạy <code>curl</code> một request chậm (thêm <code>time.Sleep(5*time.Second)</code> vào một handler), bấm Ctrl+C khi nó đang chạy: request vẫn nhận được response rồi server mới thoát.</li>
+<li><code>internal/notes</code>: service (kiểm tra nội dung) + store lưu trong bộ nhớ, nối với nhau qua interface. Package này <b>không</b> import <code>net/http</code>.</li>
+<li><code>internal/httpapi</code>: handler + ba middleware RequestID, Logger, Recover.</li>
+<li><code>cmd/api/main.go</code>: đọc cổng từ biến môi trường <code>ADDR</code>, ghép mọi thứ, tắt server an toàn khi bấm Ctrl+C.</li>
+<li>Thêm hai route để thử: <code>GET /panic</code> (phải nhận 500 và server vẫn chạy), <code>GET /slow</code> (chờ 5 giây rồi trả lời, để thử tắt an toàn).</li>
 </ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Tạo khung: <code>mkdir notes-api &amp;&amp; cd notes-api &amp;&amp; go mod init example.com/notes</code>, rồi <code>mkdir -p internal/notes internal/httpapi cmd/api</code>.</li>
+<li>Viết <code>internal/notes/notes.go</code> trước: kiểu <code>Note</code>, lỗi <code>ErrNotFound</code>, <code>ErrInvalid</code>, interface <code>Store</code>, <code>Service</code> và <code>MemStore</code>. Viết test cho nó luôn (chưa cần HTTP).</li>
+<li>Viết <code>internal/httpapi/middleware.go</code>: chép ba middleware trong bài.</li>
+<li>Viết <code>internal/httpapi/handler.go</code>: handler chỉ đọc request, gọi service, đổi lỗi thành status ở một hàm <code>writeError</code> duy nhất. Hàm <code>Routes()</code> đăng ký đường dẫn và bọc middleware.</li>
+<li>Viết <code>cmd/api/main.go</code>: chép phần <code>run()</code> ở mục "Ghép mọi thứ trong main", bỏ phần database.</li>
+<li>Chạy: <code>go run ./cmd/api</code> (chú ý: chạy thư mục <code>./cmd/api</code>, không phải <code>.</code>, vì <code>main</code> nằm ở đó).</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<div class="code"><div class="code-h"><span>Cấu trúc</span><button class="copy" type="button">Sao chép</button></div><pre><code>notes-api/
+├── go.mod                         module example.com/notes
+├── cmd/api/main.go                đọc cấu hình, ghép, chạy, tắt an toàn
+└── internal/
+    ├── notes/
+    │   ├── notes.go               nghiệp vụ + store trong bộ nhớ (không biết HTTP)
+    │   └── notes_test.go
+    └── httpapi/
+        ├── middleware.go          RequestID, Logger, Recover
+        ├── handler.go             handler, Routes, writeError
+        └── handler_test.go</code></pre></div>
+<div class="code"><div class="code-h"><span>internal/notes/notes.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Package notes chứa nghiệp vụ ghi chú. Không import net/http.</span>
+<span class="k">package</span> notes
+
+<span class="k">import</span> (
+    <span class="s">&quot;cmp&quot;</span>
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;slices&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+    <span class="s">&quot;unicode/utf8&quot;</span>
+)
+
+<span class="k">var</span> (
+    ErrNotFound = errors.<span class="f">New</span>(<span class="s">&quot;không tìm thấy&quot;</span>)
+    ErrInvalid  = errors.<span class="f">New</span>(<span class="s">&quot;nội dung từ 1 đến 500 ký tự&quot;</span>)
+)
+
+<span class="k">type</span> Note <span class="k">struct</span> {
+    ID        <span class="t">int64</span>
+    Text      <span class="t">string</span>
+    CreatedAt time.Time
+}
+
+<span class="c">// Store: nơi lưu ghi chú. Service chỉ biết interface này</span>
+<span class="k">type</span> Store <span class="k">interface</span> {
+    <span class="f">Insert</span>(ctx context.Context, n Note) (Note, <span class="t">error</span>)
+    <span class="f">Get</span>(ctx context.Context, id <span class="t">int64</span>) (Note, <span class="t">error</span>)
+    <span class="f">List</span>(ctx context.Context) ([]Note, <span class="t">error</span>)
+}
+
+<span class="k">type</span> Service <span class="k">struct</span> {
+    store Store
+    clock <span class="k">func</span>() time.Time
+}
+
+<span class="k">func</span> <span class="f">NewService</span>(s Store) *Service {
+    <span class="k">return</span> &amp;Service{store: s, clock: time.Now}
+}
+
+<span class="k">func</span> (s *Service) <span class="f">Create</span>(ctx context.Context, text <span class="t">string</span>) (Note, <span class="t">error</span>) {
+    text = strings.<span class="f">TrimSpace</span>(text)
+    <span class="k">if</span> n := utf8.<span class="f">RuneCountInString</span>(text); n == <span class="n">0</span> || n &gt; <span class="n">500</span> {
+        <span class="k">return</span> Note{}, ErrInvalid
+    }
+    <span class="k">return</span> s.store.<span class="f">Insert</span>(ctx, Note{Text: text, CreatedAt: s.<span class="f">clock</span>()})
+}
+
+<span class="k">func</span> (s *Service) <span class="f">Get</span>(ctx context.Context, id <span class="t">int64</span>) (Note, <span class="t">error</span>) {
+    <span class="k">return</span> s.store.<span class="f">Get</span>(ctx, id)
+}
+
+<span class="k">func</span> (s *Service) <span class="f">List</span>(ctx context.Context) ([]Note, <span class="t">error</span>) {
+    <span class="k">return</span> s.store.<span class="f">List</span>(ctx)
+}
+
+<span class="c">// MemStore: lưu trong bộ nhớ. Bài 15 thay bằng Postgres, Service không đổi</span>
+<span class="k">type</span> MemStore <span class="k">struct</span> {
+    mu     sync.Mutex
+    nextID <span class="t">int64</span>
+    notes  <span class="k">map</span>[<span class="t">int64</span>]Note
+}
+
+<span class="k">func</span> <span class="f">NewMemStore</span>() *MemStore {
+    <span class="k">return</span> &amp;MemStore{notes: <span class="k">map</span>[<span class="t">int64</span>]Note{}}
+}
+
+<span class="k">func</span> (m *MemStore) <span class="f">Insert</span>(_ context.Context, n Note) (Note, <span class="t">error</span>) {
+    m.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> m.mu.<span class="f">Unlock</span>()
+    m.nextID++
+    n.ID = m.nextID
+    m.notes[n.ID] = n
+    <span class="k">return</span> n, <span class="b">nil</span>
+}
+
+<span class="k">func</span> (m *MemStore) <span class="f">Get</span>(_ context.Context, id <span class="t">int64</span>) (Note, <span class="t">error</span>) {
+    m.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> m.mu.<span class="f">Unlock</span>()
+    n, ok := m.notes[id]
+    <span class="k">if</span> !ok {
+        <span class="k">return</span> Note{}, ErrNotFound
+    }
+    <span class="k">return</span> n, <span class="b">nil</span>
+}
+
+<span class="k">func</span> (m *MemStore) <span class="f">List</span>(_ context.Context) ([]Note, <span class="t">error</span>) {
+    m.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> m.mu.<span class="f">Unlock</span>()
+    out := <span class="b">make</span>([]Note, <span class="n">0</span>, <span class="b">len</span>(m.notes))
+    <span class="k">for</span> _, n := <span class="k">range</span> m.notes {
+        out = <span class="b">append</span>(out, n)
+    }
+    slices.<span class="f">SortFunc</span>(out, <span class="k">func</span>(a, b Note) <span class="t">int</span> { <span class="k">return</span> cmp.<span class="f">Compare</span>(a.ID, b.ID) })
+    <span class="k">return</span> out, <span class="b">nil</span>
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>internal/notes/notes_test.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> notes
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;testing&quot;</span>
+)
+
+<span class="c">// Test service không cần HTTP, không cần server</span>
+<span class="k">func</span> <span class="f">TestCreate</span>(t *testing.T) {
+    svc := <span class="f">NewService</span>(<span class="f">NewMemStore</span>())
+    ctx := context.<span class="f">Background</span>()
+
+    <span class="k">if</span> _, err := svc.<span class="f">Create</span>(ctx, <span class="s">&quot;   &quot;</span>); !errors.<span class="f">Is</span>(err, ErrInvalid) {
+        t.<span class="f">Fatalf</span>(<span class="s">&quot;nội dung rỗng: err = %v, muốn ErrInvalid&quot;</span>, err)
+    }
+    n, err := svc.<span class="f">Create</span>(ctx, <span class="s">&quot;  Học Go  &quot;</span>)
+    <span class="k">if</span> err != <span class="b">nil</span> || n.ID != <span class="n">1</span> || n.Text != <span class="s">&quot;Học Go&quot;</span> {
+        t.<span class="f">Fatalf</span>(<span class="s">&quot;tạo: %+v, %v&quot;</span>, n, err)
+    }
+    <span class="k">if</span> _, err := svc.<span class="f">Get</span>(ctx, <span class="n">99</span>); !errors.<span class="f">Is</span>(err, ErrNotFound) {
+        t.<span class="f">Errorf</span>(<span class="s">&quot;lấy id 99: err = %v, muốn ErrNotFound&quot;</span>, err)
+    }
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>internal/httpapi/middleware.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> httpapi
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;crypto/rand&quot;</span>
+    <span class="s">&quot;encoding/hex&quot;</span>
+    <span class="s">&quot;log/slog&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;runtime/debug&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="k">type</span> ctxKey <span class="t">string</span>
+
+<span class="k">const</span> requestIDKey ctxKey = <span class="s">&quot;request_id&quot;</span>
+
+<span class="k">func</span> <span class="f">RequestIDFrom</span>(ctx context.Context) <span class="t">string</span> {
+    id, _ := ctx.<span class="f">Value</span>(requestIDKey).(<span class="t">string</span>)
+    <span class="k">return</span> id
+}
+
+<span class="c">// RequestID gắn mã cho mỗi request: vào ctx (để log) và vào header response (để người dùng báo lại)</span>
+<span class="k">func</span> <span class="f">RequestID</span>(next http.Handler) http.Handler {
+    <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        id := r.Header.<span class="f">Get</span>(<span class="s">&quot;X-Request-ID&quot;</span>)
+        <span class="k">if</span> id == <span class="s">&quot;&quot;</span> || <span class="b">len</span>(id) &gt; <span class="n">64</span> {
+            b := <span class="b">make</span>([]<span class="t">byte</span>, <span class="n">8</span>)
+            rand.<span class="f">Read</span>(b)
+            id = hex.<span class="f">EncodeToString</span>(b)
+        }
+        w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;X-Request-ID&quot;</span>, id)
+        ctx := context.<span class="f">WithValue</span>(r.<span class="f">Context</span>(), requestIDKey, id)
+        next.<span class="f">ServeHTTP</span>(w, r.<span class="f">WithContext</span>(ctx))
+    })
+}
+
+<span class="c">// statusRecorder nhớ status code mà handler đã ghi</span>
+<span class="k">type</span> statusRecorder <span class="k">struct</span> {
+    http.ResponseWriter
+    status <span class="t">int</span>
+}
+
+<span class="k">func</span> (s *statusRecorder) <span class="f">WriteHeader</span>(code <span class="t">int</span>) {
+    s.status = code
+    s.ResponseWriter.<span class="f">WriteHeader</span>(code)
+}
+
+<span class="k">func</span> (s *statusRecorder) <span class="f">Write</span>(b []<span class="t">byte</span>) (<span class="t">int</span>, <span class="t">error</span>) {
+    <span class="k">if</span> s.status == <span class="n">0</span> {
+        s.status = http.StatusOK
+    }
+    <span class="k">return</span> s.ResponseWriter.<span class="f">Write</span>(b)
+}
+
+<span class="c">// Logger ghi một dòng log cho mỗi request, SAU khi handler chạy xong</span>
+<span class="k">func</span> <span class="f">Logger</span>(log *slog.Logger) <span class="k">func</span>(http.Handler) http.Handler {
+    <span class="k">return</span> <span class="k">func</span>(next http.Handler) http.Handler {
+        <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+            start := time.<span class="f">Now</span>()
+            rec := &amp;statusRecorder{ResponseWriter: w}
+            next.<span class="f">ServeHTTP</span>(rec, r)
+            log.<span class="f">Info</span>(<span class="s">&quot;http&quot;</span>,
+                <span class="s">&quot;method&quot;</span>, r.Method,
+                <span class="s">&quot;path&quot;</span>, r.URL.Path,
+                <span class="s">&quot;status&quot;</span>, rec.status,
+                <span class="s">&quot;duration_ms&quot;</span>, time.<span class="f">Since</span>(start).<span class="f">Milliseconds</span>(),
+                <span class="s">&quot;request_id&quot;</span>, <span class="f">RequestIDFrom</span>(r.<span class="f">Context</span>()),
+            )
+        })
+    }
+}
+
+<span class="c">// Recover chặn panic: trả 500, ghi log, server vẫn chạy</span>
+<span class="k">func</span> <span class="f">Recover</span>(log *slog.Logger) <span class="k">func</span>(http.Handler) http.Handler {
+    <span class="k">return</span> <span class="k">func</span>(next http.Handler) http.Handler {
+        <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+            <span class="k">defer</span> <span class="k">func</span>() {
+                <span class="k">if</span> v := <span class="b">recover</span>(); v != <span class="b">nil</span> {
+                    log.<span class="f">Error</span>(<span class="s">&quot;panic&quot;</span>, <span class="s">&quot;value&quot;</span>, v, <span class="s">&quot;request_id&quot;</span>, <span class="f">RequestIDFrom</span>(r.<span class="f">Context</span>()), <span class="s">&quot;stack&quot;</span>, <span class="t">string</span>(debug.<span class="f">Stack</span>()))
+                    <span class="f">writeErr</span>(w, http.StatusInternalServerError, <span class="s">&quot;Có lỗi xảy ra, vui lòng thử lại&quot;</span>)
+                }
+            }()
+            next.<span class="f">ServeHTTP</span>(w, r)
+        })
+    }
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>internal/httpapi/handler.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> httpapi
+
+<span class="k">import</span> (
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;log/slog&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;strconv&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;example.com/notes/internal/notes&quot;</span>
+)
+
+<span class="k">type</span> Handler <span class="k">struct</span> {
+    notes *notes.Service
+    log   *slog.Logger
+}
+
+<span class="k">func</span> <span class="f">New</span>(svc *notes.Service, log *slog.Logger) *Handler {
+    <span class="k">return</span> &amp;Handler{notes: svc, log: log}
+}
+
+<span class="c">// Routes trả về handler đã bọc đủ middleware: RequestID -&gt; Logger -&gt; Recover -&gt; mux</span>
+<span class="k">func</span> (h *Handler) <span class="f">Routes</span>() http.Handler {
+    mux := http.<span class="f">NewServeMux</span>()
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /notes&quot;</span>, h.list)
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /notes&quot;</span>, h.create)
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /notes/{id}&quot;</span>, h.get)
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /slow&quot;</span>, <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        time.<span class="f">Sleep</span>(<span class="n">5</span> * time.Second) <span class="c">// để thử tắt server an toàn</span>
+        <span class="f">writeJSON</span>(w, http.StatusOK, <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{<span class="s">&quot;ok&quot;</span>: <span class="s">&quot;xong việc chậm&quot;</span>})
+    })
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /panic&quot;</span>, <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        <span class="b">panic</span>(<span class="s">&quot;thử panic&quot;</span>) <span class="c">// chỉ để thử middleware Recover</span>
+    })
+
+    <span class="k">var</span> handler http.Handler = mux
+    handler = <span class="f">Recover</span>(h.log)(handler) <span class="c">// lớp trong cùng</span>
+    handler = <span class="f">Logger</span>(h.log)(handler)
+    handler = <span class="f">RequestID</span>(handler) <span class="c">// lớp ngoài cùng, chạy đầu tiên</span>
+    <span class="k">return</span> handler
+}
+
+<span class="k">type</span> noteDTO <span class="k">struct</span> {
+    ID        <span class="t">int64</span>     <span class="s">`json:&quot;id&quot;`</span>
+    Text      <span class="t">string</span>    <span class="s">`json:&quot;text&quot;`</span>
+    CreatedAt time.Time <span class="s">`json:&quot;createdAt&quot;`</span>
+}
+
+<span class="k">func</span> <span class="f">toDTO</span>(n notes.Note) noteDTO { <span class="k">return</span> noteDTO{ID: n.ID, Text: n.Text, CreatedAt: n.CreatedAt} }
+
+<span class="k">func</span> (h *Handler) <span class="f">list</span>(w http.ResponseWriter, r *http.Request) {
+    list, err := h.notes.<span class="f">List</span>(r.<span class="f">Context</span>())
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        h.<span class="f">writeError</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    out := <span class="b">make</span>([]noteDTO, <span class="n">0</span>, <span class="b">len</span>(list))
+    <span class="k">for</span> _, n := <span class="k">range</span> list {
+        out = <span class="b">append</span>(out, <span class="f">toDTO</span>(n))
+    }
+    <span class="f">writeJSON</span>(w, http.StatusOK, out)
+}
+
+<span class="k">func</span> (h *Handler) <span class="f">create</span>(w http.ResponseWriter, r *http.Request) {
+    <span class="k">var</span> req <span class="k">struct</span> {
+        Text <span class="t">string</span> <span class="s">`json:&quot;text&quot;`</span>
+    }
+    r.Body = http.<span class="f">MaxBytesReader</span>(w, r.Body, <span class="n">1</span>&lt;&lt;<span class="n">16</span>)
+    <span class="k">if</span> err := json.<span class="f">NewDecoder</span>(r.Body).<span class="f">Decode</span>(&amp;req); err != <span class="b">nil</span> {
+        <span class="f">writeErr</span>(w, http.StatusBadRequest, <span class="s">&quot;JSON không hợp lệ&quot;</span>)
+        <span class="k">return</span>
+    }
+    n, err := h.notes.<span class="f">Create</span>(r.<span class="f">Context</span>(), req.Text)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        h.<span class="f">writeError</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    <span class="f">writeJSON</span>(w, http.StatusCreated, <span class="f">toDTO</span>(n))
+}
+
+<span class="k">func</span> (h *Handler) <span class="f">get</span>(w http.ResponseWriter, r *http.Request) {
+    id, err := strconv.<span class="f">ParseInt</span>(r.<span class="f">PathValue</span>(<span class="s">&quot;id&quot;</span>), <span class="n">10</span>, <span class="n">64</span>)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        <span class="f">writeErr</span>(w, http.StatusBadRequest, <span class="s">&quot;id không hợp lệ&quot;</span>)
+        <span class="k">return</span>
+    }
+    n, err := h.notes.<span class="f">Get</span>(r.<span class="f">Context</span>(), id)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        h.<span class="f">writeError</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    <span class="f">writeJSON</span>(w, http.StatusOK, <span class="f">toDTO</span>(n))
+}
+
+<span class="c">// writeError: chỗ DUY NHẤT đổi lỗi nghiệp vụ thành status code</span>
+<span class="k">func</span> (h *Handler) <span class="f">writeError</span>(w http.ResponseWriter, r *http.Request, err <span class="t">error</span>) {
+    <span class="k">switch</span> {
+    <span class="k">case</span> errors.<span class="f">Is</span>(err, notes.ErrInvalid):
+        <span class="f">writeErr</span>(w, http.StatusBadRequest, <span class="s">&quot;Nội dung từ 1 đến 500 ký tự&quot;</span>)
+    <span class="k">case</span> errors.<span class="f">Is</span>(err, notes.ErrNotFound):
+        <span class="f">writeErr</span>(w, http.StatusNotFound, <span class="s">&quot;Không tìm thấy&quot;</span>)
+    <span class="k">default</span>:
+        h.log.<span class="f">Error</span>(<span class="s">&quot;lỗi không xử lý&quot;</span>, <span class="s">&quot;err&quot;</span>, err, <span class="s">&quot;request_id&quot;</span>, <span class="f">RequestIDFrom</span>(r.<span class="f">Context</span>()))
+        <span class="f">writeErr</span>(w, http.StatusInternalServerError, <span class="s">&quot;Có lỗi xảy ra, vui lòng thử lại&quot;</span>)
+    }
+}
+
+<span class="k">func</span> <span class="f">writeJSON</span>(w http.ResponseWriter, status <span class="t">int</span>, v <span class="t">any</span>) {
+    w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Content-Type&quot;</span>, <span class="s">&quot;application/json; charset=utf-8&quot;</span>)
+    w.<span class="f">WriteHeader</span>(status)
+    json.<span class="f">NewEncoder</span>(w).<span class="f">Encode</span>(v)
+}
+
+<span class="k">func</span> <span class="f">writeErr</span>(w http.ResponseWriter, status <span class="t">int</span>, msg <span class="t">string</span>) {
+    <span class="f">writeJSON</span>(w, status, <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{<span class="s">&quot;error&quot;</span>: msg})
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>internal/httpapi/handler_test.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> httpapi
+
+<span class="k">import</span> (
+    <span class="s">&quot;io&quot;</span>
+    <span class="s">&quot;log/slog&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;net/http/httptest&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+    <span class="s">&quot;testing&quot;</span>
+
+    <span class="s">&quot;example.com/notes/internal/notes&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">newTestHandler</span>() http.Handler {
+    log := slog.<span class="f">New</span>(slog.<span class="f">NewTextHandler</span>(io.Discard, <span class="b">nil</span>)) <span class="c">// test không cần in log</span>
+    <span class="k">return</span> <span class="f">New</span>(notes.<span class="f">NewService</span>(notes.<span class="f">NewMemStore</span>()), log).<span class="f">Routes</span>()
+}
+
+<span class="k">func</span> <span class="f">TestPanicReturns500</span>(t *testing.T) {
+    h := <span class="f">newTestHandler</span>()
+    rec := httptest.<span class="f">NewRecorder</span>()
+    h.<span class="f">ServeHTTP</span>(rec, httptest.<span class="f">NewRequest</span>(<span class="s">&quot;GET&quot;</span>, <span class="s">&quot;/panic&quot;</span>, <span class="b">nil</span>))
+    <span class="k">if</span> rec.Code != http.StatusInternalServerError {
+        t.<span class="f">Fatalf</span>(<span class="s">&quot;status = %d, muốn 500&quot;</span>, rec.Code)
+    }
+    <span class="k">if</span> rec.<span class="f">Header</span>().<span class="f">Get</span>(<span class="s">&quot;X-Request-ID&quot;</span>) == <span class="s">&quot;&quot;</span> {
+        t.<span class="f">Error</span>(<span class="s">&quot;thiếu header X-Request-ID&quot;</span>)
+    }
+}
+
+<span class="k">func</span> <span class="f">TestCreateInvalid</span>(t *testing.T) {
+    h := <span class="f">newTestHandler</span>()
+    rec := httptest.<span class="f">NewRecorder</span>()
+    h.<span class="f">ServeHTTP</span>(rec, httptest.<span class="f">NewRequest</span>(<span class="s">&quot;POST&quot;</span>, <span class="s">&quot;/notes&quot;</span>, strings.<span class="f">NewReader</span>(<span class="s">`{&quot;text&quot;:&quot;&quot;}`</span>)))
+    <span class="k">if</span> rec.Code != http.StatusBadRequest {
+        t.<span class="f">Fatalf</span>(<span class="s">&quot;status = %d, muốn 400&quot;</span>, rec.Code)
+    }
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>cmd/api/main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;log/slog&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;os/signal&quot;</span>
+    <span class="s">&quot;syscall&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;example.com/notes/internal/httpapi&quot;</span>
+    <span class="s">&quot;example.com/notes/internal/notes&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">if</span> err := <span class="f">run</span>(); err != <span class="b">nil</span> {
+        slog.<span class="f">Error</span>(<span class="s">&quot;dừng&quot;</span>, <span class="s">&quot;err&quot;</span>, err)
+        os.<span class="f">Exit</span>(<span class="n">1</span>)
+    }
+}
+
+<span class="k">func</span> <span class="f">run</span>() <span class="t">error</span> {
+    addr := os.<span class="f">Getenv</span>(<span class="s">&quot;ADDR&quot;</span>)
+    <span class="k">if</span> addr == <span class="s">&quot;&quot;</span> {
+        addr = <span class="s">&quot;:8080&quot;</span>
+    }
+    logger := slog.<span class="f">New</span>(slog.<span class="f">NewJSONHandler</span>(os.Stdout, <span class="b">nil</span>))
+
+    <span class="c">// Ghép các thành phần: store -&gt; service -&gt; handler</span>
+    svc := notes.<span class="f">NewService</span>(notes.<span class="f">NewMemStore</span>())
+    h := httpapi.<span class="f">New</span>(svc, logger)
+
+    srv := &amp;http.Server{
+        Addr:              addr,
+        Handler:           h.<span class="f">Routes</span>(),
+        ReadHeaderTimeout: <span class="n">5</span> * time.Second,
+        ReadTimeout:       <span class="n">15</span> * time.Second,
+        WriteTimeout:      <span class="n">30</span> * time.Second,
+        IdleTimeout:       <span class="n">60</span> * time.Second,
+    }
+
+    <span class="c">// ctx bị huỷ khi bấm Ctrl+C hoặc nhận SIGTERM</span>
+    ctx, stop := signal.<span class="f">NotifyContext</span>(context.<span class="f">Background</span>(), os.Interrupt, syscall.SIGTERM)
+    <span class="k">defer</span> <span class="f">stop</span>()
+
+    errCh := <span class="b">make</span>(<span class="k">chan</span> <span class="t">error</span>, <span class="n">1</span>)
+    <span class="k">go</span> <span class="k">func</span>() {
+        logger.<span class="f">Info</span>(<span class="s">&quot;bắt đầu&quot;</span>, <span class="s">&quot;addr&quot;</span>, addr)
+        <span class="k">if</span> err := srv.<span class="f">ListenAndServe</span>(); !errors.<span class="f">Is</span>(err, http.ErrServerClosed) {
+            errCh &lt;- err
+        }
+    }()
+
+    <span class="k">select</span> {
+    <span class="k">case</span> err := &lt;-errCh:
+        <span class="k">return</span> err
+    <span class="k">case</span> &lt;-ctx.<span class="f">Done</span>():
+    }
+
+    logger.<span class="f">Info</span>(<span class="s">&quot;đang tắt, chờ các request dở dang&quot;</span>)
+    shutdownCtx, cancel := context.<span class="f">WithTimeout</span>(context.<span class="f">Background</span>(), <span class="n">20</span>*time.Second)
+    <span class="k">defer</span> <span class="f">cancel</span>()
+    <span class="k">if</span> err := srv.<span class="f">Shutdown</span>(shutdownCtx); err != <span class="b">nil</span> {
+        <span class="k">return</span> err
+    }
+    logger.<span class="f">Info</span>(<span class="s">&quot;đã tắt&quot;</span>)
+    <span class="k">return</span> <span class="b">nil</span>
+}</code></pre></div>
+<p><b>Chạy test</b> (ở thư mục gốc <code>notes-api</code>):</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">go test ./...</span>
+?   	example.com/notes/cmd/api	[no test files]
+ok  	example.com/notes/internal/httpapi	0.957s
+ok  	example.com/notes/internal/notes	0.461s</pre></div>
+<p><b>Chạy server</b> ở terminal 1. Mỗi request là một dòng log JSON:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">ADDR=:8090 go run ./cmd/api</span>
+{&quot;time&quot;:&quot;2026-11-03T15:38:29.6+07:00&quot;,&quot;level&quot;:&quot;INFO&quot;,&quot;msg&quot;:&quot;bắt đầu&quot;,&quot;addr&quot;:&quot;:8090&quot;}</pre></div>
+<p><code>ADDR=:8090 go run ...</code> là cách đặt biến môi trường cho riêng một lệnh. Không đặt thì chạy ở cổng 8080.</p>
+<p><b>Thử ở terminal 2:</b></p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">curl -i localhost:8090/panic</span>
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json; charset=utf-8
+X-Request-Id: 04d042d985c6a8b4
+Content-Length: 54
+
+{&quot;error&quot;:&quot;Có lỗi xảy ra, vui lòng thử lại&quot;}
+<span class="t-p">$</span> <span class="t-c">curl -X POST localhost:8090/notes -d '{&quot;text&quot;:&quot;Học Go&quot;}'</span>
+{&quot;id&quot;:1,&quot;text&quot;:&quot;Học Go&quot;,&quot;createdAt&quot;:&quot;2026-11-03T15:38:31.13+07:00&quot;}</pre></div>
+<p>Panic không làm sập server: request tiếp theo vẫn chạy. Terminal 1 có thêm các dòng log (đã cắt bớt phần <code>stack</code> cho gọn). Để ý <code>request_id</code> của dòng panic trùng với header <code>X-Request-Id</code> mà curl nhận được: người dùng báo mã này là bạn tìm ra đúng dòng log.</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>{&quot;time&quot;:&quot;...&quot;,&quot;level&quot;:&quot;ERROR&quot;,&quot;msg&quot;:&quot;panic&quot;,&quot;value&quot;:&quot;thử panic&quot;,&quot;request_id&quot;:&quot;04d042d985c6a8b4&quot;,&quot;stack&quot;:&quot;goroutine 21 [running]:...&quot;}
+{&quot;time&quot;:&quot;...&quot;,&quot;level&quot;:&quot;INFO&quot;,&quot;msg&quot;:&quot;http&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;path&quot;:&quot;/panic&quot;,&quot;status&quot;:500,&quot;duration_ms&quot;:0,&quot;request_id&quot;:&quot;04d042d985c6a8b4&quot;}
+{&quot;time&quot;:&quot;...&quot;,&quot;level&quot;:&quot;INFO&quot;,&quot;msg&quot;:&quot;http&quot;,&quot;method&quot;:&quot;POST&quot;,&quot;path&quot;:&quot;/notes&quot;,&quot;status&quot;:201,&quot;duration_ms&quot;:0,&quot;request_id&quot;:&quot;c16c6a0388e675e4&quot;}</pre></div>
+<p><b>Thử tắt an toàn:</b> ở terminal 2 gõ <code>curl localhost:8090/slow</code>, trong lúc nó đang chờ thì sang terminal 1 bấm <kbd>Ctrl</kbd> + <kbd>C</kbd>. Server không thoát ngay mà chờ request chậm xong:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>{&quot;time&quot;:&quot;15:38:32&quot;,&quot;level&quot;:&quot;INFO&quot;,&quot;msg&quot;:&quot;đang tắt, chờ các request dở dang&quot;}
+{&quot;time&quot;:&quot;15:38:36&quot;,&quot;level&quot;:&quot;INFO&quot;,&quot;msg&quot;:&quot;http&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;path&quot;:&quot;/slow&quot;,&quot;status&quot;:200,&quot;duration_ms&quot;:5002,&quot;request_id&quot;:&quot;75004ad82a1790ae&quot;}
+{&quot;time&quot;:&quot;15:38:36&quot;,&quot;level&quot;:&quot;INFO&quot;,&quot;msg&quot;:&quot;đã tắt&quot;}</pre></div>
+<p>Terminal 2 vẫn nhận được <code>{"ok":"xong việc chậm"}</code>. Bỏ phần <code>srv.Shutdown</code> đi (để Ctrl+C thoát luôn) và thử lại: curl báo <code>Empty reply from server</code>, request bị cắt ngang. Đó chính là chuyện xảy ra với người dùng mỗi lần deploy nếu không tắt an toàn.</p>
+<p><b>Giải thích cách chia:</b> <code>internal/notes</code> không biết gì về HTTP, nên mai này thêm một chương trình chạy việc nền (<code>cmd/worker</code>) dùng lại được nguyên service. Đổi <code>MemStore</code> sang Postgres (bài 15) chỉ cần viết một kiểu mới có ba method của <code>Store</code>, handler và service không sửa dòng nào. <code>srv.ListenAndServe()</code> trả về <code>http.ErrServerClosed</code> khi bị <code>Shutdown</code>, đó không phải lỗi thật, nên trong <code>main</code> có dòng bỏ qua nó.</p>
 </details>
 </details>
 </div>

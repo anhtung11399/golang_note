@@ -83,6 +83,83 @@ func Chain(h http.Handler, mws ...Middleware) http.Handler {
 handler := Chain(mux, RequestID, Logger(logger), Recover)
 // thứ tự chạy khi có request: RequestID → Logger → Recover → mux
 </pre>
+<p><b>Chạy thử để thấy thứ tự.</b> Chương trình dưới không mở cổng mạng: nó dùng <code>httptest</code> (bài 10) để gửi request giả thẳng vào handler, nên chạy được cả trên Go Playground.</p>
+<pre lang="go">
+package main
+
+import (
+    "fmt"
+    "net/http"
+    "net/http/httptest"
+)
+
+type Middleware func(http.Handler) http.Handler
+
+// Mỗi middleware in một dòng khi request đi vào, và một dòng khi đi ra
+func Outer(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        fmt.Println("-> Outer: vào")
+        next.ServeHTTP(w, r) // chuyển cho lớp bên trong, giống next() của Express
+        fmt.Println("<- Outer: ra")
+    })
+}
+
+func Auth(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        fmt.Println("  -> Auth: kiểm tra đăng nhập")
+        if r.Header.Get("Cookie") == "" {
+            fmt.Println("  <- Auth: chặn, trả 401, KHÔNG gọi next")
+            w.WriteHeader(http.StatusUnauthorized)
+            return
+        }
+        next.ServeHTTP(w, r)
+        fmt.Println("  <- Auth: ra")
+    })
+}
+
+func Chain(h http.Handler, mws ...Middleware) http.Handler {
+    for i := len(mws) - 1; i >= 0; i-- { // bọc từ trong ra ngoài
+        h = mws[i](h)
+    }
+    return h
+}
+
+func main() {
+    hello := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        fmt.Println("    handler: xử lý nghiệp vụ")
+        w.Write([]byte("xin chào"))
+    })
+    app := Chain(hello, Outer, Auth) // Outer bọc ngoài cùng
+
+    fmt.Println("== Request có cookie")
+    req := httptest.NewRequest("GET", "/", nil)
+    req.Header.Set("Cookie", "session=abc")
+    rec := httptest.NewRecorder()
+    app.ServeHTTP(rec, req)
+    fmt.Println("status:", rec.Code, "body:", rec.Body.String())
+
+    fmt.Println("== Request không có cookie")
+    rec = httptest.NewRecorder()
+    app.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+    fmt.Println("status:", rec.Code)
+}
+</pre>
+<pre lang="out">
+== Request có cookie
+-> Outer: vào
+  -> Auth: kiểm tra đăng nhập
+    handler: xử lý nghiệp vụ
+  <- Auth: ra
+<- Outer: ra
+status: 200 body: xin chào
+== Request không có cookie
+-> Outer: vào
+  -> Auth: kiểm tra đăng nhập
+  <- Auth: chặn, trả 401, KHÔNG gọi next
+<- Outer: ra
+status: 401
+</pre>
+<p>Vào theo thứ tự Outer → Auth → handler, ra theo thứ tự ngược lại, đúng như hình ở đầu bài. Middleware không gọi <code>next.ServeHTTP</code> là chặn request lại: handler không bao giờ chạy.</p>
 <aside class="tip"><p>Middleware chỉ áp dụng cho một số route (ví dụ yêu cầu đăng nhập) thì bọc riêng route đó: <code>mux.Handle("GET /v1/me", RequireAuth(http.HandlerFunc(me)))</code>. Thư viện <code>chi</code> có cú pháp nhóm route tiện hơn (<code>r.Group</code>, <code>r.With</code>), một lý do khiến nó vẫn được dùng nhiều.</p></aside>
 
 <h2>Log có cấu trúc với slog</h2>
@@ -107,6 +184,7 @@ slog.Error("gửi email thất bại", "err", err, "user_id", 7)
 <tr><td><b>Service</b></td><td>Quy tắc nghiệp vụ: quyền, giới hạn, tính toán, điều phối nhiều store</td><td>Không biết HTTP (không có <code>http.Request</code>), không viết SQL</td></tr>
 <tr><td><b>Store</b> (repository)</td><td>Đọc / ghi database, Redis</td><td>Không quyết định nghiệp vụ</td></tr>
 </table>
+<p>Ví dụ (trích đoạn từ một dự án, bài tập cuối bài có bản chạy được đầy đủ): giáo viên gói miễn phí chỉ được tạo 1 lớp.</p>
 <pre lang="go" file="internal/service/classes.go">
 type ClassStore interface {
     CountByTeacher(ctx context.Context, teacherID int64) (int, error)
@@ -201,6 +279,7 @@ func getenv(k, def string) string {
 
 <h2>Ghép mọi thứ trong main</h2>
 <p>Hàm <code>main</code> là nơi duy nhất biết mọi thành phần cụ thể: đọc cấu hình, tạo kết nối, "tiêm" chúng vào service và handler qua các hàm <code>New...</code>. Không cần framework dependency injection.</p>
+<p>Trích đoạn. Phần <code>pgxpool</code> (database) học ở bài 15. Bản chạy được không cần database nằm trong lời giải bài tập cuối bài.</p>
 <pre lang="go" file="cmd/api/main.go">
 func main() {
     if err := run(); err != nil {
@@ -278,14 +357,519 @@ Nền tảng chạy -> Server cũ: quá thời gian chờ thì SIGKILL
 </quiz>
 
 <h2>Bài tập</h2>
-<details class="ex"><summary>Nâng cấp API ghi chú của bài 11</summary>
-<p>Tổ chức lại API ghi chú: tách <code>internal/notes</code> (service + store trong bộ nhớ có interface), <code>internal/httpapi</code> (handler + middleware RequestID, Logger, Recover), <code>cmd/api/main.go</code> đọc <code>ADDR</code> từ biến môi trường và tắt an toàn. Thêm một route <code>GET /panic</code> chỉ để thử: gọi nó phải nhận 500 và server vẫn chạy.</p>
-<details class="sol"><summary>Tiêu chí tự kiểm tra</summary>
+<details class="ex"><summary>Tổ chức lại API ghi chú theo lớp</summary>
+<p>Lấy API ghi chú của bài 11 (bản có <code>GET /notes</code>, <code>POST /notes</code>, <code>GET /notes/{id}</code>), tổ chức lại thành dự án nhiều package:</p>
 <ul>
-<li><code>internal/notes</code> không import <code>net/http</code>.</li>
-<li>Test service chạy được không cần HTTP, test handler dùng <code>httptest</code> với store giả.</li>
-<li>Mỗi dòng log có <code>request_id</code>, <code>status</code>, <code>duration_ms</code>, và response có header <code>X-Request-ID</code> trùng giá trị đó.</li>
-<li>Chạy <code>curl</code> một request chậm (thêm <code>time.Sleep(5*time.Second)</code> vào một handler), bấm Ctrl+C khi nó đang chạy: request vẫn nhận được response rồi server mới thoát.</li>
+<li><code>internal/notes</code>: service (kiểm tra nội dung) + store lưu trong bộ nhớ, nối với nhau qua interface. Package này <b>không</b> import <code>net/http</code>.</li>
+<li><code>internal/httpapi</code>: handler + ba middleware RequestID, Logger, Recover.</li>
+<li><code>cmd/api/main.go</code>: đọc cổng từ biến môi trường <code>ADDR</code>, ghép mọi thứ, tắt server an toàn khi bấm Ctrl+C.</li>
+<li>Thêm hai route để thử: <code>GET /panic</code> (phải nhận 500 và server vẫn chạy), <code>GET /slow</code> (chờ 5 giây rồi trả lời, để thử tắt an toàn).</li>
 </ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Tạo khung: <code>mkdir notes-api &amp;&amp; cd notes-api &amp;&amp; go mod init example.com/notes</code>, rồi <code>mkdir -p internal/notes internal/httpapi cmd/api</code>.</li>
+<li>Viết <code>internal/notes/notes.go</code> trước: kiểu <code>Note</code>, lỗi <code>ErrNotFound</code>, <code>ErrInvalid</code>, interface <code>Store</code>, <code>Service</code> và <code>MemStore</code>. Viết test cho nó luôn (chưa cần HTTP).</li>
+<li>Viết <code>internal/httpapi/middleware.go</code>: chép ba middleware trong bài.</li>
+<li>Viết <code>internal/httpapi/handler.go</code>: handler chỉ đọc request, gọi service, đổi lỗi thành status ở một hàm <code>writeError</code> duy nhất. Hàm <code>Routes()</code> đăng ký đường dẫn và bọc middleware.</li>
+<li>Viết <code>cmd/api/main.go</code>: chép phần <code>run()</code> ở mục "Ghép mọi thứ trong main", bỏ phần database.</li>
+<li>Chạy: <code>go run ./cmd/api</code> (chú ý: chạy thư mục <code>./cmd/api</code>, không phải <code>.</code>, vì <code>main</code> nằm ở đó).</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="text" file="Cấu trúc">
+notes-api/
+├── go.mod                         module example.com/notes
+├── cmd/api/main.go                đọc cấu hình, ghép, chạy, tắt an toàn
+└── internal/
+    ├── notes/
+    │   ├── notes.go               nghiệp vụ + store trong bộ nhớ (không biết HTTP)
+    │   └── notes_test.go
+    └── httpapi/
+        ├── middleware.go          RequestID, Logger, Recover
+        ├── handler.go             handler, Routes, writeError
+        └── handler_test.go
+</pre>
+<pre lang="go" file="internal/notes/notes.go" check="no">
+// Package notes chứa nghiệp vụ ghi chú. Không import net/http.
+package notes
+
+import (
+    "cmp"
+    "context"
+    "errors"
+    "slices"
+    "strings"
+    "sync"
+    "time"
+    "unicode/utf8"
+)
+
+var (
+    ErrNotFound = errors.New("không tìm thấy")
+    ErrInvalid  = errors.New("nội dung từ 1 đến 500 ký tự")
+)
+
+type Note struct {
+    ID        int64
+    Text      string
+    CreatedAt time.Time
+}
+
+// Store: nơi lưu ghi chú. Service chỉ biết interface này
+type Store interface {
+    Insert(ctx context.Context, n Note) (Note, error)
+    Get(ctx context.Context, id int64) (Note, error)
+    List(ctx context.Context) ([]Note, error)
+}
+
+type Service struct {
+    store Store
+    clock func() time.Time
+}
+
+func NewService(s Store) *Service {
+    return &Service{store: s, clock: time.Now}
+}
+
+func (s *Service) Create(ctx context.Context, text string) (Note, error) {
+    text = strings.TrimSpace(text)
+    if n := utf8.RuneCountInString(text); n == 0 || n > 500 {
+        return Note{}, ErrInvalid
+    }
+    return s.store.Insert(ctx, Note{Text: text, CreatedAt: s.clock()})
+}
+
+func (s *Service) Get(ctx context.Context, id int64) (Note, error) {
+    return s.store.Get(ctx, id)
+}
+
+func (s *Service) List(ctx context.Context) ([]Note, error) {
+    return s.store.List(ctx)
+}
+
+// MemStore: lưu trong bộ nhớ. Bài 15 thay bằng Postgres, Service không đổi
+type MemStore struct {
+    mu     sync.Mutex
+    nextID int64
+    notes  map[int64]Note
+}
+
+func NewMemStore() *MemStore {
+    return &MemStore{notes: map[int64]Note{}}
+}
+
+func (m *MemStore) Insert(_ context.Context, n Note) (Note, error) {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    m.nextID++
+    n.ID = m.nextID
+    m.notes[n.ID] = n
+    return n, nil
+}
+
+func (m *MemStore) Get(_ context.Context, id int64) (Note, error) {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    n, ok := m.notes[id]
+    if !ok {
+        return Note{}, ErrNotFound
+    }
+    return n, nil
+}
+
+func (m *MemStore) List(_ context.Context) ([]Note, error) {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    out := make([]Note, 0, len(m.notes))
+    for _, n := range m.notes {
+        out = append(out, n)
+    }
+    slices.SortFunc(out, func(a, b Note) int { return cmp.Compare(a.ID, b.ID) })
+    return out, nil
+}
+</pre>
+<pre lang="go" file="internal/notes/notes_test.go" check="no">
+package notes
+
+import (
+    "context"
+    "errors"
+    "testing"
+)
+
+// Test service không cần HTTP, không cần server
+func TestCreate(t *testing.T) {
+    svc := NewService(NewMemStore())
+    ctx := context.Background()
+
+    if _, err := svc.Create(ctx, "   "); !errors.Is(err, ErrInvalid) {
+        t.Fatalf("nội dung rỗng: err = %v, muốn ErrInvalid", err)
+    }
+    n, err := svc.Create(ctx, "  Học Go  ")
+    if err != nil || n.ID != 1 || n.Text != "Học Go" {
+        t.Fatalf("tạo: %+v, %v", n, err)
+    }
+    if _, err := svc.Get(ctx, 99); !errors.Is(err, ErrNotFound) {
+        t.Errorf("lấy id 99: err = %v, muốn ErrNotFound", err)
+    }
+}
+</pre>
+<pre lang="go" file="internal/httpapi/middleware.go" check="no">
+package httpapi
+
+import (
+    "context"
+    "crypto/rand"
+    "encoding/hex"
+    "log/slog"
+    "net/http"
+    "runtime/debug"
+    "time"
+)
+
+type ctxKey string
+
+const requestIDKey ctxKey = "request_id"
+
+func RequestIDFrom(ctx context.Context) string {
+    id, _ := ctx.Value(requestIDKey).(string)
+    return id
+}
+
+// RequestID gắn mã cho mỗi request: vào ctx (để log) và vào header response (để người dùng báo lại)
+func RequestID(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        id := r.Header.Get("X-Request-ID")
+        if id == "" || len(id) > 64 {
+            b := make([]byte, 8)
+            rand.Read(b)
+            id = hex.EncodeToString(b)
+        }
+        w.Header().Set("X-Request-ID", id)
+        ctx := context.WithValue(r.Context(), requestIDKey, id)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    })
+}
+
+// statusRecorder nhớ status code mà handler đã ghi
+type statusRecorder struct {
+    http.ResponseWriter
+    status int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+    s.status = code
+    s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusRecorder) Write(b []byte) (int, error) {
+    if s.status == 0 {
+        s.status = http.StatusOK
+    }
+    return s.ResponseWriter.Write(b)
+}
+
+// Logger ghi một dòng log cho mỗi request, SAU khi handler chạy xong
+func Logger(log *slog.Logger) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            start := time.Now()
+            rec := &statusRecorder{ResponseWriter: w}
+            next.ServeHTTP(rec, r)
+            log.Info("http",
+                "method", r.Method,
+                "path", r.URL.Path,
+                "status", rec.status,
+                "duration_ms", time.Since(start).Milliseconds(),
+                "request_id", RequestIDFrom(r.Context()),
+            )
+        })
+    }
+}
+
+// Recover chặn panic: trả 500, ghi log, server vẫn chạy
+func Recover(log *slog.Logger) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            defer func() {
+                if v := recover(); v != nil {
+                    log.Error("panic", "value", v, "request_id", RequestIDFrom(r.Context()), "stack", string(debug.Stack()))
+                    writeErr(w, http.StatusInternalServerError, "Có lỗi xảy ra, vui lòng thử lại")
+                }
+            }()
+            next.ServeHTTP(w, r)
+        })
+    }
+}
+</pre>
+<pre lang="go" file="internal/httpapi/handler.go" check="no">
+package httpapi
+
+import (
+    "encoding/json"
+    "errors"
+    "log/slog"
+    "net/http"
+    "strconv"
+    "time"
+
+    "example.com/notes/internal/notes"
+)
+
+type Handler struct {
+    notes *notes.Service
+    log   *slog.Logger
+}
+
+func New(svc *notes.Service, log *slog.Logger) *Handler {
+    return &Handler{notes: svc, log: log}
+}
+
+// Routes trả về handler đã bọc đủ middleware: RequestID -> Logger -> Recover -> mux
+func (h *Handler) Routes() http.Handler {
+    mux := http.NewServeMux()
+    mux.HandleFunc("GET /notes", h.list)
+    mux.HandleFunc("POST /notes", h.create)
+    mux.HandleFunc("GET /notes/{id}", h.get)
+    mux.HandleFunc("GET /slow", func(w http.ResponseWriter, r *http.Request) {
+        time.Sleep(5 * time.Second) // để thử tắt server an toàn
+        writeJSON(w, http.StatusOK, map[string]string{"ok": "xong việc chậm"})
+    })
+    mux.HandleFunc("GET /panic", func(w http.ResponseWriter, r *http.Request) {
+        panic("thử panic") // chỉ để thử middleware Recover
+    })
+
+    var handler http.Handler = mux
+    handler = Recover(h.log)(handler) // lớp trong cùng
+    handler = Logger(h.log)(handler)
+    handler = RequestID(handler) // lớp ngoài cùng, chạy đầu tiên
+    return handler
+}
+
+type noteDTO struct {
+    ID        int64     `json:"id"`
+    Text      string    `json:"text"`
+    CreatedAt time.Time `json:"createdAt"`
+}
+
+func toDTO(n notes.Note) noteDTO { return noteDTO{ID: n.ID, Text: n.Text, CreatedAt: n.CreatedAt} }
+
+func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+    list, err := h.notes.List(r.Context())
+    if err != nil {
+        h.writeError(w, r, err)
+        return
+    }
+    out := make([]noteDTO, 0, len(list))
+    for _, n := range list {
+        out = append(out, toDTO(n))
+    }
+    writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
+    var req struct {
+        Text string `json:"text"`
+    }
+    r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeErr(w, http.StatusBadRequest, "JSON không hợp lệ")
+        return
+    }
+    n, err := h.notes.Create(r.Context(), req.Text)
+    if err != nil {
+        h.writeError(w, r, err)
+        return
+    }
+    writeJSON(w, http.StatusCreated, toDTO(n))
+}
+
+func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
+    id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+    if err != nil {
+        writeErr(w, http.StatusBadRequest, "id không hợp lệ")
+        return
+    }
+    n, err := h.notes.Get(r.Context(), id)
+    if err != nil {
+        h.writeError(w, r, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, toDTO(n))
+}
+
+// writeError: chỗ DUY NHẤT đổi lỗi nghiệp vụ thành status code
+func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, err error) {
+    switch {
+    case errors.Is(err, notes.ErrInvalid):
+        writeErr(w, http.StatusBadRequest, "Nội dung từ 1 đến 500 ký tự")
+    case errors.Is(err, notes.ErrNotFound):
+        writeErr(w, http.StatusNotFound, "Không tìm thấy")
+    default:
+        h.log.Error("lỗi không xử lý", "err", err, "request_id", RequestIDFrom(r.Context()))
+        writeErr(w, http.StatusInternalServerError, "Có lỗi xảy ra, vui lòng thử lại")
+    }
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+    w.Header().Set("Content-Type", "application/json; charset=utf-8")
+    w.WriteHeader(status)
+    json.NewEncoder(w).Encode(v)
+}
+
+func writeErr(w http.ResponseWriter, status int, msg string) {
+    writeJSON(w, status, map[string]string{"error": msg})
+}
+</pre>
+<pre lang="go" file="internal/httpapi/handler_test.go" check="no">
+package httpapi
+
+import (
+    "io"
+    "log/slog"
+    "net/http"
+    "net/http/httptest"
+    "strings"
+    "testing"
+
+    "example.com/notes/internal/notes"
+)
+
+func newTestHandler() http.Handler {
+    log := slog.New(slog.NewTextHandler(io.Discard, nil)) // test không cần in log
+    return New(notes.NewService(notes.NewMemStore()), log).Routes()
+}
+
+func TestPanicReturns500(t *testing.T) {
+    h := newTestHandler()
+    rec := httptest.NewRecorder()
+    h.ServeHTTP(rec, httptest.NewRequest("GET", "/panic", nil))
+    if rec.Code != http.StatusInternalServerError {
+        t.Fatalf("status = %d, muốn 500", rec.Code)
+    }
+    if rec.Header().Get("X-Request-ID") == "" {
+        t.Error("thiếu header X-Request-ID")
+    }
+}
+
+func TestCreateInvalid(t *testing.T) {
+    h := newTestHandler()
+    rec := httptest.NewRecorder()
+    h.ServeHTTP(rec, httptest.NewRequest("POST", "/notes", strings.NewReader(`{"text":""}`)))
+    if rec.Code != http.StatusBadRequest {
+        t.Fatalf("status = %d, muốn 400", rec.Code)
+    }
+}
+</pre>
+<pre lang="go" file="cmd/api/main.go" check="no">
+package main
+
+import (
+    "context"
+    "errors"
+    "log/slog"
+    "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+
+    "example.com/notes/internal/httpapi"
+    "example.com/notes/internal/notes"
+)
+
+func main() {
+    if err := run(); err != nil {
+        slog.Error("dừng", "err", err)
+        os.Exit(1)
+    }
+}
+
+func run() error {
+    addr := os.Getenv("ADDR")
+    if addr == "" {
+        addr = ":8080"
+    }
+    logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+    // Ghép các thành phần: store -> service -> handler
+    svc := notes.NewService(notes.NewMemStore())
+    h := httpapi.New(svc, logger)
+
+    srv := &http.Server{
+        Addr:              addr,
+        Handler:           h.Routes(),
+        ReadHeaderTimeout: 5 * time.Second,
+        ReadTimeout:       15 * time.Second,
+        WriteTimeout:      30 * time.Second,
+        IdleTimeout:       60 * time.Second,
+    }
+
+    // ctx bị huỷ khi bấm Ctrl+C hoặc nhận SIGTERM
+    ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer stop()
+
+    errCh := make(chan error, 1)
+    go func() {
+        logger.Info("bắt đầu", "addr", addr)
+        if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+            errCh <- err
+        }
+    }()
+
+    select {
+    case err := <-errCh:
+        return err
+    case <-ctx.Done():
+    }
+
+    logger.Info("đang tắt, chờ các request dở dang")
+    shutdownCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+    defer cancel()
+    if err := srv.Shutdown(shutdownCtx); err != nil {
+        return err
+    }
+    logger.Info("đã tắt")
+    return nil
+}
+</pre>
+<p><b>Chạy test</b> (ở thư mục gốc <code>notes-api</code>):</p>
+<pre lang="out">
+$ go test ./...
+?   	example.com/notes/cmd/api	[no test files]
+ok  	example.com/notes/internal/httpapi	0.957s
+ok  	example.com/notes/internal/notes	0.461s
+</pre>
+<p><b>Chạy server</b> ở terminal 1. Mỗi request là một dòng log JSON:</p>
+<pre lang="out">
+$ ADDR=:8090 go run ./cmd/api
+{"time":"2026-11-03T15:38:29.6+07:00","level":"INFO","msg":"bắt đầu","addr":":8090"}
+</pre>
+<p><code>ADDR=:8090 go run ...</code> là cách đặt biến môi trường cho riêng một lệnh. Không đặt thì chạy ở cổng 8080.</p>
+<p><b>Thử ở terminal 2:</b></p>
+<pre lang="out">
+$ curl -i localhost:8090/panic
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json; charset=utf-8
+X-Request-Id: 04d042d985c6a8b4
+Content-Length: 54
+
+{"error":"Có lỗi xảy ra, vui lòng thử lại"}
+$ curl -X POST localhost:8090/notes -d '{"text":"Học Go"}'
+{"id":1,"text":"Học Go","createdAt":"2026-11-03T15:38:31.13+07:00"}
+</pre>
+<p>Panic không làm sập server: request tiếp theo vẫn chạy. Terminal 1 có thêm các dòng log (đã cắt bớt phần <code>stack</code> cho gọn). Để ý <code>request_id</code> của dòng panic trùng với header <code>X-Request-Id</code> mà curl nhận được: người dùng báo mã này là bạn tìm ra đúng dòng log.</p>
+<pre lang="out">
+{"time":"...","level":"ERROR","msg":"panic","value":"thử panic","request_id":"04d042d985c6a8b4","stack":"goroutine 21 [running]:..."}
+{"time":"...","level":"INFO","msg":"http","method":"GET","path":"/panic","status":500,"duration_ms":0,"request_id":"04d042d985c6a8b4"}
+{"time":"...","level":"INFO","msg":"http","method":"POST","path":"/notes","status":201,"duration_ms":0,"request_id":"c16c6a0388e675e4"}
+</pre>
+<p><b>Thử tắt an toàn:</b> ở terminal 2 gõ <code>curl localhost:8090/slow</code>, trong lúc nó đang chờ thì sang terminal 1 bấm <kbd>Ctrl</kbd> + <kbd>C</kbd>. Server không thoát ngay mà chờ request chậm xong:</p>
+<pre lang="out">
+{"time":"15:38:32","level":"INFO","msg":"đang tắt, chờ các request dở dang"}
+{"time":"15:38:36","level":"INFO","msg":"http","method":"GET","path":"/slow","status":200,"duration_ms":5002,"request_id":"75004ad82a1790ae"}
+{"time":"15:38:36","level":"INFO","msg":"đã tắt"}
+</pre>
+<p>Terminal 2 vẫn nhận được <code>{"ok":"xong việc chậm"}</code>. Bỏ phần <code>srv.Shutdown</code> đi (để Ctrl+C thoát luôn) và thử lại: curl báo <code>Empty reply from server</code>, request bị cắt ngang. Đó chính là chuyện xảy ra với người dùng mỗi lần deploy nếu không tắt an toàn.</p>
+<p><b>Giải thích cách chia:</b> <code>internal/notes</code> không biết gì về HTTP, nên mai này thêm một chương trình chạy việc nền (<code>cmd/worker</code>) dùng lại được nguyên service. Đổi <code>MemStore</code> sang Postgres (bài 15) chỉ cần viết một kiểu mới có ba method của <code>Store</code>, handler và service không sửa dòng nào. <code>srv.ListenAndServe()</code> trả về <code>http.ErrServerClosed</code> khi bị <code>Shutdown</code>, đó không phải lỗi thật, nên trong <code>main</code> có dòng bỏ qua nó.</p>
 </details>
 </details>

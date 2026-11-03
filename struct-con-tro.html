@@ -37,20 +37,33 @@
   </header>
   <div class="prose"><h2 id="struct-gom-du-lieu-thanh-mot-kieu"><a href="#struct-gom-du-lieu-thanh-mot-kieu" class="anchor" aria-hidden="true">#</a>Struct: gom dữ liệu thành một kiểu</h2>
 <p>Go không có class. Thay vào đó là <b>struct</b> (dữ liệu) cộng <b>method</b> (hàm gắn với kiểu). Struct giống <code>interface</code> / <code>type</code> của TypeScript, nhưng là kiểu thật lúc chạy.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Student <span class="k">struct</span> {
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="c">// Khai báo một KIỂU mới tên Student. Mỗi dòng: tên trường, rồi kiểu của trường</span>
+<span class="k">type</span> Student <span class="k">struct</span> {
     ID       <span class="t">int64</span>
     FullName <span class="t">string</span>
     ClassID  <span class="t">int64</span>
-    Scores   []<span class="t">float64</span>
-    JoinedAt time.Time
+    Scores   []<span class="t">float64</span> <span class="c">// slice điểm</span>
 }
 
-<span class="c">// Tạo giá trị</span>
-s := Student{ID: <span class="n">1</span>, FullName: <span class="s">&quot;Trần An&quot;</span>, ClassID: <span class="n">5</span>}
-s.Scores = <span class="b">append</span>(s.Scores, <span class="n">9.5</span>)
-fmt.<span class="f">Println</span>(s.FullName)
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="c">// Tạo một giá trị kiểu Student. Trường không ghi (Scores) nhận zero value: nil</span>
+    s := Student{ID: <span class="n">1</span>, FullName: <span class="s">&quot;Trần An&quot;</span>, ClassID: <span class="n">5</span>}
 
-<span class="k">var</span> empty Student      <span class="c">// mọi trường là zero value: 0, &quot;&quot;, nil, thời điểm 0</span></code></pre></div>
+    s.Scores = <span class="b">append</span>(s.Scores, <span class="n">9.5</span>) <span class="c">// đọc / ghi trường bằng dấu chấm, giống JS</span>
+    fmt.<span class="f">Println</span>(s.FullName, s.Scores)
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%+v\n&quot;</span>, s) <span class="c">// %+v in kèm tên trường</span>
+
+    <span class="k">var</span> empty Student <span class="c">// mọi trường là zero value</span>
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%+v\n&quot;</span>, empty)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>Trần An [9.5]
+{ID:1 FullName:Trần An ClassID:5 Scores:[9.5]}
+{ID:0 FullName: ClassID:0 Scores:[]}</pre></div>
+<p>Khác object JS: struct có <b>đúng</b> các trường đã khai báo. Viết <code>s.Phone = "..."</code> là lỗi biên dịch vì <code>Student</code> không có trường <code>Phone</code>. Và không có trường nào là <code>undefined</code>: trường không gán có zero value.</p>
 <table>
 <tr><th>TypeScript</th><th>Go</th></tr>
 <tr><td><code>interface Student { id: number; fullName: string }</code></td><td><code>type Student struct { ID int64; FullName string }</code></td></tr>
@@ -61,22 +74,59 @@ fmt.<span class="f">Println</span>(s.FullName)
 
 <h3>Struct tag: nói cho JSON và database biết tên trường</h3>
 <p>Phần trong dấu backtick sau mỗi trường là <i>tag</i>, được các thư viện đọc để biết cách đổi sang JSON, tên cột database, quy tắc validate...</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> StudentDTO <span class="k">struct</span> {
-    ID       <span class="t">int64</span>     <span class="s">`json:&quot;id&quot;`</span>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="k">type</span> StudentDTO <span class="k">struct</span> {
+    ID       <span class="t">int64</span>     <span class="s">`json:&quot;id&quot;`</span>              <span class="c">// trong JSON tên là &quot;id&quot;</span>
     FullName <span class="t">string</span>    <span class="s">`json:&quot;fullName&quot;`</span>
-    Email    <span class="t">string</span>    <span class="s">`json:&quot;email,omitempty&quot;`</span> <span class="c">// rỗng thì bỏ khỏi JSON</span>
+    Email    <span class="t">string</span>    <span class="s">`json:&quot;email,omitempty&quot;`</span> <span class="c">// rỗng thì bỏ hẳn khỏi JSON</span>
     Password <span class="t">string</span>    <span class="s">`json:&quot;-&quot;`</span>               <span class="c">// không bao giờ xuất ra JSON</span>
-    JoinedAt time.Time <span class="s">`json:&quot;joinedAt&quot;`</span>        <span class="c">// tự thành chuỗi RFC 3339</span>
+    JoinedAt time.Time <span class="s">`json:&quot;joinedAt&quot;`</span>        <span class="c">// tự thành chuỗi ngày giờ chuẩn</span>
+    note     <span class="t">string</span>    <span class="c">// viết thường: package json không thấy trường này</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    s := StudentDTO{
+        ID:       <span class="n">1</span>,
+        FullName: <span class="s">&quot;Trần An&quot;</span>,
+        Password: <span class="s">&quot;bí mật&quot;</span>,
+        JoinedAt: time.<span class="f">Date</span>(<span class="n">2026</span>, <span class="n">9</span>, <span class="n">5</span>, <span class="n">8</span>, <span class="n">0</span>, <span class="n">0</span>, <span class="n">0</span>, time.UTC),
+        note:     <span class="s">&quot;ghi chú nội bộ&quot;</span>,
+    }
+    b, _ := json.<span class="f">Marshal</span>(s) <span class="c">// giống JSON.stringify(s)</span>
+    fmt.<span class="f">Println</span>(<span class="t">string</span>(b))
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>{&quot;id&quot;:1,&quot;fullName&quot;:&quot;Trần An&quot;,&quot;joinedAt&quot;:&quot;2026-09-05T08:00:00Z&quot;}</pre></div>
+<p>Để ý kết quả: không có <code>email</code> (rỗng + <code>omitempty</code>), không có <code>password</code> (tag <code>"-"</code>), không có <code>note</code> (viết thường).</p>
 <aside class="warn"><p><code>encoding/json</code> chỉ đọc / ghi được trường <b>viết hoa</b>. Trường <code>fullName string</code> (viết thường) sẽ bị bỏ qua hoàn toàn mà không báo lỗi. Đây là lỗi số một của người mới: "sao API trả về <code>{}</code>?".</p></aside>
 
 <h2 id="con-tro-dia-chi-cua-mot-gia-tri"><a href="#con-tro-dia-chi-cua-mot-gia-tri" class="anchor" aria-hidden="true">#</a>Con trỏ: địa chỉ của một giá trị</h2>
 <p>Trong JavaScript, object luôn được truyền theo tham chiếu. Trong Go, <b>mọi thứ đều được truyền bằng cách sao chép</b>, kể cả struct. Muốn hàm sửa được giá trị gốc, bạn truyền <b>địa chỉ</b> của nó: một con trỏ.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>x := <span class="n">10</span>
-p := &amp;x        <span class="c">// &amp;: lấy địa chỉ. p có kiểu *int (&quot;con trỏ tới int&quot;)</span>
-fmt.<span class="f">Println</span>(*p) <span class="c">// *: đọc giá trị tại địa chỉ → 10</span>
-*p = <span class="n">20</span>         <span class="c">// ghi qua con trỏ</span>
-fmt.<span class="f">Println</span>(x)  <span class="c">// 20</span></code></pre></div>
+<p>Hình dung bộ nhớ như dãy ô tủ, mỗi ô có số. Biến <code>x</code> nằm trong một ô. Con trỏ là tờ giấy ghi <b>số ô</b> đó. Ai có tờ giấy thì mở được đúng ô ấy để xem hoặc sửa.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+    x := <span class="n">10</span>
+    p := &amp;x <span class="c">// &amp;x = &quot;địa chỉ của x&quot;. p có kiểu *int, đọc là &quot;con trỏ tới int&quot;</span>
+
+    fmt.<span class="f">Println</span>(p)  <span class="c">// in ra địa chỉ (mỗi máy mỗi khác)</span>
+    fmt.<span class="f">Println</span>(*p) <span class="c">// *p = &quot;giá trị tại địa chỉ p&quot; = giá trị của x</span>
+
+    *p = <span class="n">20</span>         <span class="c">// ghi vào ô mà p trỏ tới, tức là sửa x</span>
+    fmt.<span class="f">Println</span>(x)
+}</code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre>0xc000012345
+10
+20</pre></div>
+<p>Dòng đầu là một địa chỉ bộ nhớ, máy bạn sẽ ra số khác. Nhớ hai ký hiệu: <code>&amp;</code> = lấy địa chỉ, <code>*</code> = đi tới địa chỉ đó. Còn <code>*int</code> trong kiểu nghĩa là "con trỏ tới int".</p>
 <figure class="dg">
 <svg viewBox="0 0 660 240" style="min-width:540px;max-width:660px" role="img" aria-label="Truyền giá trị và truyền con trỏ">
   <text x="20" y="24" class="tl" style="font-weight:700">Truyền giá trị: rename(s)</text>
@@ -102,39 +152,93 @@ fmt.<span class="f">Println</span>(x)  <span class="c">// 20</span></code></pre>
 </svg>
 <figcaption>Struct được sao chép khi truyền vào hàm. Con trỏ cho hàm sửa được bản gốc</figcaption>
 </figure>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">renameCopy</span>(s Student)   { s.FullName = <span class="s">&quot;Bình&quot;</span> } <span class="c">// sửa bản sao, vô ích</span>
-<span class="k">func</span> <span class="f">renamePtr</span>(s *Student)   { s.FullName = <span class="s">&quot;Bình&quot;</span> } <span class="c">// Go tự hiểu s.FullName = (*s).FullName</span>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-s := Student{FullName: <span class="s">&quot;An&quot;</span>}
-<span class="f">renameCopy</span>(s)
-fmt.<span class="f">Println</span>(s.FullName) <span class="c">// An</span>
-<span class="f">renamePtr</span>(&amp;s)
-fmt.<span class="f">Println</span>(s.FullName) <span class="c">// Bình</span></code></pre></div>
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">type</span> Student <span class="k">struct</span> {
+    FullName <span class="t">string</span>
+}
+
+<span class="c">// Nhận Student: hàm nhận một BẢN SAO, sửa bản sao không ảnh hưởng bản gốc</span>
+<span class="k">func</span> <span class="f">renameCopy</span>(s Student) {
+    s.FullName = <span class="s">&quot;Bình&quot;</span>
+}
+
+<span class="c">// Nhận *Student: hàm nhận địa chỉ, sửa được bản gốc.</span>
+<span class="c">// Viết s.FullName là đủ, Go tự hiểu là (*s).FullName</span>
+<span class="k">func</span> <span class="f">renamePtr</span>(s *Student) {
+    s.FullName = <span class="s">&quot;Bình&quot;</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    s := Student{FullName: <span class="s">&quot;An&quot;</span>}
+
+    <span class="f">renameCopy</span>(s)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;sau renameCopy:&quot;</span>, s.FullName)
+
+    <span class="f">renamePtr</span>(&amp;s) <span class="c">// truyền địa chỉ của s</span>
+    fmt.<span class="f">Println</span>(<span class="s">&quot;sau renamePtr: &quot;</span>, s.FullName)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>sau renameCopy: An
+sau renamePtr:  Bình</pre></div>
+<p>Trong JS, <code>function rename(s) { s.fullName = "Bình" }</code> luôn sửa được object gốc. Go thì phải chọn: muốn hàm sửa được bản gốc thì nhận con trỏ.</p>
 <aside class="fe"><p>Slice, map và channel chứa sẵn một con trỏ bên trong, nên truyền chúng vào hàm thì hàm sửa được <b>nội dung</b> (giống truyền mảng trong JS). Nhưng <code>append</code> trong hàm thì có thể không phản ánh ra ngoài (bài 04), nên hàm thêm phần tử thường trả về slice mới.</p></aside>
 <aside class="tip"><p>Go không có phép toán trên con trỏ (<code>p++</code> như C), và bạn không phải tự giải phóng bộ nhớ. Hàm trả về con trỏ tới biến cục bộ là hoàn toàn an toàn: trình biên dịch tự quyết định đặt biến đó lên heap (gọi là <i>escape analysis</i>).</p></aside>
 
 <h3>nil pointer: lỗi runtime hay gặp nhất</h3>
-<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> u *Student          <span class="c">// nil</span>
-fmt.<span class="f">Println</span>(u.FullName) <span class="c">// panic: runtime error: invalid memory address or nil pointer dereference</span></code></pre></div>
+<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">type</span> Student <span class="k">struct</span>{ FullName <span class="t">string</span> }
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">var</span> u *Student          <span class="c">// con trỏ chưa trỏ vào đâu: nil</span>
+    fmt.<span class="f">Println</span>(u == <span class="b">nil</span>)   <span class="c">// true</span>
+    fmt.<span class="f">Println</span>(u.FullName) <span class="c">// đi tới địa chỉ nil: chương trình dừng</span>
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>true
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x2 addr=0x0 pc=0x102ce3594]
+
+goroutine 1 [running]:
+main.main()
+	/Users/ban/nil/main.go:10 +0x54
+exit status 2</pre></div>
+<p>Đọc báo lỗi panic từ trên xuống: dòng đầu nói lỗi gì, phần <code>goroutine 1</code> chỉ ra lỗi xảy ra ở hàm nào, dòng nào (<code>main.go:10</code>, tức dòng <code>fmt.Println(u.FullName)</code>).</p>
+<p>Giống lỗi <code>Cannot read properties of null</code> của JS, nhưng ở backend nó làm hỏng cả request (server Go tự bắt panic cho từng request nên không sập cả server, bài 11).</p>
 <p>Hàm trả về con trỏ thì phải nói rõ khi nào trả <code>nil</code>, và người gọi phải kiểm tra. Mẫu chuẩn: hàm "tìm" trả về <code>(*T, error)</code>, nếu không tìm thấy thì trả lỗi riêng thay vì <code>nil, nil</code>.</p>
 
 <h2 id="method-ham-gan-voi-kieu"><a href="#method-ham-gan-voi-kieu" class="anchor" aria-hidden="true">#</a>Method: hàm gắn với kiểu</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Rect <span class="k">struct</span>{ W, H <span class="t">float64</span> }
+<p>Method là hàm có thêm một phần <b>receiver</b> đặt giữa <code>func</code> và tên hàm. Receiver giống <code>this</code> trong class JS, nhưng bạn tự đặt tên cho nó (thường là chữ cái đầu của kiểu).</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-<span class="c">// receiver (r Rect) đứng trước tên hàm</span>
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">type</span> Rect <span class="k">struct</span>{ W, H <span class="t">float64</span> } <span class="c">// struct một dòng: hai trường W và H cùng kiểu float64</span>
+
+<span class="c">// (r Rect) là receiver: method Area gắn với kiểu Rect, bên trong gọi r như &quot;this&quot;</span>
 <span class="k">func</span> (r Rect) <span class="f">Area</span>() <span class="t">float64</span> {
     <span class="k">return</span> r.W * r.H
 }
 
-<span class="c">// pointer receiver: method sửa được giá trị gốc</span>
+<span class="c">// (r *Rect): pointer receiver, nên method sửa được giá trị gốc</span>
 <span class="k">func</span> (r *Rect) <span class="f">Scale</span>(k <span class="t">float64</span>) {
     r.W *= k
     r.H *= k
 }
 
-r := Rect{W: <span class="n">2</span>, H: <span class="n">3</span>}
-r.<span class="f">Scale</span>(<span class="n">2</span>)          <span class="c">// Go tự lấy &amp;r khi gọi</span>
-fmt.<span class="f">Println</span>(r.<span class="f">Area</span>()) <span class="c">// 24</span></code></pre></div>
+<span class="k">func</span> <span class="f">main</span>() {
+    r := Rect{W: <span class="n">2</span>, H: <span class="n">3</span>}
+    fmt.<span class="f">Println</span>(r.<span class="f">Area</span>()) <span class="c">// gọi method bằng dấu chấm, giống JS</span>
+
+    r.<span class="f">Scale</span>(<span class="n">2</span>) <span class="c">// Go tự đổi thành (&amp;r).Scale(2) vì Scale cần con trỏ</span>
+    fmt.<span class="f">Println</span>(r, r.<span class="f">Area</span>())
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>6
+{4 6} 24</pre></div>
+<p>So với TS: <code>class Rect { area() { return this.w * this.h } }</code>. Trong Go, dữ liệu (struct) và hành vi (method) viết tách nhau, nhưng gọi thì giống hệt: <code>r.Area()</code>.</p>
 <h3>Value receiver hay pointer receiver?</h3>
 <table>
 <tr><th>Dùng pointer receiver <code>(r *T)</code> khi</th><th>Dùng value receiver <code>(r T)</code> khi</th></tr>
@@ -145,58 +249,122 @@ fmt.<span class="f">Println</span>(r.<span class="f">Area</span>()) <span class=
 <p>Quy tắc thực tế: <b>một kiểu dùng một loại receiver cho mọi method</b>. Với các kiểu "dịch vụ" ở backend (UserService, Repository, Handler) luôn dùng pointer receiver.</p>
 
 <h2 id="ham-khoi-tao-new"><a href="#ham-khoi-tao-new" class="anchor" aria-hidden="true">#</a>Hàm khởi tạo New...</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Server <span class="k">struct</span> {
+<p>Go không có <code>constructor</code>. Thay vào đó là một hàm thường, tên bắt đầu bằng <code>New</code>, tạo giá trị với mặc định hợp lý và trả về con trỏ:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+)
+
+<span class="k">type</span> Server <span class="k">struct</span> {
     addr    <span class="t">string</span>
     timeout time.Duration
-    db      *pgxpool.Pool
 }
 
-<span class="k">func</span> <span class="f">NewServer</span>(addr <span class="t">string</span>, db *pgxpool.Pool) *Server {
-    <span class="k">return</span> &amp;Server{
+<span class="c">// Giống constructor(addr) { this.addr = addr; this.timeout = 10_000 }</span>
+<span class="k">func</span> <span class="f">NewServer</span>(addr <span class="t">string</span>) *Server {
+    <span class="k">return</span> &amp;Server{ <span class="c">// &amp;Student{...}: tạo giá trị rồi lấy địa chỉ luôn</span>
         addr:    addr,
         timeout: <span class="n">10</span> * time.Second, <span class="c">// giá trị mặc định</span>
-        db:      db,
     }
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    srv := <span class="f">NewServer</span>(<span class="s">&quot;:8080&quot;</span>)
+    fmt.<span class="f">Println</span>(srv.addr, srv.timeout)
 }</code></pre></div>
-<p>Hàm <code>NewX</code> là quy ước, không phải cú pháp đặc biệt. Bạn sẽ dùng nó để ghép các thành phần của server lại ở bài 13 (dependency injection).</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>:8080 10s</pre></div>
+<p>Hàm <code>NewX</code> là quy ước, không phải cú pháp đặc biệt. Ở bài 13, <code>NewServer</code> sẽ nhận thêm kết nối database, logger... để ghép các thành phần của server lại (dependency injection).</p>
 
 <h2 id="dung-con-tro-de-biet-co-gui-hay-khong"><a href="#dung-con-tro-de-biet-co-gui-hay-khong" class="anchor" aria-hidden="true">#</a>Dùng con trỏ để biết "có gửi hay không"</h2>
 <p>Quay lại bài toán ở bài 02: API cập nhật một phần (PATCH). Client chỉ gửi trường nào muốn đổi.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> UpdateStudentReq <span class="k">struct</span> {
-    FullName *<span class="t">string</span>  <span class="s">`json:&quot;fullName&quot;`</span>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+)
+
+<span class="k">type</span> UpdateStudentReq <span class="k">struct</span> {
+    FullName *<span class="t">string</span>  <span class="s">`json:&quot;fullName&quot;`</span> <span class="c">// con trỏ: nil = client không gửi trường này</span>
     Score    *<span class="t">float64</span> <span class="s">`json:&quot;score&quot;`</span>
 }
 
-<span class="c">// {&quot;score&quot;: 0}  → FullName == nil, Score trỏ tới 0  → chỉ cập nhật điểm thành 0</span>
-<span class="c">// {}            → cả hai nil                        → không đổi gì</span>
+<span class="k">func</span> <span class="f">main</span>() {
+    bodies := []<span class="t">string</span>{<span class="s">`{&quot;score&quot;: 0}`</span>, <span class="s">`{}`</span>, <span class="s">`{&quot;fullName&quot;: &quot;Bình&quot;, &quot;score&quot;: 9}`</span>}
 
-<span class="k">if</span> req.Score != <span class="b">nil</span> {
-    student.Score = *req.Score
+    <span class="k">for</span> _, body := <span class="k">range</span> bodies {
+        <span class="k">var</span> req UpdateStudentReq
+        json.<span class="f">Unmarshal</span>([]<span class="t">byte</span>(body), &amp;req) <span class="c">// giống JSON.parse, ghi kết quả vào req</span>
+
+        fmt.<span class="f">Print</span>(body, <span class="s">&quot; -&gt; &quot;</span>)
+        <span class="k">if</span> req.FullName != <span class="b">nil</span> {
+            fmt.<span class="f">Print</span>(<span class="s">&quot;đổi tên thành &quot;</span>, *req.FullName, <span class="s">&quot;. &quot;</span>)
+        }
+        <span class="k">if</span> req.Score != <span class="b">nil</span> {
+            fmt.<span class="f">Print</span>(<span class="s">&quot;đổi điểm thành &quot;</span>, *req.Score, <span class="s">&quot;. &quot;</span>)
+        }
+        <span class="k">if</span> req.FullName == <span class="b">nil</span> &amp;&amp; req.Score == <span class="b">nil</span> {
+            fmt.<span class="f">Print</span>(<span class="s">&quot;không đổi gì.&quot;</span>)
+        }
+        fmt.<span class="f">Println</span>()
+    }
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>{&quot;score&quot;: 0} -&gt; đổi điểm thành 0. 
+{} -&gt; không đổi gì.
+{&quot;fullName&quot;: &quot;Bình&quot;, &quot;score&quot;: 9} -&gt; đổi tên thành Bình. đổi điểm thành 9.</pre></div>
+<p>Nếu <code>Score</code> là <code>float64</code> thường, hai body đầu đều cho <code>Score = 0</code> và bạn sẽ lỡ tay xoá điểm của học sinh. <code>json.Unmarshal</code> nhận <code>&amp;req</code> (con trỏ) chính vì nó cần ghi vào <code>req</code> của bạn.</p>
 <aside class="real"><p>Thư viện của Google cho nhiều API (ví dụ <code>google.golang.org/api</code>) và AWS SDK for Go dùng đúng cách này: trường tuỳ chọn là con trỏ, kèm các hàm trợ giúp kiểu <code>aws.String("x")</code> để lấy con trỏ từ một giá trị.</p></aside>
 
 <h2 id="struct-long-nhau-va-struct-an-danh"><a href="#struct-long-nhau-va-struct-an-danh" class="anchor" aria-hidden="true">#</a>Struct lồng nhau và struct ẩn danh</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Address <span class="k">struct</span>{ City, Street <span class="t">string</span> }
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+)
+
+<span class="k">type</span> Address <span class="k">struct</span>{ City, Street <span class="t">string</span> }
 
 <span class="k">type</span> School <span class="k">struct</span> {
     Name    <span class="t">string</span>
-    Address Address <span class="c">// lồng một struct</span>
+    Address Address <span class="c">// trường có kiểu là một struct khác</span>
 }
 
-sc := School{Name: <span class="s">&quot;THPT A&quot;</span>, Address: Address{City: <span class="s">&quot;Huế&quot;</span>}}
-fmt.<span class="f">Println</span>(sc.Address.City)
+<span class="k">func</span> <span class="f">main</span>() {
+    sc := School{Name: <span class="s">&quot;THPT A&quot;</span>, Address: Address{City: <span class="s">&quot;Huế&quot;</span>}}
+    fmt.<span class="f">Println</span>(sc.Address.City)
 
-<span class="c">// struct ẩn danh: dùng một lần, rất tiện để trả JSON nhanh hoặc viết test</span>
-resp := <span class="k">struct</span> {
-    OK    <span class="t">bool</span> <span class="s">`json:&quot;ok&quot;`</span>
-    Count <span class="t">int</span>  <span class="s">`json:&quot;count&quot;`</span>
-}{OK: <span class="b">true</span>, Count: <span class="n">3</span>}</code></pre></div>
+    <span class="c">// struct ẩn danh: khai báo kiểu và tạo giá trị cùng lúc, dùng một lần.</span>
+    <span class="c">// Rất tiện để trả JSON nhanh hoặc viết test</span>
+    resp := <span class="k">struct</span> {
+        OK    <span class="t">bool</span> <span class="s">`json:&quot;ok&quot;`</span>
+        Count <span class="t">int</span>  <span class="s">`json:&quot;count&quot;`</span>
+    }{OK: <span class="b">true</span>, Count: <span class="n">3</span>}
+
+    b, _ := json.<span class="f">Marshal</span>(resp)
+    fmt.<span class="f">Println</span>(<span class="t">string</span>(b))
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>Huế
+{&quot;ok&quot;:true,&quot;count&quot;:3}</pre></div>
 
 <h2 id="so-sanh-struct"><a href="#so-sanh-struct" class="anchor" aria-hidden="true">#</a>So sánh struct</h2>
 <p>Struct mà mọi trường đều so sánh được thì dùng được <code>==</code> và làm khoá của map. Struct có slice hoặc map bên trong thì không.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Point <span class="k">struct</span>{ X, Y <span class="t">int</span> }
-fmt.<span class="f">Println</span>(Point{<span class="n">1</span>, <span class="n">2</span>} == Point{<span class="n">1</span>, <span class="n">2</span>}) <span class="c">// true: so theo giá trị, khác JS so tham chiếu</span>
-visited := <span class="k">map</span>[Point]<span class="t">bool</span>{{<span class="n">0</span>, <span class="n">0</span>}: <span class="b">true</span>}</code></pre></div>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">type</span> Point <span class="k">struct</span>{ X, Y <span class="t">int</span> }
+
+<span class="k">func</span> <span class="f">main</span>() {
+    fmt.<span class="f">Println</span>(Point{<span class="n">1</span>, <span class="n">2</span>} == Point{<span class="n">1</span>, <span class="n">2</span>}) <span class="c">// so từng trường. Trong JS {x:1} === {x:1} là false</span>
+
+    visited := <span class="k">map</span>[Point]<span class="t">bool</span>{{<span class="n">0</span>, <span class="n">0</span>}: <span class="b">true</span>} <span class="c">// struct làm khoá của map</span>
+    fmt.<span class="f">Println</span>(visited[Point{<span class="n">0</span>, <span class="n">0</span>}], visited[Point{<span class="n">5</span>, <span class="n">5</span>}])
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>true
+true false</pre></div>
 
 <div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> <code>users := []User{{Name: &quot;An&quot;}}; for _, u := range users { u.Name = &quot;Bình&quot; }</code>. Sau vòng lặp, <code>users[0].Name</code> là gì?</p><div class="qo"><button type="button" class="opt" data-ok>"An", vì u là bản sao của phần tử</button><button type="button" class="opt">"Bình"</button><button type="button" class="opt">Lỗi biên dịch</button></div><p class="why" hidden>Biến trong range là bản sao. Sửa bằng users[i].Name = "Bình", hoặc dùng slice con trỏ []*User.</p></div>
 
@@ -204,9 +372,33 @@ visited := <span class="k">map</span>[Point]<span class="t">bool</span>{{<span c
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Giỏ hàng</summary>
-<p>Tạo <code>Cart</code> chứa danh sách <code>Item{ProductID int64; Price int64; Qty int}</code>. Viết method <code>Add(item Item)</code> (sản phẩm đã có thì cộng dồn số lượng), <code>Remove(productID int64)</code>, <code>Total() int64</code>. Chọn đúng loại receiver.</p>
+<p>Tạo kiểu <code>Cart</code> (giỏ hàng) chứa danh sách <code>Item</code>, mỗi item có mã sản phẩm, giá, số lượng. Viết ba method:</p>
+<ul>
+<li><code>Add(item Item)</code>: thêm vào giỏ. Sản phẩm đã có trong giỏ thì cộng dồn số lượng, không thêm dòng mới.</li>
+<li><code>Remove(productID int64)</code>: bỏ sản phẩm khỏi giỏ.</li>
+<li><code>Total() int64</code>: tổng tiền.</li>
+</ul>
+<p>Thử: thêm 2 cuốn vở giá 10.000đ, thêm 1 bút giá 5.000đ, thêm 1 cuốn vở nữa, in tổng. Bỏ bút, in tổng. Kết quả mong muốn:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>số dòng: 2
+tổng: 35000
+sau khi bỏ bút: 30000</pre></div>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Khai báo <code>type Item struct { ProductID int64; Price int64; Qty int }</code> và <code>type Cart struct { Items []Item }</code>.</li>
+<li><code>Add</code> và <code>Remove</code> phải sửa giỏ hàng, nên dùng pointer receiver: <code>func (c *Cart) Add(it Item)</code>.</li>
+<li>Trong <code>Add</code>, duyệt <code>c.Items</code> bằng chỉ số (<code>for i := range c.Items</code>). Gặp cùng <code>ProductID</code> thì <code>c.Items[i].Qty += it.Qty</code> rồi <code>return</code>. Không gặp thì <code>append</code>. Đừng sửa qua biến của <code>for _, x := range</code>: đó là bản sao (xem câu hỏi ở trên).</li>
+<li><code>Remove</code>: dùng <code>slices.DeleteFunc(c.Items, func(it Item) bool { ... })</code>, giống <code>items.filter(...)</code> nhưng giữ lại phần tử mà hàm trả về <code>false</code>.</li>
+<li><code>Total</code>: cộng <code>Price * Qty</code>. <code>Qty</code> là <code>int</code>, <code>Price</code> là <code>int64</code>, nên phải đổi kiểu: <code>int64(it.Qty)</code>.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Item <span class="k">struct</span> {
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;slices&quot;</span>
+)
+
+<span class="k">type</span> Item <span class="k">struct</span> {
     ProductID <span class="t">int64</span>
     Price     <span class="t">int64</span> <span class="c">// đồng</span>
     Qty       <span class="t">int</span>
@@ -232,12 +424,29 @@ visited := <span class="k">map</span>[Point]<span class="t">bool</span>{{<span c
 
 <span class="k">func</span> (c *Cart) <span class="f">Total</span>() <span class="t">int64</span> {
     <span class="k">var</span> t <span class="t">int64</span>
-    <span class="k">for</span> _, it := <span class="k">range</span> c.Items {
+    <span class="k">for</span> _, it := <span class="k">range</span> c.Items { <span class="c">// chỉ đọc nên dùng bản sao cũng được</span>
         t += it.Price * <span class="t">int64</span>(it.Qty)
     }
     <span class="k">return</span> t
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    cart := &amp;Cart{} <span class="c">// giỏ rỗng. &amp;: lấy con trỏ, vì các method dùng *Cart</span>
+
+    cart.<span class="f">Add</span>(Item{ProductID: <span class="n">1</span>, Price: <span class="n">10_000</span>, Qty: <span class="n">2</span>}) <span class="c">// 2 cuốn vở</span>
+    cart.<span class="f">Add</span>(Item{ProductID: <span class="n">2</span>, Price: <span class="n">5_000</span>, Qty: <span class="n">1</span>})  <span class="c">// 1 bút</span>
+    cart.<span class="f">Add</span>(Item{ProductID: <span class="n">1</span>, Price: <span class="n">10_000</span>, Qty: <span class="n">1</span>}) <span class="c">// thêm 1 vở: cộng dồn thành 3</span>
+
+    fmt.<span class="f">Println</span>(<span class="s">&quot;số dòng:&quot;</span>, <span class="b">len</span>(cart.Items))
+    fmt.<span class="f">Println</span>(<span class="s">&quot;tổng:&quot;</span>, cart.<span class="f">Total</span>())
+
+    cart.<span class="f">Remove</span>(<span class="n">2</span>)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;sau khi bỏ bút:&quot;</span>, cart.<span class="f">Total</span>())
 }</code></pre></div>
-<p><code>Total</code> không sửa gì, nhưng vẫn dùng pointer receiver để cả kiểu dùng một loại receiver. Nhắc lại bài 00: khi làm thật, <code>Price</code> phải lấy từ database lúc thanh toán, không tin giá trong giỏ hàng client gửi lên.</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>số dòng: 2
+tổng: 35000
+sau khi bỏ bút: 30000</pre></div>
+<p><b>Giải thích:</b> 3 vở × 10.000 + 1 bút × 5.000 = 35.000. "số dòng: 2" chứng tỏ lần thêm vở thứ hai được cộng dồn chứ không thêm dòng mới. <code>Total</code> không sửa gì, nhưng vẫn dùng pointer receiver để cả kiểu dùng một loại receiver. Nhắc lại bài 00: khi làm thật, <code>Price</code> phải lấy từ database lúc thanh toán, không tin giá trong giỏ hàng client gửi lên.</p>
 </details>
 </details>
 </div>

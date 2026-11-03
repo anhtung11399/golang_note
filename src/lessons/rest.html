@@ -65,13 +65,32 @@
 <p>Có một chuẩn chính thức cho việc này là <b>Problem Details for HTTP APIs</b> (RFC 9457, <code>Content-Type: application/problem+json</code>). Dùng chuẩn hay tự định nghĩa đều được, quan trọng nhất là <b>mọi</b> endpoint trả cùng một dạng.</p>
 
 <h2>Validate: không tin dữ liệu nào</h2>
+<p>Mỗi kiểu request có một method <code>Validate()</code>, kiểm tra <b>hết</b> các trường rồi trả về một lỗi chứa danh sách ô sai, để frontend tô đỏ đúng ô (không dừng ở ô sai đầu tiên). Chạy thử:</p>
 <pre lang="go">
-type CreateAssignmentReq struct {
-    Title    string `json:"title"`
-    DueDate  string `json:"dueDate"`  // "2026-11-10"
-    Count    int    `json:"count"`
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "strings"
+    "time"
+    "unicode/utf8"
+)
+
+// Lỗi chứa nhiều ô sai: tên ô -> câu báo lỗi
+type FieldsError struct {
+    Fields map[string]string
 }
 
+func (e *FieldsError) Error() string { return "dữ liệu không hợp lệ" }
+
+type CreateAssignmentReq struct {
+    Title   string `json:"title"`
+    DueDate string `json:"dueDate"` // "2026-11-10"
+    Count   int    `json:"count"`
+}
+
+// Pointer receiver vì Validate còn chuẩn hoá dữ liệu (bỏ khoảng trắng thừa)
 func (r *CreateAssignmentReq) Validate() error {
     r.Title = strings.TrimSpace(r.Title)
     fields := map[string]string{}
@@ -89,7 +108,35 @@ func (r *CreateAssignmentReq) Validate() error {
     }
     return nil
 }
+
+func main() {
+    body := `{"title": "   ", "dueDate": "10/11/2026", "count": 3}` // client gửi lên
+    var req CreateAssignmentReq
+    json.Unmarshal([]byte(body), &req)
+
+    if err := req.Validate(); err != nil {
+        fe := err.(*FieldsError) // ở đây biết chắc kiểu nên ép thẳng. Code thật dùng errors.As
+        // Đây chính là phần "fields" trong response lỗi ở mục trên
+        out, _ := json.MarshalIndent(map[string]any{
+            "error": map[string]any{"code": "INVALID", "message": "Kiểm tra lại các ô được đánh dấu", "fields": fe.Fields},
+        }, "", "  ")
+        fmt.Println(string(out))
+    }
+}
 </pre>
+<pre lang="out">
+{
+  "error": {
+    "code": "INVALID",
+    "fields": {
+      "dueDate": "Ngày không hợp lệ (YYYY-MM-DD)",
+      "title": "Nội dung từ 1 đến 200 ký tự"
+    },
+    "message": "Kiểm tra lại các ô được đánh dấu"
+  }
+}
+</pre>
+<p><code>count</code> = 3 hợp lệ nên không có trong danh sách lỗi. <code>time.DateOnly</code> là mẫu ngày <code>"2006-01-02"</code> có sẵn: ngày gửi lên dạng <code>10/11/2026</code> không khớp mẫu nên bị báo sai. <code>json.MarshalIndent</code> in JSON có thụt lề cho dễ đọc, và luôn xếp khoá theo chữ cái.</p>
 <aside class="prod"><p>Mọi giới hạn validate ở backend phải <b>khớp</b> với <code>maxlength</code>, <code>min</code>, <code>max</code> ở form frontend. Frontend validate để trải nghiệm tốt, backend validate để dữ liệu đúng. Thư viện <code>go-playground/validator</code> cho phép viết luật bằng tag (<code>validate:"required,max=200"</code>), rất phổ biến khi struct nhiều trường.</p></aside>
 
 <h2>Phân trang, lọc, sắp xếp</h2>
@@ -174,7 +221,13 @@ WHERE id = $2 AND version = $3;   -- 0 dòng bị sửa → đã có người s�
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Thiết kế API cho tính năng điểm danh</summary>
-<p>Giáo viên điểm danh học sinh theo ngày (có mặt / vắng có phép / vắng không phép), phụ huynh xin nghỉ cho con. Viết ra: danh sách endpoint (method + đường dẫn), body request, response, status cho từng trường hợp lỗi.</p>
+<p>Bài này không viết code, chỉ thiết kế trên giấy (hoặc file ghi chú), giống việc bạn làm trước khi bắt tay vào một tính năng ở công ty. Tính năng: giáo viên điểm danh học sinh theo ngày (có mặt / vắng có phép / vắng không phép), phụ huynh xin nghỉ cho con. Viết ra: danh sách endpoint (method + đường dẫn), body request, response, status cho từng trường hợp lỗi.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Liệt kê <b>danh từ</b> (tài nguyên): lớp, học sinh, ngày điểm danh, đơn xin nghỉ. Mỗi danh từ thường thành một đường dẫn.</li>
+<li>Liệt kê <b>ai làm gì</b>: giáo viên xem danh sách ngày hôm nay, giáo viên lưu điểm danh, phụ huynh gửi đơn, giáo viên duyệt đơn. Mỗi việc thành một endpoint, chọn method theo bảng ở đầu bài.</li>
+<li>Với mỗi endpoint, hỏi: ai được gọi (kiểm quyền thế nào), gửi sai thì trả gì (400), không có quyền thì trả gì (404 hay 403), gọi hai lần thì sao (idempotent không).</li>
+</ol>
 <details class="sol"><summary>Một đáp án</summary>
 <table>
 <tr><th>Endpoint</th><th>Ai gọi</th><th>Ghi chú</th></tr>

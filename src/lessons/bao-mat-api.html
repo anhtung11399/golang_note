@@ -210,6 +210,74 @@ gosec ./...                       # quét mẫu code không an toàn: SQL ghép 
 ? Đuôi file và https không ngăn được http://169.254.169.254/x.png hay https://ten-mien-tro-ve-127.0.0.1/logo.png. Kiểm IP thật ở tầng kết nối mới chặn được SSRF.
 </quiz>
 
+<h2>Bài tập</h2>
+<details class="ex"><summary>Tấn công thử API của chính bạn</summary>
+<p>Chạy API có đăng nhập ở lời giải bài 18 (hoặc bản Docker ở bài 22). Đóng vai kẻ tấn công, dùng <code>curl</code> thử 6 cách dưới đây. Với mỗi cách, đoán trước API sẽ trả gì, rồi mới chạy để kiểm tra.</p>
+<ol class="steps">
+<li><b>BOLA</b>: người B đọc, xoá ghi chú của người A bằng cách đổi id trên URL.</li>
+<li><b>SQL injection</b>: gửi email là <code>' OR '1'='1</code> khi đăng nhập.</li>
+<li><b>Body khổng lồ</b>: gửi một ghi chú 100 KB.</li>
+<li><b>Mass assignment</b>: đăng ký kèm trường lạ <code>"id": 1</code>, <code>"role": "admin"</code>.</li>
+<li><b>Không đăng nhập</b>: gọi <code>/notes</code> không có cookie, hoặc với cookie bịa ra.</li>
+<li><b>Lộ lỗi</b>: gửi JSON hỏng, xem response có lộ chi tiết bên trong không.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="sh">
+J='Content-Type: application/json'
+curl -s -c a.txt -X POST localhost:8080/register -H "$J" -d '{"email":"a@x.vn","password":"matkhau123"}'
+curl -s -c b.txt -X POST localhost:8080/register -H "$J" -d '{"email":"b@x.vn","password":"matkhau123"}'
+curl -s -b a.txt -X POST localhost:8080/notes -H "$J" -d '{"text":"bí mật của A"}'
+</pre>
+<pre lang="out">
+{"id":1,"email":"a@x.vn"}
+{"id":2,"email":"b@x.vn"}
+{"id":1,"text":"bí mật của A","createdAt":"2026-11-03T09:20:00.1+00:00"}
+</pre>
+<p><b>1. BOLA:</b> B thử ghi chú số 1 của A.</p>
+<pre lang="out">
+$ curl -s -b b.txt localhost:8080/notes/1
+{"error":"Không tìm thấy"}
+$ curl -s -o /dev/null -w '%{http_code}\n' -b b.txt -X DELETE localhost:8080/notes/1
+404
+</pre>
+<p>Chặn được vì mọi câu SQL có <code>AND user_id = $2</code>. Trả <code>404</code> chứ không phải <code>403</code>, nên B không biết ghi chú số 1 có tồn tại hay không.</p>
+<p><b>2. SQL injection:</b></p>
+<pre lang="out">
+$ curl -s -X POST localhost:8080/login -H "$J" -d $'{"email":"\' OR \'1\'=\'1","password":"x"}'
+{"error":"Email hoặc mật khẩu không đúng"}
+</pre>
+<p>Chặn được vì câu SQL dùng tham số <code>$1</code>: chuỗi <code>' OR '1'='1</code> được coi là một email (lạ), không phải code SQL. (<code>$'...'</code> là cách bash cho phép viết dấu nháy đơn bên trong chuỗi.)</p>
+<p><b>3. Body khổng lồ:</b> tạo chuỗi 100.000 chữ <code>a</code> bằng Python rồi gửi:</p>
+<pre lang="out">
+$ BIG=$(python3 -c 'print("a" * 100000)')
+$ curl -s -b a.txt -X POST localhost:8080/notes -H "$J" -d "{\"text\":\"$BIG\"}"
+{"error":"JSON không hợp lệ"}
+</pre>
+<p>Chặn được nhờ <code>http.MaxBytesReader</code> (64 KB) trong hàm <code>decode</code>: server ngừng đọc khi vượt giới hạn, không nạp cả khối vào RAM. Câu báo lỗi chưa thật chính xác: muốn báo "Dữ liệu quá lớn" thì kiểm <code>*http.MaxBytesError</code> như hàm <code>DecodeJSON</code> ở bài 11.</p>
+<p><b>4. Mass assignment:</b></p>
+<pre lang="out">
+$ curl -s -X POST localhost:8080/register -H "$J" -d '{"email":"c@x.vn","password":"matkhau123","id":1,"role":"admin"}'
+{"id":3,"email":"c@x.vn"}
+</pre>
+<p>Không làm gì được: struct <code>credentials</code> chỉ có hai trường <code>Email</code>, <code>Password</code>, nên <code>id</code> và <code>role</code> bị bỏ qua, id do database tự đánh. Nếu bạn lỡ decode thẳng vào struct <code>User</code> có trường <code>Role</code>, kẻ tấn công tự phong admin được. Đó là lý do mỗi request có struct riêng.</p>
+<p><b>5. Không đăng nhập / cookie bịa:</b></p>
+<pre lang="out">
+$ curl -s localhost:8080/notes
+{"error":"Vui lòng đăng nhập"}
+$ curl -s -H 'Cookie: __Host-session=toi-tu-bia-ra' localhost:8080/notes
+{"error":"Vui lòng đăng nhập"}
+</pre>
+<p>Token bịa không có bản băm tương ứng trong bảng <code>sessions</code>. Token thật là 32 byte ngẫu nhiên, đoán trúng là chuyện không thể.</p>
+<p><b>6. Lộ lỗi:</b></p>
+<pre lang="out">
+$ curl -s -b a.txt -X POST localhost:8080/notes -H "$J" -d '{"text":'
+{"error":"JSON không hợp lệ"}
+</pre>
+<p>Response chỉ có câu chung chung. Chi tiết như <code>unexpected EOF</code>, tên bảng, câu SQL không lọt ra ngoài.</p>
+<p><b>Kết luận:</b> cả 6 cách đều bị chặn, và mỗi cái chặn được nhờ một dòng code cụ thể bạn đã viết. Thử bỏ <code>AND user_id = $2</code> trong <code>getNote</code> rồi chạy lại cách 1: B đọc được bí mật của A. Đó chính là lỗi API số một của OWASP.</p>
+</details>
+</details>
+
 <h2>Checklist trước khi lên production</h2>
 <details class="ex"><summary>Tự rà API của bạn theo danh sách này</summary>
 <ul>

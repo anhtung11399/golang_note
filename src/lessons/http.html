@@ -19,7 +19,7 @@ Location: /api/assignments/9001
 <p>Việc của backend là đọc từng phần của request (method, đường dẫn, query, header, cookie, body), quyết định và viết ra từng phần của response (status, header, body). HTTP/2 và HTTP/3 truyền dạng nhị phân, nhưng các phần này vẫn y nguyên, và Go xử lý chúng giúp bạn.</p>
 
 <h2>Server nhỏ nhất</h2>
-<pre lang="go" file="main.go">
+<pre lang="go" file="main.go" check="no">
 package main
 
 import (
@@ -40,11 +40,33 @@ func main() {
     log.Fatal(http.ListenAndServe(":8080", nil))
 }
 </pre>
-<pre lang="sh">
-go run .
-curl "localhost:8080/hello?name=Lan"     # Xin chào, Lan!
-curl -X POST localhost:8080/hello        # 405 Method Not Allowed (Go tự trả)
+<h3>Chạy thử: cần hai cửa sổ terminal</h3>
+<p>Khác các chương trình trước (chạy xong là thoát), server <b>chạy mãi</b> để chờ request. Vì vậy:</p>
+<p><b>Terminal 1</b>: tạo dự án như bài 01 (<code>mkdir hello-http &amp;&amp; cd hello-http &amp;&amp; go mod init hello-http</code>), dán code vào <code>main.go</code>, rồi chạy. Terminal này sẽ "đứng yên", đó là đúng:</p>
+<pre lang="out">
+$ go run .
+2026/11/03 09:00:00 chạy ở http://localhost:8080
 </pre>
+<p><b>Terminal 2</b> (mở thêm một tab terminal mới): gửi request bằng <code>curl</code>, công cụ gửi HTTP từ dòng lệnh có sẵn trên macOS và Linux:</p>
+<pre lang="out">
+$ curl "localhost:8080/hello?name=Lan"
+Xin chào, Lan!
+$ curl localhost:8080/hello
+Xin chào, bạn!
+$ curl -X POST localhost:8080/hello
+Method Not Allowed
+</pre>
+<p>Hoặc mở trình duyệt vào <code>http://localhost:8080/hello?name=Lan</code>, trình duyệt cũng chỉ gửi một request <code>GET</code>. Request <code>POST</code> bị từ chối vì đường dẫn đăng ký là <code>"GET /hello"</code>: Go tự trả <code>405 Method Not Allowed</code>.</p>
+<p>Muốn tắt server: quay lại terminal 1, bấm <kbd>Ctrl</kbd> + <kbd>C</kbd>. Sửa code xong phải tắt rồi <code>go run .</code> lại (Go không tự tải lại như <code>vite dev</code>).</p>
+<aside class="tip"><p>Gặp lỗi <code>listen tcp :8080: bind: address already in use</code> nghĩa là đang có chương trình khác (thường là chính server cũ bạn quên tắt) chiếm cổng 8080. Tắt nó đi, hoặc đổi <code>":8080"</code> thành <code>":8081"</code>.</p></aside>
+
+<h3>Đọc từng dòng</h3>
+<ul>
+<li><code>http.HandleFunc("GET /hello", func(w, r) {...})</code>: "khi có request <code>GET</code> tới <code>/hello</code>, chạy hàm này". Giống <code>app.get("/hello", (req, res) =&gt; {...})</code> của Express.</li>
+<li><code>r.URL.Query().Get("name")</code>: lấy tham số <code>?name=</code> trên URL. Không có thì ra chuỗi rỗng.</li>
+<li><code>fmt.Fprintf(w, ...)</code>: giống <code>Printf</code> nhưng ghi vào <code>w</code> (response gửi về client) thay vì màn hình.</li>
+<li><code>http.ListenAndServe(":8080", nil)</code>: mở cổng 8080 và bắt đầu nhận request. Hàm này chạy mãi, chỉ trả về khi có lỗi. <code>log.Fatal</code> in lỗi đó rồi thoát.</li>
+</ul>
 <p>Hai nhân vật chính:</p>
 <ul>
 <li><code>r *http.Request</code>: mọi thứ client gửi lên. <code>r.Method</code>, <code>r.URL.Path</code>, <code>r.URL.Query()</code>, <code>r.Header</code>, <code>r.Body</code>, <code>r.Context()</code>.</li>
@@ -184,7 +206,7 @@ func fetchRates(ctx context.Context) (Rates, error) {
 <aside class="fe"><p><code>fetch</code> của trình duyệt cũng không có timeout mặc định, nhưng ở frontend hậu quả là một spinner quay mãi cho một người. Ở backend, hậu quả là cả server chết dần cho tất cả mọi người.</p></aside>
 
 <h2>Ghép lại: API ghi chú trong bộ nhớ</h2>
-<pre lang="go" file="main.go">
+<pre lang="go" file="main.go" check="no">
 package main
 
 import (
@@ -275,13 +297,33 @@ func main() {
     log.Fatal(srv.ListenAndServe())
 }
 </pre>
-<pre lang="sh">
-curl -X POST localhost:8080/notes -H 'Content-Type: application/json' -d '{"text":"Học Go"}'
-curl localhost:8080/notes
-curl localhost:8080/notes/1
-curl -i localhost:8080/notes/abc    # -i để xem cả status và header
+<p>Chạy <code>go run .</code> ở terminal 1, rồi thử ở terminal 2. <code>-X POST</code> chọn method, <code>-H</code> thêm header, <code>-d</code> là body gửi lên. <code>-i</code> in cả status và header của response:</p>
+<pre lang="out">
+$ curl -X POST localhost:8080/notes -H 'Content-Type: application/json' -d '{"text":"Học Go"}'
+{"id":1,"text":"Học Go","createdAt":"2026-11-03T09:00:01.123456+07:00"}
+$ curl -X POST localhost:8080/notes -H 'Content-Type: application/json' -d '{"text":"   "}'
+{"error":"Nội dung từ 1 đến 500 ký tự"}
+$ curl localhost:8080/notes
+[{"id":1,"text":"Học Go","createdAt":"2026-11-03T09:00:01.123456+07:00"}]
+$ curl localhost:8080/notes/1
+{"id":1,"text":"Học Go","createdAt":"2026-11-03T09:00:01.123456+07:00"}
+$ curl -i localhost:8080/notes/abc
+HTTP/1.1 400 Bad Request
+Content-Type: application/json; charset=utf-8
+Date: Tue, 03 Nov 2026 02:00:05 GMT
+Content-Length: 33
+
+{"error":"id không hợp lệ"}
 </pre>
-<p>Để ý: method <code>s.list</code> được truyền thẳng làm handler (method value). Đây là cách gọn để handler dùng chung dữ liệu với nhau mà không cần biến toàn cục.</p>
+<p>Tắt server rồi chạy lại: danh sách ghi chú trống trơn, vì dữ liệu chỉ nằm trong bộ nhớ (map). Bài 14, 15 sẽ lưu vào database.</p>
+<p><b>Đọc chương trình theo thứ tự chạy:</b></p>
+<ol class="steps">
+<li><code>main</code> tạo <code>store</code> rỗng, đăng ký 3 đường dẫn, mở server.</li>
+<li>Request <code>POST /notes</code> tới: Go gọi <code>s.create</code>. Hàm đọc JSON vào struct <code>req</code>, kiểm tra nội dung, khoá mutex, thêm ghi chú vào map, mở khoá, trả JSON với status <code>201</code>.</li>
+<li>Request <code>GET /notes/1</code> tới: Go gọi <code>s.get</code>. <code>r.PathValue("id")</code> lấy phần <code>{id}</code> trên đường dẫn (chuỗi <code>"1"</code>), đổi sang số, tìm trong map.</li>
+<li>Mutex cần thiết vì mỗi request chạy trên một goroutine riêng (bài 09): hai người cùng tạo ghi chú một lúc sẽ cùng ghi vào map.</li>
+</ol>
+<p>Để ý: method <code>s.list</code> được truyền thẳng làm handler (method value, không có ngoặc). Đây là cách gọn để các handler dùng chung dữ liệu với nhau mà không cần biến toàn cục.</p>
 
 <quiz q="Handler gọi <code>w.Write([]byte(&quot;lỗi&quot;))</code> rồi mới gọi <code>w.WriteHeader(500)</code>. Client nhận status gì?">
 + 200, và Go ghi cảnh báo "superfluous response.WriteHeader call" vào log
@@ -292,54 +334,297 @@ curl -i localhost:8080/notes/abc    # -i để xem cả status và header
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Hoàn thiện API ghi chú</summary>
-<p>Thêm vào API trên: <code>DELETE /notes/{id}</code> trả <code>204</code>, <code>PATCH /notes/{id}</code> sửa nội dung, <code>GET /notes?q=go</code> lọc theo từ khoá (không phân biệt hoa thường), và danh sách trả về sắp xếp theo id tăng dần (nhớ là map duyệt ngẫu nhiên).</p>
-<details class="sol"><summary>Gợi ý</summary>
-<pre lang="go">
-func (s *store) remove(w http.ResponseWriter, r *http.Request) {
+<p>Thêm vào API ghi chú ở trên:</p>
+<ul>
+<li><code>DELETE /notes/{id}</code>: xoá, trả <code>204 No Content</code> (không có body). Không có id đó thì <code>404</code>.</li>
+<li><code>PATCH /notes/{id}</code>: sửa nội dung, body <code>{"text":"..."}</code>, kiểm tra như lúc tạo.</li>
+<li><code>GET /notes?q=go</code>: chỉ trả ghi chú có chứa từ khoá, không phân biệt hoa thường.</li>
+<li>Danh sách luôn sắp xếp theo id tăng dần (map duyệt ngẫu nhiên, nên tạo vài ghi chú rồi gọi danh sách nhiều lần sẽ thấy thứ tự nhảy lung tung).</li>
+</ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Đăng ký thêm đường dẫn trong <code>main</code>: <code>mux.HandleFunc("DELETE /notes/{id}", s.remove)</code>, tương tự cho <code>PATCH</code>.</li>
+<li>Đoạn "đọc id từ đường dẫn" và "trả lỗi JSON" bị lặp ở nhiều handler. Tách thành hàm <code>parseID(r)</code> và <code>writeErr(w, status, msg)</code>.</li>
+<li><code>remove</code>: khoá, kiểm tra có không (<code>_, ok := s.notes[id]</code>), <code>delete</code>, mở khoá. Trả <code>w.WriteHeader(http.StatusNoContent)</code>, không ghi body.</li>
+<li><code>update</code>: giống <code>create</code> phần đọc và kiểm tra JSON, giống <code>get</code> phần tìm theo id. Struct trong map là bản sao: lấy ra, sửa, gán lại <code>s.notes[id] = n</code>.</li>
+<li><code>list</code>: <code>q := strings.ToLower(r.URL.Query().Get("q"))</code>. Khi duyệt map, chỉ thêm ghi chú nếu <code>q == ""</code> hoặc <code>strings.Contains(strings.ToLower(n.Text), q)</code>. Cuối cùng <code>slices.SortFunc(out, func(a, b Note) int { return cmp.Compare(a.ID, b.ID) })</code>.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<p>Toàn bộ <code>main.go</code>, thay hẳn file cũ:</p>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "cmp"
+    "encoding/json"
+    "errors"
+    "log"
+    "net/http"
+    "slices"
+    "strconv"
+    "strings"
+    "sync"
+    "time"
+)
+
+type Note struct {
+    ID        int64     `json:"id"`
+    Text      string    `json:"text"`
+    CreatedAt time.Time `json:"createdAt"`
+}
+
+type store struct {
+    mu     sync.Mutex
+    nextID int64
+    notes  map[int64]Note
+}
+
+// ---- hàm dùng chung ----
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+    w.Header().Set("Content-Type", "application/json; charset=utf-8")
+    w.WriteHeader(status)
+    json.NewEncoder(w).Encode(v)
+}
+
+func writeErr(w http.ResponseWriter, status int, msg string) {
+    writeJSON(w, status, map[string]string{"error": msg})
+}
+
+func parseID(r *http.Request) (int64, bool) {
     id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+    return id, err == nil && id > 0
+}
+
+// readText đọc {"text": "..."} và kiểm tra độ dài
+func readText(w http.ResponseWriter, r *http.Request) (string, error) {
+    var req struct {
+        Text string `json:"text"`
+    }
+    r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        return "", errors.New("JSON không hợp lệ")
+    }
+    text := strings.TrimSpace(req.Text)
+    if text == "" || len([]rune(text)) > 500 {
+        return "", errors.New("Nội dung từ 1 đến 500 ký tự")
+    }
+    return text, nil
+}
+
+// ---- handler ----
+
+func (s *store) list(w http.ResponseWriter, r *http.Request) {
+    q := strings.ToLower(r.URL.Query().Get("q"))
+    s.mu.Lock()
+    out := make([]Note, 0, len(s.notes))
+    for _, n := range s.notes {
+        if q == "" || strings.Contains(strings.ToLower(n.Text), q) {
+            out = append(out, n)
+        }
+    }
+    s.mu.Unlock()
+    slices.SortFunc(out, func(a, b Note) int { return cmp.Compare(a.ID, b.ID) }) // id tăng dần
+    writeJSON(w, http.StatusOK, out)
+}
+
+func (s *store) create(w http.ResponseWriter, r *http.Request) {
+    text, err := readText(w, r)
     if err != nil {
-        writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id không hợp lệ"})
+        writeErr(w, http.StatusBadRequest, err.Error())
         return
     }
     s.mu.Lock()
-    _, ok := s.notes[id]
-    delete(s.notes, id)
+    s.nextID++
+    n := Note{ID: s.nextID, Text: text, CreatedAt: time.Now()}
+    s.notes[n.ID] = n
     s.mu.Unlock()
-    if !ok {
-        writeJSON(w, http.StatusNotFound, map[string]string{"error": "Không tìm thấy"})
-        return
-    }
-    w.WriteHeader(http.StatusNoContent) // 204: không có body
+    writeJSON(w, http.StatusCreated, n)
 }
 
-// trong list: lọc rồi sắp xếp
-q := strings.ToLower(r.URL.Query().Get("q"))
-// ... if q == "" || strings.Contains(strings.ToLower(n.Text), q) { out = append(out, n) }
-slices.SortFunc(out, func(a, b Note) int { return cmp.Compare(a.ID, b.ID) })
+func (s *store) get(w http.ResponseWriter, r *http.Request) {
+    id, ok := parseID(r)
+    if !ok {
+        writeErr(w, http.StatusBadRequest, "id không hợp lệ")
+        return
+    }
+    s.mu.Lock()
+    n, found := s.notes[id]
+    s.mu.Unlock()
+    if !found {
+        writeErr(w, http.StatusNotFound, "Không tìm thấy")
+        return
+    }
+    writeJSON(w, http.StatusOK, n)
+}
+
+func (s *store) update(w http.ResponseWriter, r *http.Request) {
+    id, ok := parseID(r)
+    if !ok {
+        writeErr(w, http.StatusBadRequest, "id không hợp lệ")
+        return
+    }
+    text, err := readText(w, r)
+    if err != nil {
+        writeErr(w, http.StatusBadRequest, err.Error())
+        return
+    }
+    s.mu.Lock()
+    n, found := s.notes[id]
+    if found {
+        n.Text = text   // n là bản sao lấy từ map...
+        s.notes[id] = n // ...nên phải gán lại vào map
+    }
+    s.mu.Unlock()
+    if !found {
+        writeErr(w, http.StatusNotFound, "Không tìm thấy")
+        return
+    }
+    writeJSON(w, http.StatusOK, n)
+}
+
+func (s *store) remove(w http.ResponseWriter, r *http.Request) {
+    id, ok := parseID(r)
+    if !ok {
+        writeErr(w, http.StatusBadRequest, "id không hợp lệ")
+        return
+    }
+    s.mu.Lock()
+    _, found := s.notes[id]
+    delete(s.notes, id)
+    s.mu.Unlock()
+    if !found {
+        writeErr(w, http.StatusNotFound, "Không tìm thấy")
+        return
+    }
+    w.WriteHeader(http.StatusNoContent) // 204: thành công, không có body
+}
+
+func (s *store) routes() *http.ServeMux {
+    mux := http.NewServeMux()
+    mux.HandleFunc("GET /notes", s.list)
+    mux.HandleFunc("POST /notes", s.create)
+    mux.HandleFunc("GET /notes/{id}", s.get)
+    mux.HandleFunc("PATCH /notes/{id}", s.update)
+    mux.HandleFunc("DELETE /notes/{id}", s.remove)
+    return mux
+}
+
+func main() {
+    s := &store{notes: map[int64]Note{}}
+    srv := &http.Server{Addr: ":8080", Handler: s.routes(), ReadHeaderTimeout: 5 * time.Second}
+    log.Println("http://localhost:8080")
+    log.Fatal(srv.ListenAndServe())
+}
 </pre>
+<p>Thử ở terminal 2 (<code>-s</code> để curl không in thanh tiến trình, <code>-o /dev/null -w '%{http_code}\n'</code> để chỉ in status):</p>
+<pre lang="out">
+$ curl -s -X POST localhost:8080/notes -H 'Content-Type: application/json' -d '{"text":"Học Go"}'
+{"id":1,"text":"Học Go","createdAt":"2026-11-03T09:00:01.1+07:00"}
+$ curl -s -X POST localhost:8080/notes -H 'Content-Type: application/json' -d '{"text":"Đi chợ"}'
+{"id":2,"text":"Đi chợ","createdAt":"2026-11-03T09:00:02.2+07:00"}
+$ curl -s "localhost:8080/notes?q=GO"
+[{"id":1,"text":"Học Go","createdAt":"2026-11-03T09:00:01.1+07:00"}]
+$ curl -s -X PATCH localhost:8080/notes/2 -H 'Content-Type: application/json' -d '{"text":"Đi chợ mua rau"}'
+{"id":2,"text":"Đi chợ mua rau","createdAt":"2026-11-03T09:00:02.2+07:00"}
+$ curl -s -o /dev/null -w '%{http_code}\n' -X DELETE localhost:8080/notes/1
+204
+$ curl -s -o /dev/null -w '%{http_code}\n' -X DELETE localhost:8080/notes/1
+404
+$ curl -s localhost:8080/notes
+[{"id":2,"text":"Đi chợ mua rau","createdAt":"2026-11-03T09:00:02.2+07:00"}]
+</pre>
+<p><b>Giải thích:</b> xoá lần hai ra <code>404</code> vì ghi chú 1 không còn. Hàm <code>routes()</code> gom việc đăng ký đường dẫn vào một chỗ, để bài tập sau dùng lại được trong test.</p>
 </details>
 </details>
 <details class="ex"><summary>Viết test cho handler</summary>
-<p>Dùng <code>httptest</code> viết test: tạo ghi chú rỗng bị 400, tạo đúng được 201 và lấy lại được bằng id, lấy id không tồn tại bị 404. Chạy với <code>-race</code>.</p>
-<details class="sol"><summary>Gợi ý</summary>
-<pre lang="go">
-func TestCreateAndGet(t *testing.T) {
-    s := &store{notes: map[int64]Note{}}
-    mux := http.NewServeMux()
-    mux.HandleFunc("POST /notes", s.create)
-    mux.HandleFunc("GET /notes/{id}", s.get) // test qua mux để PathValue hoạt động
+<p>Dùng <code>httptest</code> (bài 10) viết test cho API ở bài tập trên, không cần bật server:</p>
+<ul>
+<li>tạo ghi chú rỗng bị <code>400</code>.</li>
+<li>tạo đúng được <code>201</code>, rồi lấy lại được bằng id.</li>
+<li>lấy id không tồn tại bị <code>404</code>.</li>
+</ul>
+<p>Chạy với <code>go test -race -v .</code></p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Tạo <code>main_test.go</code> cạnh <code>main.go</code>, cùng <code>package main</code> nên dùng được <code>store</code> và <code>routes()</code>.</li>
+<li>Gửi request qua <code>mux.ServeHTTP(rec, req)</code> (không gọi thẳng handler), để <code>r.PathValue("id")</code> có giá trị: chính mux mới tách <code>{id}</code> ra.</li>
+<li><code>httptest.NewRequest("POST", "/notes", strings.NewReader(`{"text":"a"}`))</code> tạo request, <code>httptest.NewRecorder()</code> ghi lại response. Đọc <code>rec.Code</code> (status) và <code>rec.Body.String()</code>.</li>
+<li>Viết một hàm nhỏ <code>do(method, path, body)</code> để không lặp ba dòng trên.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<pre lang="go" file="main_test.go" check="no">
+package main
 
+import (
+    "encoding/json"
+    "net/http"
+    "net/http/httptest"
+    "strings"
+    "testing"
+)
+
+// do gửi một request giả vào mux và trả về bản ghi response
+func do(t *testing.T, h http.Handler, method, path, body string) *httptest.ResponseRecorder {
+    t.Helper()
+    req := httptest.NewRequest(method, path, strings.NewReader(body))
+    req.Header.Set("Content-Type", "application/json")
     rec := httptest.NewRecorder()
-    mux.ServeHTTP(rec, httptest.NewRequest("POST", "/notes", strings.NewReader(`{"text":"a"}`)))
-    if rec.Code != http.StatusCreated {
-        t.Fatalf("tạo: %d", rec.Code)
-    }
-    rec = httptest.NewRecorder()
-    mux.ServeHTTP(rec, httptest.NewRequest("GET", "/notes/1", nil))
-    if rec.Code != http.StatusOK {
-        t.Fatalf("lấy: %d", rec.Code)
-    }
+    h.ServeHTTP(rec, req)
+    return rec
+}
+
+func TestNotes(t *testing.T) {
+    s := &store{notes: map[int64]Note{}} // mỗi test một store mới, sạch
+    h := s.routes()
+
+    t.Run("tạo rỗng bị 400", func(t *testing.T) {
+        rec := do(t, h, "POST", "/notes", `{"text":"   "}`)
+        if rec.Code != http.StatusBadRequest {
+            t.Fatalf("status = %d, muốn 400", rec.Code)
+        }
+    })
+
+    t.Run("tạo rồi lấy lại", func(t *testing.T) {
+        rec := do(t, h, "POST", "/notes", `{"text":"Học Go"}`)
+        if rec.Code != http.StatusCreated {
+            t.Fatalf("tạo: status = %d, body = %s", rec.Code, rec.Body)
+        }
+        var created Note
+        json.Unmarshal(rec.Body.Bytes(), &created) // đọc id vừa tạo từ response
+
+        rec = do(t, h, "GET", "/notes/1", "")
+        if rec.Code != http.StatusOK {
+            t.Fatalf("lấy: status = %d", rec.Code)
+        }
+        var got Note
+        json.Unmarshal(rec.Body.Bytes(), &got)
+        if got.ID != created.ID || got.Text != "Học Go" {
+            t.Errorf("lấy được %+v, muốn %+v", got, created)
+        }
+    })
+
+    t.Run("id không tồn tại bị 404", func(t *testing.T) {
+        rec := do(t, h, "GET", "/notes/999", "")
+        if rec.Code != http.StatusNotFound {
+            t.Errorf("status = %d, muốn 404", rec.Code)
+        }
+    })
 }
 </pre>
+<pre lang="out">
+$ go test -race -v .
+=== RUN   TestNotes
+=== RUN   TestNotes/tạo_rỗng_bị_400
+=== RUN   TestNotes/tạo_rồi_lấy_lại
+=== RUN   TestNotes/id_không_tồn_tại_bị_404
+--- PASS: TestNotes (0.00s)
+    --- PASS: TestNotes/tạo_rỗng_bị_400 (0.00s)
+    --- PASS: TestNotes/tạo_rồi_lấy_lại (0.00s)
+    --- PASS: TestNotes/id_không_tồn_tại_bị_404 (0.00s)
+PASS
+ok  	notes	1.234s
+</pre>
+<p><b>Giải thích:</b> <code>h.ServeHTTP(rec, req)</code> chạy đúng con đường một request thật đi qua (mux tìm handler, handler ghi response), chỉ khác là không có mạng. Vì vậy test chạy trong vài mili giây và chạy được trong CI. Ba test con dùng chung một <code>store</code> nên chạy theo thứ tự: test thứ hai tạo ghi chú có id 1 vì test thứ nhất không tạo được gì.</p>
 </details>
 </details>

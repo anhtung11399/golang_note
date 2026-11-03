@@ -20,14 +20,64 @@
 <li>Chỉ dùng <code>context.Background()</code> ở điểm khởi đầu: hàm <code>main</code>, test, việc nền.</li>
 </ul>
 
-<h3>Đặt thời hạn</h3>
+<h3>Context hoạt động thế nào</h3>
+<p>Một <code>ctx</code> có method <code>Done()</code> trả về một channel. Channel đó bị đóng khi ctx bị huỷ (do ai đó gọi <code>cancel()</code>, hoặc hết giờ). Hàm làm việc lâu chỉ cần <code>select</code> (bài 09) giữa "việc xong" và "<code>ctx.Done()</code>". Chạy thử:</p>
+<pre lang="go">
+package main
+
+import (
+    "context"
+    "fmt"
+    "time"
+)
+
+// Giả lập gọi dịch vụ tỷ giá: cần `d` thời gian mới có kết quả
+func fetchRate(ctx context.Context, d time.Duration) (int, error) {
+    select {
+    case <-time.After(d): // làm xong
+        return 25_400, nil
+    case <-ctx.Done(): // bị huỷ hoặc hết giờ TRƯỚC khi làm xong
+        return 0, ctx.Err() // ctx.Err() cho biết lý do
+    }
+}
+
+func main() {
+    // Tạo ctx tự hết hạn sau 1 giây. context.Background() là ctx gốc, không bao giờ hết hạn
+    ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+    defer cancel() // LUÔN gọi cancel khi xong việc, để dọn bộ đếm giờ
+
+    rate, err := fetchRate(ctx, 200*time.Millisecond) // nhanh: kịp trước hạn
+    fmt.Println("lần 1:", rate, err)
+
+    rate, err = fetchRate(ctx, 3*time.Second) // chậm: hết 1 giây là bị cắt
+    fmt.Println("lần 2:", rate, err)
+
+    // Huỷ bằng tay: giống controller.abort() của AbortController
+    ctx2, cancel2 := context.WithCancel(context.Background())
+    go func() {
+        time.Sleep(100 * time.Millisecond)
+        cancel2() // một nơi khác quyết định huỷ
+    }()
+    rate, err = fetchRate(ctx2, 3*time.Second)
+    fmt.Println("lần 3:", rate, err)
+}
+</pre>
+<pre lang="out">
+lần 1: 25400 <nil>
+lần 2: 0 context deadline exceeded
+lần 3: 0 context canceled
+</pre>
+<p>Hai lỗi có sẵn: <code>context.DeadlineExceeded</code> (in ra "context deadline exceeded": hết giờ) và <code>context.Canceled</code> ("context canceled": bị huỷ). Kiểm tra bằng <code>errors.Is(err, context.DeadlineExceeded)</code>. Mọi thư viện mạng, database của Go đều làm giống <code>fetchRate</code> ở trên: nhận ctx, dừng khi ctx bị huỷ.</p>
+
+<h3>Đặt thời hạn cho một bước</h3>
+<p>Cách dùng thật trong service (trích đoạn): request còn bao nhiêu thời gian không biết, nhưng bước gọi dịch vụ tỷ giá thì không được quá 2 giây.</p>
 <pre lang="go">
 func (s *Service) Quote(ctx context.Context, id int64) (Price, error) {
-    // Gọi dịch vụ tỷ giá bên ngoài, nhưng không chờ quá 2 giây
+    // ctx con: hết hạn sau 2 giây, HOẶC khi ctx cha (của request) bị huỷ, cái nào đến trước
     ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-    defer cancel() // LUÔN gọi cancel để giải phóng bộ đếm giờ, kể cả khi xong sớm
+    defer cancel()
 
-    rate, err := s.fx.Rate(ctx, "USD", "VND")
+    rate, err := s.fx.Rate(ctx, "USD", "VND") // truyền ctx con xuống
     if err != nil {
         if errors.Is(err, context.DeadlineExceeded) {
             return Price{}, fmt.Errorf("dịch vụ tỷ giá quá chậm: %w", err)
@@ -40,6 +90,7 @@ func (s *Service) Quote(ctx context.Context, id int64) (Price, error) {
 <p>Hạn chót <b>lồng nhau</b>: nếu request gốc còn 1 giây mà bạn đặt <code>WithTimeout(ctx, 2*time.Second)</code>, ctx con vẫn hết hạn sau 1 giây. Context con không bao giờ sống lâu hơn context cha.</p>
 
 <h3>Tự kiểm tra ctx trong việc chạy lâu</h3>
+<p>Vòng lặp xử lý hàng triệu dòng không tự dừng khi ctx bị huỷ. Thỉnh thoảng hỏi <code>ctx.Err()</code>: trả <code>nil</code> là còn được chạy (trích đoạn):</p>
 <pre lang="go">
 func exportCSV(ctx context.Context, w io.Writer, rows []Row) error {
     for i, r := range rows {
@@ -55,24 +106,52 @@ func exportCSV(ctx context.Context, w io.Writer, rows []Row) error {
 </pre>
 
 <h3>Giá trị đi theo request</h3>
+<p>Context còn mang theo được vài giá trị, ví dụ mã của request để mọi dòng log của cùng một request có chung một mã (bài 21):</p>
 <pre lang="go">
+package main
+
+import (
+    "context"
+    "fmt"
+)
+
 type ctxKey string // kiểu riêng, tránh trùng khoá với package khác
 
 const requestIDKey ctxKey = "request_id"
 
+// Trả về ctx MỚI có thêm giá trị. ctx cũ không bị sửa
 func WithRequestID(ctx context.Context, id string) context.Context {
     return context.WithValue(ctx, requestIDKey, id)
 }
 
 func RequestID(ctx context.Context) string {
-    id, _ := ctx.Value(requestIDKey).(string)
+    id, _ := ctx.Value(requestIDKey).(string) // Value trả về any, đổi sang string (bài 06)
     return id
 }
+
+// Hàm ở tầng sâu bên trong: không cần tham số requestID riêng, lấy từ ctx
+func saveToDB(ctx context.Context) {
+    fmt.Println("[" + RequestID(ctx) + "] lưu vào database")
+}
+
+func main() {
+    ctx := WithRequestID(context.Background(), "req-7f3a")
+    saveToDB(ctx)
+}
+</pre>
+<pre lang="out">
+[req-7f3a] lưu vào database
 </pre>
 <aside class="warn"><p>Chỉ đặt vào context những thứ <b>thuộc về request</b>: request id, thông tin người dùng đã xác thực, trace id. Không dùng context để truyền tham số tuỳ chọn hay phụ thuộc (database, logger cấu hình): như vậy hàm có tham số ẩn, rất khó đọc và test.</p></aside>
 
 <h2>Kiểm thử: có sẵn trong Go</h2>
-<p>Không cần cài Jest. File test nằm cạnh file code, tên kết thúc bằng <code>_test.go</code>, hàm test bắt đầu bằng <code>Test</code>:</p>
+<p>Không cần cài Jest. Quy tắc:</p>
+<ul>
+<li>File test nằm <b>cạnh</b> file code, cùng thư mục, tên kết thúc bằng <code>_test.go</code>.</li>
+<li>Hàm test tên bắt đầu bằng <code>Test</code>, nhận một tham số <code>t *testing.T</code>.</li>
+<li>Go không có <code>expect(...).toBe(...)</code>. Bạn tự so sánh bằng <code>if</code>, sai thì gọi <code>t.Errorf</code>.</li>
+</ul>
+<p>Dùng lại dự án <code>sobaitap</code> ở bài 08 (có <code>grade/grade.go</code> với hàm <code>Classify</code>). Tạo thêm file <code>grade/grade_test.go</code>:</p>
 <pre lang="go" file="grade/grade_test.go">
 package grade
 
@@ -85,18 +164,38 @@ func TestClassify(t *testing.T) {
     }
 }
 </pre>
+<p>Chạy ở thư mục gốc <code>sobaitap</code>:</p>
+<pre lang="out">
+$ go test ./...
+?   	github.com/lan/sobaitap	[no test files]
+ok  	github.com/lan/sobaitap/grade	0.004s
+</pre>
+<p><code>ok</code> là mọi test qua. Dòng <code>[no test files]</code> nói package <code>main</code> chưa có test, không sao. Thử sửa <code>"Giỏi"</code> trong test thành <code>"Xuất sắc"</code> để thấy test hỏng trông thế nào:</p>
+<pre lang="out" sim="1">
+$ go test ./...
+--- FAIL: TestClassify (0.00s)
+    grade_test.go:8: Classify(8.5) = "Giỏi", muốn "Xuất sắc"
+FAIL
+FAIL	github.com/lan/sobaitap/grade	0.004s
+</pre>
+<p>Các lệnh hay dùng:</p>
 <pre lang="sh">
-go test ./...                 # chạy mọi test
-go test ./grade -run Classify # chỉ chạy test có tên khớp
-go test -v ./...              # in chi tiết
+go test ./...                 # chạy mọi test trong dự án
+go test ./grade -run Classify # chỉ chạy test có tên chứa "Classify"
+go test -v ./...              # in chi tiết từng test
 go test -race -cover ./...    # kèm phát hiện race và độ phủ
 </pre>
 <p><code>t.Errorf</code> báo lỗi nhưng chạy tiếp, <code>t.Fatalf</code> báo lỗi và dừng test đó ngay (dùng khi các bước sau vô nghĩa nếu bước này hỏng).</p>
 
 <h3>Test dạng bảng: phong cách chuẩn của Go</h3>
-<p>Thay vì viết 10 hàm test gần giống nhau, liệt kê các trường hợp trong một bảng rồi chạy vòng lặp:</p>
-<pre lang="go">
+<p>Thay vì viết 10 hàm test gần giống nhau, liệt kê các trường hợp trong một bảng (một slice struct) rồi chạy vòng lặp. Thay toàn bộ <code>grade/grade_test.go</code> bằng:</p>
+<pre lang="go" file="grade/grade_test.go">
+package grade
+
+import "testing"
+
 func TestClassify(t *testing.T) {
+    // Bảng: mỗi dòng là một trường hợp, gồm tên, đầu vào, kết quả mong muốn
     tests := []struct {
         name  string
         score float64
@@ -110,6 +209,7 @@ func TestClassify(t *testing.T) {
         {"điểm 0", 0, "Chưa đạt"},
     }
     for _, tc := range tests {
+        // t.Run tạo một test con mang tên tc.name, giống it("...") trong Jest
         t.Run(tc.name, func(t *testing.T) {
             if got := Classify(tc.score); got != tc.want {
                 t.Errorf("Classify(%v) = %q, muốn %q", tc.score, got, tc.want)
@@ -118,10 +218,30 @@ func TestClassify(t *testing.T) {
     }
 }
 </pre>
+<pre lang="out">
+$ go test -v ./grade
+=== RUN   TestClassify
+=== RUN   TestClassify/giỏi
+=== RUN   TestClassify/vừa_đủ_giỏi
+=== RUN   TestClassify/đạt
+=== RUN   TestClassify/biên_dưới_đạt
+=== RUN   TestClassify/chưa_đạt
+=== RUN   TestClassify/điểm_0
+--- PASS: TestClassify (0.00s)
+    --- PASS: TestClassify/giỏi (0.00s)
+    --- PASS: TestClassify/vừa_đủ_giỏi (0.00s)
+    --- PASS: TestClassify/đạt (0.00s)
+    --- PASS: TestClassify/biên_dưới_đạt (0.00s)
+    --- PASS: TestClassify/chưa_đạt (0.00s)
+    --- PASS: TestClassify/điểm_0 (0.00s)
+PASS
+ok  	github.com/lan/sobaitap/grade	0.004s
+</pre>
+<p>Thêm một trường hợp mới chỉ là thêm một dòng vào bảng. Go đổi khoảng trắng trong tên test thành <code>_</code>.</p>
 <aside class="tip"><p>Mẹo chọn trường hợp test: trường hợp bình thường, <b>đúng ở biên</b> (8 và 7.99, 5 và 4.99), giá trị rỗng / 0 / âm, và dữ liệu sai. Lỗi thường nằm ở biên.</p></aside>
 
 <h3>Test HTTP handler không cần chạy server</h3>
-<p>Package <code>net/http/httptest</code> tạo request và bộ ghi response giả:</p>
+<p>Package <code>net/http/httptest</code> tạo request và bộ ghi response giả, nên test được handler mà không cần mở cổng mạng (trích đoạn, bài 11 mới học viết handler):</p>
 <pre lang="go">
 func TestHealth(t *testing.T) {
     req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
@@ -164,9 +284,11 @@ func BenchmarkClassify(b *testing.B) {
     }
 }
 </pre>
-<pre lang="sh">
-go test -bench=. -benchmem ./grade
-# BenchmarkClassify-8   1000000000   0.9 ns/op   0 B/op   0 allocs/op
+<p>Đặt hàm trên vào <code>grade/grade_test.go</code> rồi chạy:</p>
+<pre lang="out" sim="1">
+$ go test -bench=. -benchmem ./grade
+BenchmarkClassify-8   	1000000000	         0.9 ns/op	       0 B/op	       0 allocs/op
+PASS
 </pre>
 <p><code>ns/op</code> là thời gian mỗi lần gọi, <code>allocs/op</code> là số lần cấp phát bộ nhớ. Ở backend tải cao, giảm cấp phát thường giúp nhiều hơn tối ưu thuật toán, vì ít rác hơn cho bộ thu gom rác.</p>
 
@@ -188,62 +310,143 @@ go test -bench=. -benchmem ./grade
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Test bảng cho hàm phân trang</summary>
-<p>Viết test dạng bảng cho hàm <code>page</code> ở bài 04: trang đầu, trang giữa, trang cuối thiếu phần tử, trang vượt quá, page = 0, size âm, danh sách rỗng. Chạy với <code>-cover</code> và đọc độ phủ.</p>
+<p>Viết test dạng bảng cho hàm <code>pageOf</code> ở bài tập bài 04 (phân trang trên slice). Các trường hợp: trang đầu, trang giữa, trang cuối thiếu phần tử, trang vượt quá, page = 0, size âm, danh sách rỗng. Chạy với <code>-cover</code> để xem bao nhiêu phần trăm code được test chạy qua.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Tạo dự án mới: <code>mkdir paging &amp;&amp; cd paging &amp;&amp; go mod init paging</code>.</li>
+<li>Tạo <code>paging.go</code> (package <code>main</code> cũng được, test được hàm trong package main) chứa hàm <code>pageOf</code> từ bài 04 và một hàm <code>main</code> rỗng.</li>
+<li>Tạo <code>paging_test.go</code> cùng thư mục, cùng <code>package main</code>. Viết bảng như <code>TestClassify</code> ở trên, mỗi dòng có <code>page</code>, <code>size</code>, và <code>want []string</code>.</li>
+<li>So sánh hai slice bằng <code>slices.Equal(got, want)</code> (không dùng <code>==</code> được với slice).</li>
+<li>Chạy <code>go test -v -cover .</code></li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go">
-func TestPage(t *testing.T) {
-    items := []int{1, 2, 3, 4, 5}
+<pre lang="go" file="paging.go">
+package main
+
+func pageOf(items []string, page, size int) []string {
+    if page < 1 || size < 1 {
+        return []string{}
+    }
+    start := (page - 1) * size
+    if start >= len(items) {
+        return []string{}
+    }
+    end := min(start+size, len(items))
+    return items[start:end]
+}
+
+func main() {}
+</pre>
+<pre lang="go" file="paging_test.go">
+package main
+
+import (
+    "slices"
+    "testing"
+)
+
+func TestPageOf(t *testing.T) {
+    items := []string{"a", "b", "c", "d", "e"}
     tests := []struct {
         name       string
-        items      []int
+        items      []string
         page, size int
-        want       []int
+        want       []string
     }{
-        {"trang đầu", items, 1, 2, []int{1, 2}},
-        {"trang giữa", items, 2, 2, []int{3, 4}},
-        {"trang cuối thiếu", items, 3, 2, []int{5}},
-        {"vượt quá", items, 4, 2, []int{}},
-        {"page 0", items, 0, 2, []int{}},
-        {"size âm", items, 1, -1, []int{}},
-        {"rỗng", nil, 1, 10, []int{}},
+        {"trang đầu", items, 1, 2, []string{"a", "b"}},
+        {"trang giữa", items, 2, 2, []string{"c", "d"}},
+        {"trang cuối thiếu", items, 3, 2, []string{"e"}},
+        {"vượt quá", items, 4, 2, []string{}},
+        {"page 0", items, 0, 2, []string{}},
+        {"size âm", items, 1, -1, []string{}},
+        {"rỗng", nil, 1, 10, []string{}},
     }
     for _, tc := range tests {
         t.Run(tc.name, func(t *testing.T) {
-            got := page(tc.items, tc.page, tc.size)
+            got := pageOf(tc.items, tc.page, tc.size)
             if !slices.Equal(got, tc.want) {
-                t.Errorf("page(%d, %d) = %v, muốn %v", tc.page, tc.size, got, tc.want)
+                t.Errorf("pageOf(page=%d, size=%d) = %v, muốn %v", tc.page, tc.size, got, tc.want)
             }
         })
     }
 }
 </pre>
+<pre lang="out">
+$ go test -cover .
+ok  	paging	0.004s	coverage: 100.0% of statements
+</pre>
+<p><b>Giải thích:</b> 100% nghĩa là mọi câu lệnh của <code>pageOf</code> đều được ít nhất một trường hợp chạy qua. Thử xoá dòng "vượt quá" khỏi bảng rồi chạy lại: độ phủ giảm, vì nhánh <code>start &gt;= len(items)</code> không còn ai chạy tới. Xem từng dòng nào chưa được test chạy tới: <code>go test -coverprofile=c.out . &amp;&amp; go tool cover -html=c.out</code> (mở trình duyệt, dòng đỏ là chưa chạy).</p>
 </details>
 </details>
 <details class="ex"><summary>Hàm có hạn chót</summary>
-<p>Viết <code>slowSquare(ctx context.Context, n int) (int, error)</code> mất 1 giây để trả kết quả, nhưng dừng ngay và trả <code>ctx.Err()</code> nếu ctx bị huỷ trước. Viết test chứng minh: với timeout 100ms, hàm trả về <code>context.DeadlineExceeded</code> trong chưa tới 200ms.</p>
+<p>Viết <code>slowSquare(ctx context.Context, n int) (int, error)</code>: bình thường mất 1 giây mới trả về <code>n * n</code>, nhưng nếu ctx bị huỷ trước thì dừng ngay và trả lỗi của ctx. Viết test chứng minh: với timeout 100ms, hàm trả về <code>context.DeadlineExceeded</code> trong chưa tới 200ms.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Thân hàm giống hệt <code>fetchRate</code> ở đầu bài: <code>select</code> giữa <code>time.After(time.Second)</code> và <code>ctx.Done()</code>.</li>
+<li>Trong test: tạo ctx bằng <code>context.WithTimeout(context.Background(), 100*time.Millisecond)</code>, ghi <code>start := time.Now()</code>, gọi hàm.</li>
+<li>Kiểm tra hai điều: lỗi đúng loại (<code>errors.Is</code>), và <code>time.Since(start)</code> nhỏ hơn 200ms.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go">
+<pre lang="go" file="square.go">
+package main
+
+import (
+    "context"
+    "time"
+)
+
 func slowSquare(ctx context.Context, n int) (int, error) {
     select {
-    case <-time.After(time.Second):
+    case <-time.After(time.Second): // làm đủ 1 giây
         return n * n, nil
-    case <-ctx.Done():
+    case <-ctx.Done(): // bị huỷ trước
         return 0, ctx.Err()
     }
 }
 
+func main() {}
+</pre>
+<pre lang="go" file="square_test.go">
+package main
+
+import (
+    "context"
+    "errors"
+    "testing"
+    "time"
+)
+
 func TestSlowSquareTimeout(t *testing.T) {
     ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
     defer cancel()
+
     start := time.Now()
     _, err := slowSquare(ctx, 3)
+
     if !errors.Is(err, context.DeadlineExceeded) {
-        t.Fatalf("err = %v, muốn DeadlineExceeded", err)
+        t.Fatalf("err = %v, muốn DeadlineExceeded", err) // Fatalf: dừng test, các dòng sau vô nghĩa
     }
     if d := time.Since(start); d > 200*time.Millisecond {
         t.Errorf("mất %v, quá lâu", d)
     }
 }
+
+func TestSlowSquareOK(t *testing.T) {
+    got, err := slowSquare(context.Background(), 3) // không có hạn: chạy đủ 1 giây
+    if err != nil || got != 9 {
+        t.Errorf("slowSquare(3) = %d, %v; muốn 9, nil", got, err)
+    }
+}
 </pre>
+<pre lang="out">
+$ go test -v .
+=== RUN   TestSlowSquareTimeout
+--- PASS: TestSlowSquareTimeout (0.10s)
+=== RUN   TestSlowSquareOK
+--- PASS: TestSlowSquareOK (1.00s)
+PASS
+ok  	square	1.105s
+</pre>
+<p>Test thứ nhất chỉ mất 0,10 giây chứ không phải 1 giây: bằng chứng hàm đã dừng sớm khi hết hạn.</p>
 </details>
 </details>

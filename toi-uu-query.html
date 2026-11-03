@@ -80,28 +80,33 @@
 <div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">EXPLAIN</span> <span class="k">ANALYZE</span>
 <span class="k">SELECT</span> id, title <span class="k">FROM</span> assignments
 <span class="k">WHERE</span> class_id = <span class="n">42</span> <span class="k">ORDER</span> <span class="k">BY</span> due_date <span class="k">DESC</span> <span class="k">LIMIT</span> <span class="n">20</span>;</code></pre></div>
-<div class="code"><div class="code-h"><span>Trước khi có index</span><button class="copy" type="button">Sao chép</button></div><pre><code>Limit  (actual time=180.2..180.3 rows=20)
-  -&gt;  Sort  (Sort Key: due_date DESC)
-        -&gt;  Seq Scan on assignments  (actual time=0.02..176.9 rows=412 loops=1)
-              Filter: (class_id = 42)
-              Rows Removed by Filter: 1999588
-Execution Time: 180.4 ms</code></pre></div>
-<div class="code"><div class="code-h"><span>Sau khi CREATE INDEX (class_id, due_date DESC)</span><button class="copy" type="button">Sao chép</button></div><pre><code>Limit  (actual time=0.03..0.06 rows=20)
-  -&gt;  Index Scan using idx_assignments_class_due on assignments  (rows=20)
-        Index Cond: (class_id = 42)
-Execution Time: 0.08 ms</code></pre></div>
-<p>Những thứ cần nhìn: <b>Seq Scan</b> trên bảng lớn, <b>Rows Removed by Filter</b> rất lớn (đọc nhiều bỏ nhiều), <b>Sort</b> trên nhiều dòng, và <code>actual time</code>. Từ 180ms xuống 0,08ms là chuyện bình thường khi thêm đúng index.</p>
+<p>Kết quả thật trên bảng 1 triệu bài tập (bài tập thứ hai cuối bài hướng dẫn tạo bảng này). Đã bỏ bớt phần <code>cost=...</code> cho dễ đọc:</p>
+<div class="term" role="img" aria-label="Trước khi có index"><div class="term-h"><i></i><i></i><i></i><span>Trước khi có index</span></div><pre> Limit  (actual time=9.262..10.302 rows=20 loops=1)
+   -&gt;  Gather Merge  (actual time=9.261..10.300 rows=20 loops=1)
+         Workers Planned: 2
+         -&gt;  Sort  (actual time=8.323..8.323 rows=20 loops=3)
+               Sort Key: due_date DESC
+               -&gt;  Parallel Seq Scan on assignments  (actual time=0.088..8.257 rows=67 loops=3)
+                     Filter: (class_id = 42)
+                     Rows Removed by Filter: 333267
+ Execution Time: 10.314 ms</pre></div>
+<div class="term" role="img" aria-label="Sau khi CREATE INDEX (class_id, due_date DESC)"><div class="term-h"><i></i><i></i><i></i><span>Sau khi CREATE INDEX (class_id, due_date DESC)</span></div><pre> Limit  (actual time=0.021..0.039 rows=20 loops=1)
+   -&gt;  Index Scan using idx_assignments_class_due on assignments  (actual time=0.020..0.037 rows=20 loops=1)
+         Index Cond: (class_id = 42)
+ Execution Time: 0.046 ms</pre></div>
+<p><b>Cách đọc:</b> đọc từ dòng thụt vào sâu nhất (chạy đầu tiên) ra ngoài. Trước khi có index: <code>Seq Scan</code> đọc cả bảng bằng 3 tiến trình song song (<code>loops=3</code>), mỗi tiến trình bỏ đi 333.267 dòng không khớp (<code>Rows Removed by Filter</code>), giữ 67 dòng, rồi sắp xếp, rồi lấy 20. Sau khi có index: <code>Index Scan</code> đi thẳng tới đúng 20 dòng của lớp 42, đã xếp sẵn theo hạn, không cần <code>Sort</code>.</p>
+<p>Những thứ cần nhìn: <b>Seq Scan</b> trên bảng lớn, <b>Rows Removed by Filter</b> rất lớn (đọc nhiều bỏ nhiều), <b>Sort</b> trên nhiều dòng, và <code>Execution Time</code>. Từ 10ms xuống 0,05ms (nhanh hơn 200 lần) là chuyện bình thường khi thêm đúng index. 10ms nghe nhỏ, nhưng bảng to gấp 10 lần thì thành 100ms, và nhân với hàng nghìn request mỗi giây thì database quá tải.</p>
 <aside class="warn"><p><code>EXPLAIN ANALYZE</code> <b>chạy thật</b> câu lệnh. Với UPDATE / DELETE, bọc trong <code>BEGIN; ... ROLLBACK;</code>. Và kế hoạch trên máy bạn (100 dòng) có thể khác hẳn production (10 triệu dòng): Postgres chọn cách chạy dựa trên thống kê dữ liệu thật.</p></aside>
 <aside class="prod"><p>Bật extension <code>pg_stat_statements</code> trên production: nó thống kê câu truy vấn nào tốn tổng thời gian nhiều nhất. Thường 5 câu truy vấn chiếm phần lớn tải, sửa chúng trước. Các dịch vụ Postgres có quản lý (AWS RDS, Google Cloud SQL, Supabase, Neon) đều có sẵn hoặc bật được.</p></aside>
 
 <h2 id="loi-n-1-ke-giet-hieu-nang-so-mot"><a href="#loi-n-1-ke-giet-hieu-nang-so-mot" class="anchor" aria-hidden="true">#</a>Lỗi N+1: kẻ giết hiệu năng số một</h2>
-<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code>classes, _ := store.<span class="f">ClassesOf</span>(ctx, teacherID)          <span class="c">// 1 truy vấn</span>
+<div class="code bad"><div class="code-h"><span>Go · trích đoạn</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code>classes, _ := store.<span class="f">ClassesOf</span>(ctx, teacherID)          <span class="c">// 1 truy vấn</span>
 <span class="k">for</span> i, c := <span class="k">range</span> classes {
     n, _ := store.<span class="f">CountStudents</span>(ctx, c.ID)            <span class="c">// + N truy vấn, mỗi lớp một lần</span>
     classes[i].StudentCount = n
 }
 <span class="c">// 30 lớp = 31 truy vấn. Mỗi lần đi về database mất ~1ms → 31ms chỉ để chờ mạng</span></code></pre></div>
-<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Một truy vấn lấy hết, gom bằng map trong Go (mẫu ở bài 04)</span>
+<div class="code good"><div class="code-h"><span>Go · trích đoạn</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Một truy vấn lấy hết, gom bằng map trong Go (mẫu ở bài 04)</span>
 rows, err := db.<span class="f">Query</span>(ctx, <span class="s">`
     SELECT class_id, count(*) FROM enrollments
     WHERE class_id = ANY($1) GROUP BY class_id`</span>, classIDs) <span class="c">// pgx đổi []int64 thành mảng Postgres</span>
@@ -127,7 +132,7 @@ rows, err := db.<span class="f">Query</span>(ctx, <span class="s">`
 
 <h2 id="tranh-chap-hai-request-cung-sua-mot-dong"><a href="#tranh-chap-hai-request-cung-sua-mot-dong" class="anchor" aria-hidden="true">#</a>Tranh chấp: hai request cùng sửa một dòng</h2>
 <p>Đây là phần quan trọng nhất của bài và là chỗ backend khác frontend nhiều nhất. Ví dụ bán vé: còn 1 vé, hai người bấm mua cùng lúc.</p>
-<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Đọc → kiểm tra → ghi: ba bước rời nhau</span>
+<div class="code bad"><div class="code-h"><span>Go · trích đoạn</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Đọc → kiểm tra → ghi: ba bước rời nhau</span>
 <span class="k">var</span> stock <span class="t">int</span>
 db.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT stock FROM tickets WHERE id = $1`</span>, id).<span class="f">Scan</span>(&amp;stock)
 <span class="k">if</span> stock &lt; <span class="n">1</span> {
@@ -136,6 +141,76 @@ db.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT stock FROM ticke
 db.<span class="f">Exec</span>(ctx, <span class="s">`UPDATE tickets SET stock = $1 WHERE id = $2`</span>, stock-<span class="n">1</span>, id)
 db.<span class="f">Exec</span>(ctx, <span class="s">`INSERT INTO orders ...`</span>)</code></pre></div>
 <figure class="dg"><svg viewBox="0 0 500 326" style="min-width:500px;max-width:500px" role="img" aria-label="Lost update: cả hai cùng đọc được stock = 1 trước khi ai kịp ghi"><line x1="80" y1="66" x2="80" y2="316" class="lf"/><g class="nd fe"><rect x="20" y="10" width="120" height="54" rx="10"/><text x="80" y="42" class="tt" text-anchor="middle">Người A</text></g><line x1="250" y1="66" x2="250" y2="316" class="lf"/><g class="nd fe"><rect x="190" y="10" width="120" height="54" rx="10"/><text x="250" y="42" class="tt" text-anchor="middle">Người B</text></g><line x1="420" y1="66" x2="420" y2="316" class="lf"/><g class="nd db"><rect x="360" y="10" width="120" height="54" rx="10"/><text x="420" y="42" class="tt" text-anchor="middle">Database</text></g><line x1="80" y1="90" x2="416" y2="90" class="ln" marker-end="url(#ar)"/><text x="250" y="83" class="tl" text-anchor="middle">SELECT stock → 1</text><line x1="250" y1="132" x2="416" y2="132" class="ln" marker-end="url(#ar)"/><text x="335" y="125" class="tl" text-anchor="middle">SELECT stock → 1</text><line x1="80" y1="174" x2="416" y2="174" class="ln" marker-end="url(#ar)"/><text x="250" y="167" class="tl" text-anchor="middle">UPDATE stock = 0, tạo đơn A</text><line x1="250" y1="232" x2="416" y2="232" class="ln" marker-end="url(#ar)"/><text x="335" y="209" class="tl" text-anchor="middle">UPDATE stock = 0, tạo</text><text x="335" y="225" class="tl" text-anchor="middle">đơn B</text><rect x="262.15999999999997" y="262" width="227.84000000000003" height="28" rx="6" class="nt"/><text x="376.08" y="280" class="tn" text-anchor="middle">bán 2 vé trong khi chỉ còn 1</text></svg><figcaption>Lost update: cả hai cùng đọc được stock = 1 trước khi ai kịp ghi</figcaption></figure>
+<p><b>Tận mắt thấy lỗi.</b> Chương trình dưới cho 50 goroutine (50 người) cùng mua khi kho còn 10 vé, lần đầu bằng cách "đọc, kiểm tra, ghi", lần sau bằng cách đúng (cách 1 ngay bên dưới). Chạy với database của bài 14 (chương trình tự tạo bảng <code>tickets</code>), cách chạy giống phần "Chạy thử" bài 15:</p>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+
+    <span class="s">&quot;github.com/jackc/pgx/v5/pgxpool&quot;</span>
+)
+
+<span class="c">// SAI: đọc, kiểm tra, rồi mới ghi. Ba bước rời nhau</span>
+<span class="k">func</span> <span class="f">buyNaive</span>(ctx context.Context, db *pgxpool.Pool) <span class="t">bool</span> {
+    <span class="k">var</span> stock <span class="t">int</span>
+    db.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT stock FROM tickets WHERE id = 1`</span>).<span class="f">Scan</span>(&amp;stock)
+    <span class="k">if</span> stock &lt; <span class="n">1</span> {
+        <span class="k">return</span> <span class="b">false</span> <span class="c">// hết vé</span>
+    }
+    db.<span class="f">Exec</span>(ctx, <span class="s">`UPDATE tickets SET stock = $1 WHERE id = 1`</span>, stock-<span class="n">1</span>)
+    <span class="k">return</span> <span class="b">true</span>
+}
+
+<span class="c">// ĐÚNG: điều kiện nằm trong chính câu UPDATE. Một câu lệnh là nguyên tử</span>
+<span class="k">func</span> <span class="f">buySafe</span>(ctx context.Context, db *pgxpool.Pool) <span class="t">bool</span> {
+    tag, err := db.<span class="f">Exec</span>(ctx, <span class="s">`UPDATE tickets SET stock = stock - 1 WHERE id = 1 AND stock &gt;= 1`</span>)
+    <span class="k">return</span> err == <span class="b">nil</span> &amp;&amp; tag.<span class="f">RowsAffected</span>() == <span class="n">1</span>
+}
+
+<span class="c">// 50 người cùng mua khi chỉ còn 10 vé</span>
+<span class="k">func</span> <span class="f">rush</span>(ctx context.Context, db *pgxpool.Pool, buy <span class="k">func</span>(context.Context, *pgxpool.Pool) <span class="t">bool</span>) <span class="t">int</span> {
+    db.<span class="f">Exec</span>(ctx, <span class="s">`UPDATE tickets SET stock = 10 WHERE id = 1`</span>) <span class="c">// đặt lại kho: 10 vé</span>
+    <span class="k">var</span> mu sync.Mutex
+    sold := <span class="n">0</span>
+    <span class="k">var</span> wg sync.WaitGroup
+    <span class="k">for</span> <span class="k">range</span> <span class="n">50</span> {
+        wg.<span class="f">Add</span>(<span class="n">1</span>)
+        <span class="k">go</span> <span class="k">func</span>() {
+            <span class="k">defer</span> wg.<span class="f">Done</span>()
+            <span class="k">if</span> <span class="f">buy</span>(ctx, db) {
+                mu.<span class="f">Lock</span>()
+                sold++
+                mu.<span class="f">Unlock</span>()
+            }
+        }()
+    }
+    wg.<span class="f">Wait</span>()
+    <span class="k">return</span> sold
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    ctx := context.<span class="f">Background</span>()
+    db, err := pgxpool.<span class="f">New</span>(ctx, os.<span class="f">Getenv</span>(<span class="s">&quot;DATABASE_URL&quot;</span>))
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        fmt.<span class="f">Println</span>(err)
+        os.<span class="f">Exit</span>(<span class="n">1</span>)
+    }
+    <span class="k">defer</span> db.<span class="f">Close</span>()
+
+    db.<span class="f">Exec</span>(ctx, <span class="s">`CREATE TABLE IF NOT EXISTS tickets (id int PRIMARY KEY, stock int NOT NULL)`</span>)
+    db.<span class="f">Exec</span>(ctx, <span class="s">`INSERT INTO tickets VALUES (1, 10) ON CONFLICT DO NOTHING`</span>)
+
+    fmt.<span class="f">Println</span>(<span class="s">&quot;cách sai: bán được&quot;</span>, <span class="f">rush</span>(ctx, db, buyNaive), <span class="s">&quot;vé (kho chỉ có 10)&quot;</span>)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;cách đúng: bán được&quot;</span>, <span class="f">rush</span>(ctx, db, buySafe), <span class="s">&quot;vé&quot;</span>)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go run .</span>
+cách sai: bán được 50 vé (kho chỉ có 10)
+cách đúng: bán được 10 vé</pre></div>
+<p>Con số của cách sai có thể khác trên máy bạn (lúc 50, lúc 23...) nhưng gần như luôn lớn hơn 10: nhiều goroutine cùng đọc được <code>stock = 10</code> trước khi ai kịp ghi. Cách đúng luôn ra đúng 10. Đây không phải lỗi của Go: viết bằng Node.js hay Java, chạy trên nhiều bản server, cũng hỏng y như vậy.</p>
+
 <h3>Cách 1: điều kiện nằm ngay trong câu UPDATE (nên dùng đầu tiên)</h3>
 <div class="code good"><div class="code-h"><span>SQL</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">UPDATE</span> tickets <span class="k">SET</span> stock = stock - <span class="n">1</span>
 <span class="k">WHERE</span> id = $<span class="n">1</span> <span class="k">AND</span> stock &gt;= <span class="n">1</span>
@@ -145,7 +220,7 @@ db.<span class="f">Exec</span>(ctx, <span class="s">`INSERT INTO orders ...`</sp
 
 <h3>Cách 2: khoá dòng bằng SELECT ... FOR UPDATE</h3>
 <p>Khi logic kiểm tra phức tạp, không viết gọn trong một câu UPDATE được:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>err := pgx.<span class="f">BeginFunc</span>(ctx, db, <span class="k">func</span>(tx pgx.Tx) <span class="t">error</span> {
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code>err := pgx.<span class="f">BeginFunc</span>(ctx, db, <span class="k">func</span>(tx pgx.Tx) <span class="t">error</span> {
     <span class="k">var</span> balance <span class="t">int64</span>
     <span class="c">// Khoá dòng ví này tới khi transaction kết thúc. Request khác muốn khoá cùng dòng phải CHỜ</span>
     <span class="k">if</span> err := tx.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE`</span>, uid).<span class="f">Scan</span>(&amp;balance); err != <span class="b">nil</span> {
@@ -182,36 +257,190 @@ db.<span class="f">Exec</span>(ctx, <span class="s">`INSERT INTO orders ...`</sp
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Giới hạn số lớp an toàn khi chạy song song</summary>
-<p>Viết lại <code>CreateClass</code> sao cho một giáo viên không bao giờ có quá <code>quota</code> lớp, kể cả khi 10 request tới cùng lúc trên 3 bản server. Viết test chạy 10 goroutine cùng tạo lớp và kiểm tra chỉ đúng <code>quota</code> lớp được tạo.</p>
+<p>Viết <code>CreateClassWithQuota(ctx, teacherID, name, quota)</code>: tạo lớp mới, nhưng giáo viên không bao giờ có quá <code>quota</code> lớp, kể cả khi 10 request tới cùng lúc trên 3 bản server. Viết test cho 10 goroutine cùng tạo lớp và kiểm tra đúng <code>quota</code> lớp được tạo.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Cách "đếm rồi mới thêm" bị đúng lỗi bán vé ở trên: 10 request cùng đếm được 0. Phải làm sao để các request của <b>cùng một giáo viên</b> xếp hàng, từng cái một đếm và thêm.</li>
+<li>Không khoá được "những lớp chưa tồn tại". Nhưng khoá được một dòng chắc chắn có thật và đại diện cho giáo viên: dòng của họ trong bảng <code>users</code>, bằng <code>SELECT ... FOR UPDATE</code> trong một transaction.</li>
+<li>Trong cùng transaction: khoá, đếm, nếu chưa đủ thì <code>INSERT</code>. Dùng <code>pgx.BeginFunc</code> (bài 15) để khỏi tự viết commit / rollback.</li>
+<li>Test: <code>sync.WaitGroup</code> và 10 goroutine (bài 09), đếm số lần thành công và số lần nhận <code>ErrQuotaExceeded</code>, rồi đếm lại trong database. Test cần database thật, đọc địa chỉ từ <code>DATABASE_URL</code>, không có thì <code>t.Skip</code>.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (s *Store) <span class="f">CreateClassWithQuota</span>(ctx context.Context, c Class, quota <span class="t">int</span>) (Class, <span class="t">error</span>) {
-    <span class="k">return</span> c, pgx.<span class="f">BeginFunc</span>(ctx, s.db, <span class="k">func</span>(tx pgx.Tx) <span class="t">error</span> {
-        <span class="c">// Khoá dòng giáo viên: mọi request tạo lớp của CÙNG giáo viên xếp hàng tại đây</span>
-        <span class="k">if</span> _, err := tx.<span class="f">Exec</span>(ctx, <span class="s">`SELECT 1 FROM users WHERE id = $1 FOR UPDATE`</span>, c.TeacherID); err != <span class="b">nil</span> {
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">mkdir</span> quota &amp;&amp; <span class="k">cd</span> quota
+<span class="k">go</span> mod init quota
+<span class="k">go</span> get github.com/jackc/pgx/v5</code></pre></div>
+<div class="code"><div class="code-h"><span>store.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+
+    <span class="s">&quot;github.com/jackc/pgx/v5&quot;</span>
+    <span class="s">&quot;github.com/jackc/pgx/v5/pgxpool&quot;</span>
+)
+
+<span class="k">var</span> ErrQuotaExceeded = errors.<span class="f">New</span>(<span class="s">&quot;đã đủ số lớp của gói&quot;</span>)
+
+<span class="k">type</span> Store <span class="k">struct</span> {
+    db *pgxpool.Pool
+}
+
+<span class="c">// CreateClassWithQuota tạo lớp, nhưng không bao giờ để giáo viên có quá `quota` lớp,</span>
+<span class="c">// kể cả khi nhiều request tới cùng lúc trên nhiều bản server</span>
+<span class="k">func</span> (s *Store) <span class="f">CreateClassWithQuota</span>(ctx context.Context, teacherID <span class="t">int64</span>, name <span class="t">string</span>, quota <span class="t">int</span>) (<span class="t">int64</span>, <span class="t">error</span>) {
+    <span class="k">var</span> id <span class="t">int64</span>
+    err := pgx.<span class="f">BeginFunc</span>(ctx, s.db, <span class="k">func</span>(tx pgx.Tx) <span class="t">error</span> {
+        <span class="c">// 1. Khoá dòng của giáo viên. Request thứ hai của CÙNG giáo viên đứng chờ ở đây</span>
+        <span class="c">//    tới khi transaction của request thứ nhất commit hoặc rollback</span>
+        <span class="k">if</span> _, err := tx.<span class="f">Exec</span>(ctx, <span class="s">`SELECT 1 FROM users WHERE id = $1 FOR UPDATE`</span>, teacherID); err != <span class="b">nil</span> {
             <span class="k">return</span> err
         }
+        <span class="c">// 2. Đếm: lúc này không ai khác đang tạo lớp cho giáo viên này</span>
         <span class="k">var</span> n <span class="t">int</span>
-        <span class="k">if</span> err := tx.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT count(*) FROM classes WHERE teacher_id = $1`</span>, c.TeacherID).<span class="f">Scan</span>(&amp;n); err != <span class="b">nil</span> {
+        <span class="k">if</span> err := tx.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT count(*) FROM classes WHERE teacher_id = $1`</span>, teacherID).<span class="f">Scan</span>(&amp;n); err != <span class="b">nil</span> {
             <span class="k">return</span> err
         }
         <span class="k">if</span> n &gt;= quota {
-            <span class="k">return</span> domain.ErrQuotaExceeded
+            <span class="k">return</span> ErrQuotaExceeded <span class="c">// BeginFunc thấy lỗi thì tự rollback</span>
         }
+        <span class="c">// 3. Tạo</span>
         <span class="k">return</span> tx.<span class="f">QueryRow</span>(ctx,
-            <span class="s">`INSERT INTO classes (teacher_id, name, capacity) VALUES ($1, $2, $3) RETURNING id, created_at`</span>,
-            c.TeacherID, c.Name, c.Capacity).<span class="f">Scan</span>(&amp;c.ID, &amp;c.CreatedAt)
-    })
+            <span class="s">`INSERT INTO classes (teacher_id, name, capacity) VALUES ($1, $2, 30) RETURNING id`</span>,
+            teacherID, name).<span class="f">Scan</span>(&amp;id)
+    }) <span class="c">// hàm trả nil thì BeginFunc tự commit, mở khoá cho request đang chờ</span>
+    <span class="k">return</span> id, err
 }</code></pre></div>
-<p>Không thể khoá "những dòng chưa tồn tại", nên ta khoá một dòng chắc chắn tồn tại và đại diện cho giáo viên: chính dòng <code>users</code>. Các giáo viên khác nhau không chặn nhau. Test: tạo 10 goroutine cùng gọi, đếm số lần thành công phải bằng <code>quota</code>, số lần <code>ErrQuotaExceeded</code> bằng phần còn lại.</p>
+<div class="code"><div class="code-h"><span>store_test.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;testing&quot;</span>
+
+    <span class="s">&quot;github.com/jackc/pgx/v5/pgxpool&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">TestQuotaUnderConcurrency</span>(t *testing.T) {
+    url := os.<span class="f">Getenv</span>(<span class="s">&quot;DATABASE_URL&quot;</span>)
+    <span class="k">if</span> url == <span class="s">&quot;&quot;</span> {
+        t.<span class="f">Skip</span>(<span class="s">&quot;cần DATABASE_URL trỏ tới database có dữ liệu bài 14&quot;</span>)
+    }
+    ctx := context.<span class="f">Background</span>()
+    db, err := pgxpool.<span class="f">New</span>(ctx, url)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        t.<span class="f">Fatal</span>(err)
+    }
+    <span class="k">defer</span> db.<span class="f">Close</span>()
+    s := &amp;Store{db: db}
+
+    <span class="c">// Dọn: Thầy Nam (id 8) bắt đầu với 0 lớp</span>
+    <span class="k">if</span> _, err := db.<span class="f">Exec</span>(ctx, <span class="s">`DELETE FROM classes WHERE teacher_id = 8`</span>); err != <span class="b">nil</span> {
+        t.<span class="f">Fatal</span>(err)
+    }
+
+    <span class="k">const</span> quota = <span class="n">3</span>
+    <span class="k">var</span> mu sync.Mutex
+    ok, rejected := <span class="n">0</span>, <span class="n">0</span>
+    <span class="k">var</span> wg sync.WaitGroup
+    <span class="k">for</span> i := <span class="k">range</span> <span class="n">10</span> { <span class="c">// 10 request cùng lúc</span>
+        wg.<span class="f">Add</span>(<span class="n">1</span>)
+        <span class="k">go</span> <span class="k">func</span>() {
+            <span class="k">defer</span> wg.<span class="f">Done</span>()
+            _, err := s.<span class="f">CreateClassWithQuota</span>(ctx, <span class="n">8</span>, fmt.<span class="f">Sprintf</span>(<span class="s">&quot;Lớp thử %d&quot;</span>, i), quota)
+            mu.<span class="f">Lock</span>()
+            <span class="k">defer</span> mu.<span class="f">Unlock</span>()
+            <span class="k">switch</span> {
+            <span class="k">case</span> err == <span class="b">nil</span>:
+                ok++
+            <span class="k">case</span> errors.<span class="f">Is</span>(err, ErrQuotaExceeded):
+                rejected++
+            <span class="k">default</span>:
+                t.<span class="f">Errorf</span>(<span class="s">&quot;lỗi lạ: %v&quot;</span>, err)
+            }
+        }()
+    }
+    wg.<span class="f">Wait</span>()
+
+    <span class="k">var</span> inDB <span class="t">int</span>
+    db.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT count(*) FROM classes WHERE teacher_id = 8`</span>).<span class="f">Scan</span>(&amp;inDB)
+    t.<span class="f">Logf</span>(<span class="s">&quot;thành công %d, bị từ chối %d, trong database có %d lớp&quot;</span>, ok, rejected, inDB)
+    <span class="k">if</span> ok != quota || rejected != <span class="n">10</span>-quota || inDB != quota {
+        t.<span class="f">Errorf</span>(<span class="s">&quot;muốn đúng %d lớp được tạo&quot;</span>, quota)
+    }
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go test -v -race .</span>
+=== RUN   TestQuotaUnderConcurrency
+    store_test.go:57: thành công 3, bị từ chối 7, trong database có 3 lớp
+--- PASS: TestQuotaUnderConcurrency (0.07s)
+PASS
+ok  	quota	1.699s</pre></div>
+<p><b>Thử bỏ <code>FOR UPDATE</code></b> trong <code>store.go</code> rồi chạy lại test:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go test .</span>
+--- FAIL: TestQuotaUnderConcurrency (0.05s)
+    store_test.go:57: thành công 9, bị từ chối 1, trong database có 9 lớp
+    store_test.go:59: muốn đúng 3 lớp được tạo
+FAIL</pre></div>
+<p><b>Giải thích:</b> không có khoá, nhiều transaction cùng đếm được 0, 1 hoặc 2 lớp rồi cùng thêm, ra 9 lớp. Có khoá, transaction thứ hai đứng chờ ở dòng <code>FOR UPDATE</code> tới khi transaction thứ nhất commit, lúc đó nó mới đếm và thấy lớp vừa được thêm. Giáo viên khác nhau khoá dòng khác nhau, nên không chặn nhau. Test để <code>t.Skip</code> khi thiếu <code>DATABASE_URL</code>, nhờ vậy <code>go test ./...</code> trên máy không có database vẫn chạy được.</p>
+<p>Đây chính là lỗi đã được nhắc ở bài 13 (service tạo lớp "đếm rồi mới tạo"), giờ bạn đã biết cách sửa.</p>
 </details>
 </details>
-<details class="ex"><summary>Đọc EXPLAIN</summary>
-<p>Tạo bảng <code>assignments</code> với 1 triệu dòng giả bằng <code>INSERT ... SELECT ... FROM generate_series(1, 1000000)</code> (chỉ làm trên Postgres chạy bằng Docker ở máy bạn). So sánh <code>EXPLAIN ANALYZE</code> của truy vấn danh sách theo lớp trước và sau khi tạo index. Thử thêm <code>OFFSET 500000</code> để thấy offset chậm thế nào.</p>
-<details class="sol"><summary>Gợi ý</summary>
-<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">INSERT</span> <span class="k">INTO</span> assignments (class_id, title, due_date)
-<span class="k">SELECT</span> (random() * <span class="n">5000</span>)::<span class="t">int</span> + <span class="n">1</span>, <span class="s">'Bài '</span> || g, <span class="t">date</span> <span class="s">'2026-01-01'</span> + (g % <span class="n">300</span>)
-<span class="k">FROM</span> generate_series(<span class="n">1</span>, <span class="n">1000000</span>) g;   <span class="c">-- cần có sẵn các lớp id 1..5001 vì có khoá ngoại</span>
-<span class="k">ANALYZE</span> assignments;                  <span class="c">-- cập nhật thống kê cho bộ lập kế hoạch</span></code></pre></div>
+<details class="ex"><summary>Đọc EXPLAIN trên bảng 1 triệu dòng</summary>
+<p>Tạo một database riêng có bảng <code>assignments</code> với 1 triệu dòng giả, rồi so sánh <code>EXPLAIN ANALYZE</code> của truy vấn "20 bài mới nhất của lớp 42" trước và sau khi tạo index. Thử thêm phân trang <code>OFFSET 500000</code> để thấy offset chậm thế nào, so với phân trang keyset.</p>
+<p>Làm trên Postgres ở máy bạn (không làm trên database thật của công ty). Bảng chiếm khoảng 70MB.</p>
+<details class="sol"><summary>Xem lời giải</summary>
+<p>Mở <code>psql</code> rồi dán lần lượt. <code>\c bench</code> là lệnh của psql để chuyển sang database <code>bench</code>, <code>\timing on</code> in thời gian của mỗi câu.</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">CREATE</span> DATABASE bench;
+\c bench
+<span class="k">CREATE</span> <span class="k">TABLE</span> classes (
+    id   <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    name <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>
+);
+<span class="k">CREATE</span> <span class="k">TABLE</span> assignments (
+    id        <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    class_id  <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> classes(id),
+    title     <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    due_date  <span class="t">date</span> <span class="k">NOT</span> <span class="k">NULL</span>
+);
+
+<span class="c">-- 5.000 lớp, rồi 1 triệu bài tập chia đều cho các lớp</span>
+<span class="c">-- generate_series(1, 5000) sinh ra các số 1, 2, ..., 5000, giống một vòng for</span>
+<span class="k">INSERT</span> <span class="k">INTO</span> classes (name) <span class="k">SELECT</span> <span class="s">'Lớp '</span> || g <span class="k">FROM</span> generate_series(<span class="n">1</span>, <span class="n">5000</span>) g;
+<span class="k">INSERT</span> <span class="k">INTO</span> assignments (class_id, title, due_date)
+<span class="k">SELECT</span> (g % <span class="n">5000</span>) + <span class="n">1</span>, <span class="s">'Bài '</span> || g, <span class="t">date</span> <span class="s">'2026-01-01'</span> + (g % <span class="n">300</span>)
+<span class="k">FROM</span> generate_series(<span class="n">1</span>, <span class="n">1000000</span>) g;
+<span class="k">ANALYZE</span> assignments;   <span class="c">-- cập nhật thống kê cho bộ lập kế hoạch</span>
+\timing <span class="k">on</span>
+
+<span class="k">EXPLAIN</span> <span class="k">ANALYZE</span>
+<span class="k">SELECT</span> id, title <span class="k">FROM</span> assignments
+<span class="k">WHERE</span> class_id = <span class="n">42</span> <span class="k">ORDER</span> <span class="k">BY</span> due_date <span class="k">DESC</span> <span class="k">LIMIT</span> <span class="n">20</span>;</code></pre></div>
+<p>Kết quả là kế hoạch "Trước khi có index" ở mục EXPLAIN đầu bài (khoảng 10ms, <code>Seq Scan</code>). Tạo index rồi chạy lại đúng câu đó:</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">CREATE</span> <span class="k">INDEX</span> idx_assignments_class_due <span class="k">ON</span> assignments (class_id, due_date <span class="k">DESC</span>);
+
+<span class="k">EXPLAIN</span> <span class="k">ANALYZE</span>
+<span class="k">SELECT</span> id, title <span class="k">FROM</span> assignments
+<span class="k">WHERE</span> class_id = <span class="n">42</span> <span class="k">ORDER</span> <span class="k">BY</span> due_date <span class="k">DESC</span> <span class="k">LIMIT</span> <span class="n">20</span>;</code></pre></div>
+<p>Ra kế hoạch "Sau khi CREATE INDEX" (khoảng 0,05ms, <code>Index Scan</code>). Tiếp theo, so sánh hai cách lấy "trang thứ 25.000":</p>
+<div class="code"><div class="code-h"><span>SQL</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">-- OFFSET: bỏ qua 500.000 dòng đầu</span>
+<span class="k">EXPLAIN</span> <span class="k">ANALYZE</span>
+<span class="k">SELECT</span> id, title <span class="k">FROM</span> assignments <span class="k">ORDER</span> <span class="k">BY</span> id <span class="k">LIMIT</span> <span class="n">20</span> <span class="k">OFFSET</span> <span class="n">500000</span>;
+
+<span class="c">-- Keyset: &quot;lấy 20 dòng sau id 500000&quot;</span>
+<span class="k">EXPLAIN</span> <span class="k">ANALYZE</span>
+<span class="k">SELECT</span> id, title <span class="k">FROM</span> assignments <span class="k">WHERE</span> id &gt; <span class="n">500000</span> <span class="k">ORDER</span> <span class="k">BY</span> id <span class="k">LIMIT</span> <span class="n">20</span>;</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre> Limit  (actual time=36.588..36.590 rows=20 loops=1)
+   -&gt;  Index Scan using assignments_pkey on assignments  (actual time=0.007..28.386 rows=500020 loops=1)
+ Execution Time: 36.596 ms
+
+ Limit  (actual time=0.010..0.012 rows=20 loops=1)
+   -&gt;  Index Scan using assignments_pkey on assignments  (actual time=0.009..0.011 rows=20 loops=1)
+         Index Cond: (id &gt; 500000)
+ Execution Time: 0.018 ms</pre></div>
+<p><b>Giải thích:</b> cả hai đều dùng index, nhưng <code>OFFSET</code> vẫn phải đi qua <code>rows=500020</code> dòng rồi vứt 500.000 dòng đầu, mất 36ms. Keyset nhảy thẳng tới <code>id &gt; 500000</code> bằng index và chỉ đọc 20 dòng, mất 0,02ms: nhanh hơn khoảng 2.000 lần, và trang sâu đến đâu cũng nhanh như trang đầu. Số mili giây trên máy bạn sẽ khác, tỉ lệ thì tương tự.</p>
+<p>Dọn dẹp khi xong: <code>\c postgres</code> rồi <code>DROP DATABASE bench;</code></p>
 </details>
 </details>
 </div>

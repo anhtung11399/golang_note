@@ -1,8 +1,9 @@
 <h2>Đóng gói bằng Docker</h2>
 <p>Docker đóng gói chương trình cùng mọi thứ nó cần thành một <b>image</b>, chạy giống hệt nhau ở máy bạn, CI và production. Với Go, image có thể rất nhỏ vì chương trình chỉ là một file.</p>
 <pre lang="docker" file="Dockerfile">
-# Giai đoạn 1: build (image có đủ công cụ Go, khá lớn)
-FROM golang:1.25 AS build
+# Giai đoạn 1: build (image có đủ công cụ Go, khá lớn).
+# Phiên bản Go phải bằng hoặc mới hơn dòng "go" trong go.mod
+FROM golang:1.27 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download                 # tách riêng bước này để Docker cache thư viện
@@ -151,14 +152,177 @@ func version() string {
 </quiz>
 
 <h2>Bài tập</h2>
-<details class="ex"><summary>Đóng gói và chạy API ghi chú</summary>
-<p>Viết Dockerfile nhiều giai đoạn cho API ghi chú (đã có đăng nhập và Postgres từ các bài trước), Compose file cho API + Postgres + Redis, và workflow GitHub Actions chạy vet, test với Postgres, govulncheck, build image. So sánh kích thước image cuối với image <code>golang</code>.</p>
-<details class="sol"><summary>Kết quả mong đợi</summary>
+<details class="ex"><summary>Đóng gói và chạy API có đăng nhập</summary>
+<p>Lấy API ở lời giải bài 18 (đăng ký, đăng nhập, ghi chú, Postgres). Viết:</p>
 <ul>
-<li><code>docker images</code>: image API cỡ vài chục MB, image <code>golang</code> hơn 800MB.</li>
-<li><code>docker compose up --build</code> từ máy sạch chạy được cả hệ thống, không cần cài Go.</li>
-<li>Thử <code>docker compose stop api</code> khi đang có request chậm: request vẫn xong rồi container mới dừng.</li>
-<li>Đẩy một commit làm test hỏng: CI đỏ.</li>
+<li><code>Dockerfile</code> nhiều giai đoạn.</li>
+<li><code>compose.yaml</code> chạy API + Postgres, database tự tạo bảng lần đầu.</li>
+<li>workflow GitHub Actions: vet, test với Postgres thật, govulncheck, build image.</li>
+<li>API tắt an toàn khi <code>docker compose stop</code>.</li>
 </ul>
+<p>So sánh kích thước image cuối với image <code>golang</code>.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Dockerfile: chép mẫu ở đầu bài, sửa dòng build thành <code>go build ... -o /out/api .</code> (dự án bài 18 có <code>main</code> ở thư mục gốc, không phải <code>./cmd/api</code>).</li>
+<li>Postgres chính thức tự chạy mọi file <code>.sql</code> trong <code>/docker-entrypoint-initdb.d/</code> khi database còn trống. Gắn <code>schema.sql</code> vào đó là có bảng.</li>
+<li>Trong compose, các container gọi nhau bằng <b>tên service</b>: API kết nối tới <code>db:5432</code>, không phải <code>localhost</code> (<code>localhost</code> bên trong container API là chính container API).</li>
+<li><code>docker stop</code> gửi tín hiệu <code>SIGTERM</code> rồi chờ 10 giây. Thêm vào <code>main</code> phần <code>signal.NotifyContext</code> + <code>srv.Shutdown</code> như bài 13, thời gian chờ ngắn hơn 10 giây.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<p>Giữ nguyên <code>auth.go</code>, <code>notes.go</code>, <code>schema.sql</code> của bài 18. Thay hàm <code>main</code> trong <code>main.go</code> bằng bản có tắt an toàn (thêm import <code>"errors"</code>, <code>"os/signal"</code>, <code>"syscall"</code>), kèm hai route <code>/livez</code> và <code>/slow</code> để thử:</p>
+<pre lang="go" file="main.go (hàm main)">
+func main() {
+    ctx := context.Background()
+    db, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+    if err := db.Ping(ctx); err != nil {
+        log.Fatal("không kết nối được database: ", err)
+    }
+
+    a := &App{db: db, limiter: &loginLimiter{fails: map[string][]time.Time{}}}
+
+    mux := http.NewServeMux()
+    mux.HandleFunc("POST /register", a.register)
+    mux.HandleFunc("POST /login", a.login)
+    mux.HandleFunc("POST /logout", a.logout)
+    mux.HandleFunc("GET /me", requireUser(a.me))
+    mux.HandleFunc("GET /notes", requireUser(a.listNotes))
+    mux.HandleFunc("POST /notes", requireUser(a.createNote))
+    mux.HandleFunc("GET /notes/{id}", requireUser(a.getNote))
+    mux.HandleFunc("DELETE /notes/{id}", requireUser(a.deleteNote))
+
+    mux.HandleFunc("GET /livez", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
+    mux.HandleFunc("GET /slow", func(w http.ResponseWriter, r *http.Request) {
+        time.Sleep(5 * time.Second) // để thử tắt an toàn
+        w.Write([]byte("xong việc chậm\n"))
+    })
+
+    srv := &http.Server{Addr: ":8080", Handler: a.authMiddleware(mux), ReadHeaderTimeout: 5 * time.Second}
+
+    // docker stop gửi SIGTERM: ngừng nhận request mới, chờ request đang chạy xong rồi thoát
+    sigCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+    defer stop()
+    done := make(chan struct{})
+    go func() {
+        <-sigCtx.Done()
+        log.Println("đang tắt, chờ các request dở dang")
+        shutdownCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second) // docker stop chờ 10 giây
+        defer cancel()
+        srv.Shutdown(shutdownCtx) // chờ request đang chạy xong mới trả về
+        close(done)
+    }()
+
+    log.Println("http://localhost:8080")
+    // Khi Shutdown bắt đầu, ListenAndServe trả về ErrServerClosed NGAY, chưa chờ gì cả
+    if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+        log.Fatal(err)
+    }
+    <-done // nên phải đứng chờ Shutdown làm xong, nếu không main thoát và cắt ngang request
+    log.Println("đã tắt")
+}
+</pre>
+<pre lang="docker" file="Dockerfile">
+# Giai đoạn 1: build (image có đủ công cụ Go, khá lớn)
+FROM golang:1.27 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/api .
+
+# Giai đoạn 2: chạy (chỉ có file chạy, không có shell, không có trình biên dịch)
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/api /api
+USER nonroot:nonroot
+EXPOSE 8080
+ENTRYPOINT ["/api"]
+</pre>
+<pre lang="text" file=".dockerignore">
+.git
+*.txt
+*.log
+srv
+</pre>
+<pre lang="yaml" file="compose.yaml">
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro   # chạy một lần khi database còn trống
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 15
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgres://postgres:dev@db:5432/postgres   # "db" là tên service ở trên
+    ports: ["8080:8080"]
+    depends_on:
+      db:
+        condition: service_healthy   # chờ database sẵn sàng rồi mới chạy API
+
+volumes:
+  pgdata:
+</pre>
+<pre lang="yaml" file=".github/workflows/ci.yml">
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgres://postgres:dev@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Tạo bảng
+        run: psql "$DATABASE_URL" -f schema.sql
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: Quét lỗ hổng thư viện
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: Build image
+        run: docker build -t authnotes:${{ github.sha }} .
+</pre>
+<p><b>Chạy cả hệ thống</b> (máy chỉ cần Docker, không cần cài Go hay Postgres):</p>
+<pre lang="sh">
+docker compose up --build -d   # lần đầu phải tải image Go và Postgres, có thể mất vài phút
+docker compose ps              # hai dòng db và api, cột STATUS là "Up"
+curl localhost:8080/livez      # ok
+docker images                  # so cột SIZE của image api với image golang
+</pre>
+<p>Image API chỉ cỡ vài chục MB (file chạy khoảng 10 MB cộng image distroless), trong khi image <code>golang</code> hơn 800 MB. Sau đó thử lại các lệnh <code>curl</code> đăng ký, đăng nhập của bài 18: kết quả giống hệt.</p>
+<p><b>Thử tắt an toàn:</b> gọi request chậm rồi dừng container ngay khi nó đang chạy:</p>
+<pre lang="sh">
+curl localhost:8080/slow &     # chạy nền, chờ 5 giây
+docker compose stop api        # gửi SIGTERM trong lúc request đang chạy
+docker compose logs api
+</pre>
+<p>Kết quả đúng: curl vẫn in ra <code>xong việc chậm</code>, và log của api có hai dòng <code>đang tắt, chờ các request dở dang</code> rồi vài giây sau mới tới <code>đã tắt</code>. Container chỉ dừng sau khi request xong.</p>
+<aside class="warn"><p>Để ý dòng <code>&lt;-done</code> trong <code>main</code>. Khi <code>Shutdown</code> bắt đầu, <code>ListenAndServe</code> trả về <b>ngay lập tức</b>. Nếu <code>main</code> kết thúc luôn ở đó, chương trình thoát và cắt ngang request đang chạy, dù đã gọi <code>Shutdown</code>. Đây là lỗi rất hay gặp, chính bản nháp đầu của lời giải này cũng mắc: curl nhận về rỗng. Phải đứng chờ <code>Shutdown</code> làm xong (ở đây bằng channel <code>done</code>, bài 09).</p></aside>
+<p><b>CI:</b> đẩy dự án lên GitHub (có thư mục <code>.github/workflows</code>), mở tab Actions để xem. Thử sửa một test cho hỏng rồi push: job đỏ. Sửa lại: xanh.</p>
 </details>
 </details>

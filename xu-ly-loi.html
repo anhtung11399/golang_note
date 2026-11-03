@@ -36,14 +36,27 @@
     <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Trả và kiểm tra lỗi đúng cách</li><li>Bọc lỗi để giữ ngữ cảnh</li><li>Phân biệt lỗi người dùng và lỗi hệ thống</li></ul></div>
   </header>
   <div class="prose"><h2 id="loi-la-gia-tri"><a href="#loi-la-gia-tri" class="anchor" aria-hidden="true">#</a>Lỗi là giá trị</h2>
-<p>Go không có <code>try / catch</code>. Hàm có thể thất bại thì trả về một giá trị kiểu <code>error</code> ở vị trí cuối, và người gọi kiểm tra ngay:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>f, err := os.<span class="f">Open</span>(<span class="s">&quot;data.csv&quot;</span>)
-<span class="k">if</span> err != <span class="b">nil</span> {
-    <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;mở file dữ liệu: %w&quot;</span>, err)
-}
-<span class="k">defer</span> f.<span class="f">Close</span>()</code></pre></div>
-<p><code>error</code> chỉ là một interface có sẵn:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> <span class="t">error</span> <span class="k">interface</span> {
+<p>Go không có <code>try / catch</code>. Hàm có thể thất bại thì trả về thêm một giá trị kiểu <code>error</code> ở vị trí <b>cuối cùng</b>, và người gọi kiểm tra ngay sau khi gọi:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    f, err := os.<span class="f">Open</span>(<span class="s">&quot;data.csv&quot;</span>) <span class="c">// trả về 2 giá trị: file và lỗi</span>
+    <span class="k">if</span> err != <span class="b">nil</span> {               <span class="c">// có lỗi: xử lý rồi dừng</span>
+        fmt.<span class="f">Println</span>(<span class="s">&quot;không mở được file:&quot;</span>, err)
+        <span class="k">return</span>
+    }
+    <span class="k">defer</span> f.<span class="f">Close</span>() <span class="c">// tới được đây là mở thành công</span>
+    fmt.<span class="f">Println</span>(<span class="s">&quot;đã mở file&quot;</span>)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>không mở được file: open data.csv: no such file or directory</pre></div>
+<p>Thư mục của bạn không có file <code>data.csv</code> nên ra nhánh lỗi. Tạo một file tên <code>data.csv</code> cạnh <code>main.go</code> rồi chạy lại sẽ thấy "đã mở file".</p>
+<p><code>error</code> không có gì bí ẩn, nó chỉ là một interface có sẵn (bài 06): kiểu nào có method <code>Error() string</code> là lỗi.</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> <span class="t">error</span> <span class="k">interface</span> {
     <span class="f">Error</span>() <span class="t">string</span>
 }</code></pre></div>
 <table>
@@ -57,86 +70,150 @@
 <aside class="fe"><p>Lúc đầu bạn sẽ thấy <code>if err != nil</code> lặp lại ở khắp nơi. Đây là chủ đích: đường đi của lỗi hiện rõ trên màn hình. Khi đọc một hàm Go, bạn thấy ngay mọi chỗ có thể hỏng và chuyện gì xảy ra lúc đó, điều mà <code>await</code> trong một khối <code>try</code> lớn không cho bạn thấy.</p></aside>
 
 <h2 id="boc-loi-de-giu-ngu-canh"><a href="#boc-loi-de-giu-ngu-canh" class="anchor" aria-hidden="true">#</a>Bọc lỗi để giữ ngữ cảnh</h2>
-<p>Một lỗi trần như <code>connection refused</code> không cho biết gì. Mỗi tầng nên thêm ngữ cảnh bằng <code>fmt.Errorf</code> với <code>%w</code> (wrap):</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (r *Repo) <span class="f">GetClass</span>(ctx context.Context, id <span class="t">int64</span>) (Class, <span class="t">error</span>) {
-    <span class="k">var</span> c Class
-    err := r.db.<span class="f">QueryRow</span>(ctx, <span class="s">`SELECT id, name FROM classes WHERE id = $1`</span>, id).<span class="f">Scan</span>(&amp;c.ID, &amp;c.Name)
-    <span class="k">if</span> err != <span class="b">nil</span> {
-        <span class="k">return</span> Class{}, fmt.<span class="f">Errorf</span>(<span class="s">&quot;lấy lớp %d: %w&quot;</span>, id, err)
-    }
-    <span class="k">return</span> c, <span class="b">nil</span>
-}
+<p>Một lỗi trần như <code>connection refused</code> không cho biết lỗi xảy ra khi đang làm gì. Mỗi tầng nên thêm ngữ cảnh bằng <code>fmt.Errorf</code> với <code>%w</code> (w = wrap, bọc):</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-<span class="k">func</span> (s *Service) <span class="f">ClassReport</span>(ctx context.Context, id <span class="t">int64</span>) (Report, <span class="t">error</span>) {
-    c, err := s.repo.<span class="f">GetClass</span>(ctx, id)
-    <span class="k">if</span> err != <span class="b">nil</span> {
-        <span class="k">return</span> Report{}, fmt.<span class="f">Errorf</span>(<span class="s">&quot;tạo báo cáo lớp: %w&quot;</span>, err)
-    }
-    <span class="c">// ...</span>
-}</code></pre></div>
-<p>Lỗi cuối cùng đọc như một câu chuyện, từ ngoài vào trong:</p>
-<div class="code"><div class="code-h"><span>log</span><button class="copy" type="button">Sao chép</button></div><pre><code>tạo báo cáo lớp: lấy lớp 42: failed to connect to `host=db`: dial tcp 10.0.0.5:5432: connect: connection refused</code></pre></div>
-<figure class="dg"><svg viewBox="0 0 670 458" style="min-width:600px;max-width:670px" role="img" aria-label="Mỗi tầng bọc thêm một lớp ngữ cảnh. Tầng HTTP quyết định trả gì cho người dùng"><line x1="80" y1="66" x2="80" y2="448" class="lf"/><g class="nd fe"><rect x="20" y="10" width="120" height="54" rx="10"/><text x="80" y="42" class="tt" text-anchor="middle">Client</text></g><line x1="250" y1="66" x2="250" y2="448" class="lf"/><g class="nd go"><rect x="190" y="10" width="120" height="54" rx="10"/><text x="250" y="42" class="tt" text-anchor="middle">Handler</text></g><line x1="420" y1="66" x2="420" y2="448" class="lf"/><g class="nd go"><rect x="360" y="10" width="120" height="54" rx="10"/><text x="420" y="42" class="tt" text-anchor="middle">Service</text></g><line x1="590" y1="66" x2="590" y2="448" class="lf"/><g class="nd db"><rect x="530" y="10" width="120" height="54" rx="10"/><text x="590" y="42" class="tt" text-anchor="middle">Repository</text></g><line x1="80" y1="106" x2="246" y2="106" class="ln" marker-end="url(#ar)"/><text x="165" y="83" class="tl" text-anchor="middle">GET</text><text x="165" y="99" class="tl" text-anchor="middle">/classes/42/report</text><line x1="250" y1="148" x2="416" y2="148" class="ln" marker-end="url(#ar)"/><text x="335" y="141" class="tl" text-anchor="middle">ClassReport(42)</text><line x1="420" y1="190" x2="586" y2="190" class="ln" marker-end="url(#ar)"/><text x="505" y="183" class="tl" text-anchor="middle">GetClass(42)</text><line x1="590" y1="248" x2="424" y2="248" class="ln ds" marker-end="url(#ar)"/><text x="505" y="225" class="tl" text-anchor="middle">&quot;lấy lớp 42:</text><text x="505" y="241" class="tl" text-anchor="middle">connection refused&quot;</text><line x1="420" y1="306" x2="254" y2="306" class="ln ds" marker-end="url(#ar)"/><text x="335" y="283" class="tl" text-anchor="middle">&quot;tạo báo cáo lớp: lấy</text><text x="335" y="299" class="tl" text-anchor="middle">lớp 42: ...&quot;</text><rect x="106.95999999999998" y="336" width="286.08000000000004" height="28" rx="6" class="nt"/><text x="250" y="354" class="tn" text-anchor="middle">ghi log lỗi đầy đủ, một lần duy nhất</text><line x1="250" y1="406" x2="84" y2="406" class="ln ds" marker-end="url(#ar)"/><text x="165" y="367" class="tl" text-anchor="middle">500 {&quot;error&quot;: &quot;Máy</text><text x="165" y="383" class="tl" text-anchor="middle">chủ đang bận, thử lại</text><text x="165" y="399" class="tl" text-anchor="middle">sau&quot;}</text></svg><figcaption>Mỗi tầng bọc thêm một lớp ngữ cảnh. Tầng HTTP quyết định trả gì cho người dùng</figcaption></figure>
-<aside class="warn"><p><code>%w</code> và <code>%v</code> khác nhau: <code>%w</code> giữ lỗi gốc bên trong để <code>errors.Is</code> / <code>errors.As</code> còn tìm thấy. <code>%v</code> chỉ chép chữ, lỗi gốc mất. Gần như luôn dùng <code>%w</code>.</p></aside>
-
-<h2 id="loi-dinh-san-sentinel-va-errors-is"><a href="#loi-dinh-san-sentinel-va-errors-is" class="anchor" aria-hidden="true">#</a>Lỗi định sẵn (sentinel) và errors.Is</h2>
-<p>Với các lỗi nghiệp vụ mà người gọi cần phân biệt, khai báo sẵn thành biến của package:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> (
-    ErrNotFound  = errors.<span class="f">New</span>(<span class="s">&quot;không tìm thấy&quot;</span>)
-    ErrForbidden = errors.<span class="f">New</span>(<span class="s">&quot;không có quyền&quot;</span>)
-    ErrConflict  = errors.<span class="f">New</span>(<span class="s">&quot;dữ liệu đã thay đổi&quot;</span>)
+<span class="k">import</span> (
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
 )
 
-<span class="k">func</span> (r *Repo) <span class="f">GetClass</span>(ctx context.Context, id <span class="t">int64</span>) (Class, <span class="t">error</span>) {
-    <span class="c">// ...</span>
-    <span class="k">if</span> errors.<span class="f">Is</span>(err, pgx.ErrNoRows) {
-        <span class="k">return</span> Class{}, ErrNotFound <span class="c">// đổi lỗi của thư viện thành lỗi của mình</span>
-    }
-    <span class="c">// ...</span>
+<span class="c">// Tầng trong cùng: giả lập database không kết nối được</span>
+<span class="k">func</span> <span class="f">queryDB</span>() <span class="t">error</span> {
+    <span class="k">return</span> errors.<span class="f">New</span>(<span class="s">&quot;connection refused&quot;</span>)
 }
 
-<span class="c">// Ở tầng trên, dù lỗi đã bị bọc nhiều lớp, errors.Is vẫn tìm thấy:</span>
-<span class="k">if</span> errors.<span class="f">Is</span>(err, ErrNotFound) {
-    <span class="c">// trả 404</span>
-}</code></pre></div>
-<aside class="prod"><p>Repository nên <b>dịch</b> lỗi của thư viện database (<code>pgx.ErrNoRows</code>, lỗi trùng khoá...) thành lỗi của chính ứng dụng (<code>ErrNotFound</code>, <code>ErrConflict</code>). Nhờ vậy tầng service và HTTP không phụ thuộc vào việc bạn dùng Postgres hay thứ khác.</p></aside>
-
-<h2 id="kieu-loi-rieng-va-errors-as"><a href="#kieu-loi-rieng-va-errors-as" class="anchor" aria-hidden="true">#</a>Kiểu lỗi riêng và errors.As</h2>
-<p>Khi lỗi cần mang thêm dữ liệu (trường nào sai, sai vì sao), tạo một kiểu lỗi riêng:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> ValidationError <span class="k">struct</span> {
-    Field   <span class="t">string</span>
-    Message <span class="t">string</span>
-}
-
-<span class="k">func</span> (e *ValidationError) <span class="f">Error</span>() <span class="t">string</span> {
-    <span class="k">return</span> e.Field + <span class="s">&quot;: &quot;</span> + e.Message
-}
-
-<span class="k">func</span> <span class="f">validate</span>(req CreateClassReq) <span class="t">error</span> {
-    <span class="k">if</span> utf8.<span class="f">RuneCountInString</span>(req.Name) &gt; <span class="n">60</span> {
-        <span class="k">return</span> &amp;ValidationError{Field: <span class="s">&quot;name&quot;</span>, Message: <span class="s">&quot;Tên lớp tối đa 60 ký tự&quot;</span>}
+<span class="c">// Tầng repository: bọc thêm &quot;đang lấy lớp nào&quot;</span>
+<span class="k">func</span> <span class="f">getClass</span>(id <span class="t">int64</span>) <span class="t">error</span> {
+    <span class="k">if</span> err := <span class="f">queryDB</span>(); err != <span class="b">nil</span> {
+        <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;lấy lớp %d: %w&quot;</span>, id, err) <span class="c">// %w: chèn lỗi gốc vào, và GIỮ nó bên trong</span>
     }
     <span class="k">return</span> <span class="b">nil</span>
 }
 
-<span class="c">// Tầng HTTP lấy lại lỗi cụ thể để trả về cho client</span>
-<span class="k">var</span> ve *ValidationError
-<span class="k">if</span> errors.<span class="f">As</span>(err, &amp;ve) {
-    <span class="c">// trả 400 với ve.Field, ve.Message</span>
+<span class="c">// Tầng service: bọc thêm &quot;đang làm nghiệp vụ gì&quot;</span>
+<span class="k">func</span> <span class="f">classReport</span>(id <span class="t">int64</span>) <span class="t">error</span> {
+    <span class="k">if</span> err := <span class="f">getClass</span>(id); err != <span class="b">nil</span> {
+        <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;tạo báo cáo lớp: %w&quot;</span>, err)
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    err := <span class="f">classReport</span>(<span class="n">42</span>)
+    fmt.<span class="f">Println</span>(err)
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>tạo báo cáo lớp: lấy lớp 42: connection refused</pre></div>
+<p>Lỗi cuối cùng đọc như một câu chuyện, từ ngoài vào trong: đang tạo báo cáo, lúc lấy lớp 42 thì database từ chối kết nối. Đọc log là biết ngay chỗ hỏng.</p>
+<figure class="dg"><svg viewBox="0 0 670 458" style="min-width:600px;max-width:670px" role="img" aria-label="Mỗi tầng bọc thêm một lớp ngữ cảnh. Tầng HTTP quyết định trả gì cho người dùng"><line x1="80" y1="66" x2="80" y2="448" class="lf"/><g class="nd fe"><rect x="20" y="10" width="120" height="54" rx="10"/><text x="80" y="42" class="tt" text-anchor="middle">Client</text></g><line x1="250" y1="66" x2="250" y2="448" class="lf"/><g class="nd go"><rect x="190" y="10" width="120" height="54" rx="10"/><text x="250" y="42" class="tt" text-anchor="middle">Handler</text></g><line x1="420" y1="66" x2="420" y2="448" class="lf"/><g class="nd go"><rect x="360" y="10" width="120" height="54" rx="10"/><text x="420" y="42" class="tt" text-anchor="middle">Service</text></g><line x1="590" y1="66" x2="590" y2="448" class="lf"/><g class="nd db"><rect x="530" y="10" width="120" height="54" rx="10"/><text x="590" y="42" class="tt" text-anchor="middle">Repository</text></g><line x1="80" y1="106" x2="246" y2="106" class="ln" marker-end="url(#ar)"/><text x="165" y="83" class="tl" text-anchor="middle">GET</text><text x="165" y="99" class="tl" text-anchor="middle">/classes/42/report</text><line x1="250" y1="148" x2="416" y2="148" class="ln" marker-end="url(#ar)"/><text x="335" y="141" class="tl" text-anchor="middle">ClassReport(42)</text><line x1="420" y1="190" x2="586" y2="190" class="ln" marker-end="url(#ar)"/><text x="505" y="183" class="tl" text-anchor="middle">GetClass(42)</text><line x1="590" y1="248" x2="424" y2="248" class="ln ds" marker-end="url(#ar)"/><text x="505" y="225" class="tl" text-anchor="middle">&quot;lấy lớp 42:</text><text x="505" y="241" class="tl" text-anchor="middle">connection refused&quot;</text><line x1="420" y1="306" x2="254" y2="306" class="ln ds" marker-end="url(#ar)"/><text x="335" y="283" class="tl" text-anchor="middle">&quot;tạo báo cáo lớp: lấy</text><text x="335" y="299" class="tl" text-anchor="middle">lớp 42: ...&quot;</text><rect x="106.95999999999998" y="336" width="286.08000000000004" height="28" rx="6" class="nt"/><text x="250" y="354" class="tn" text-anchor="middle">ghi log lỗi đầy đủ, một lần duy nhất</text><line x1="250" y1="406" x2="84" y2="406" class="ln ds" marker-end="url(#ar)"/><text x="165" y="367" class="tl" text-anchor="middle">500 {&quot;error&quot;: &quot;Máy</text><text x="165" y="383" class="tl" text-anchor="middle">chủ đang bận, thử lại</text><text x="165" y="399" class="tl" text-anchor="middle">sau&quot;}</text></svg><figcaption>Mỗi tầng bọc thêm một lớp ngữ cảnh. Tầng HTTP quyết định trả gì cho người dùng</figcaption></figure>
+<aside class="warn"><p><code>%w</code> và <code>%v</code> in ra giống hệt nhau, nhưng khác nhau ở bên trong: <code>%w</code> giữ lỗi gốc để <code>errors.Is</code> / <code>errors.As</code> còn tìm thấy. <code>%v</code> chỉ chép chữ, lỗi gốc mất. Gần như luôn dùng <code>%w</code>.</p></aside>
+
+<h2 id="loi-dinh-san-sentinel-va-errors-is"><a href="#loi-dinh-san-sentinel-va-errors-is" class="anchor" aria-hidden="true">#</a>Lỗi định sẵn (sentinel) và errors.Is</h2>
+<p>Với các lỗi mà người gọi cần <b>phân biệt</b> để xử lý khác nhau (không tìm thấy thì trả 404, không có quyền thì trả 403), khai báo sẵn thành biến dùng chung. <code>errors.Is</code> kiểm tra "trong chuỗi lỗi bọc nhau này có lỗi X không", kể cả khi đã bọc nhiều lớp:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+)
+
+<span class="c">// Lỗi định sẵn: tên bắt đầu bằng Err, khai báo một lần ở cấp package</span>
+<span class="k">var</span> (
+    ErrNotFound  = errors.<span class="f">New</span>(<span class="s">&quot;không tìm thấy&quot;</span>)
+    ErrForbidden = errors.<span class="f">New</span>(<span class="s">&quot;không có quyền&quot;</span>)
+)
+
+<span class="k">func</span> <span class="f">findClass</span>(id <span class="t">int64</span>) <span class="t">error</span> {
+    <span class="k">if</span> id != <span class="n">1</span> {
+        <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;lấy lớp %d: %w&quot;</span>, id, ErrNotFound) <span class="c">// bọc lỗi định sẵn kèm ngữ cảnh</span>
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    err := <span class="f">findClass</span>(<span class="n">42</span>)
+    fmt.<span class="f">Println</span>(err)
+
+    <span class="c">// So sánh trực tiếp thất bại vì err là lỗi BỌC NGOÀI, không phải chính ErrNotFound</span>
+    fmt.<span class="f">Println</span>(err == ErrNotFound)
+
+    <span class="c">// errors.Is lột từng lớp bọc ra để tìm</span>
+    fmt.<span class="f">Println</span>(errors.<span class="f">Is</span>(err, ErrNotFound))
+    fmt.<span class="f">Println</span>(errors.<span class="f">Is</span>(err, ErrForbidden))
+
+    <span class="k">if</span> errors.<span class="f">Is</span>(err, ErrNotFound) {
+        fmt.<span class="f">Println</span>(<span class="s">&quot;-&gt; trả về 404&quot;</span>)
+    }
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>lấy lớp 42: không tìm thấy
+false
+true
+false
+-&gt; trả về 404</pre></div>
+<aside class="prod"><p>Repository nên <b>dịch</b> lỗi của thư viện database (<code>pgx.ErrNoRows</code>, lỗi trùng khoá...) thành lỗi của chính ứng dụng (<code>ErrNotFound</code>, <code>ErrConflict</code>). Nhờ vậy tầng service và HTTP không phụ thuộc vào việc bạn dùng Postgres hay thứ khác. Trong code thật nó trông như sau (trích đoạn, bài 15 có đầy đủ):</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">if</span> errors.<span class="f">Is</span>(err, pgx.ErrNoRows) {
+    <span class="k">return</span> Class{}, ErrNotFound <span class="c">// đổi lỗi của thư viện thành lỗi của mình</span>
+}</code></pre></div></aside>
+
+<h2 id="kieu-loi-rieng-va-errors-as"><a href="#kieu-loi-rieng-va-errors-as" class="anchor" aria-hidden="true">#</a>Kiểu lỗi riêng và errors.As</h2>
+<p>Khi lỗi cần mang thêm dữ liệu (trường nào sai, sai vì sao), tạo một kiểu lỗi riêng: một struct có method <code>Error()</code>. <code>errors.As</code> tìm trong chuỗi lỗi một lỗi đúng kiểu đó và lấy nó ra cho bạn dùng các trường:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;unicode/utf8&quot;</span>
+)
+
+<span class="k">type</span> ValidationError <span class="k">struct</span> {
+    Field   <span class="t">string</span>
+    Message <span class="t">string</span>
+}
+
+<span class="c">// Có method Error() string, nên *ValidationError là một error</span>
+<span class="k">func</span> (e *ValidationError) <span class="f">Error</span>() <span class="t">string</span> {
+    <span class="k">return</span> e.Field + <span class="s">&quot;: &quot;</span> + e.Message
+}
+
+<span class="k">func</span> <span class="f">validateClassName</span>(name <span class="t">string</span>) <span class="t">error</span> {
+    <span class="k">if</span> utf8.<span class="f">RuneCountInString</span>(name) &gt; <span class="n">10</span> {
+        <span class="k">return</span> &amp;ValidationError{Field: <span class="s">&quot;name&quot;</span>, Message: <span class="s">&quot;Tên lớp tối đa 10 ký tự&quot;</span>}
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">createClass</span>(name <span class="t">string</span>) <span class="t">error</span> {
+    <span class="k">if</span> err := <span class="f">validateClassName</span>(name); err != <span class="b">nil</span> {
+        <span class="k">return</span> fmt.<span class="f">Errorf</span>(<span class="s">&quot;tạo lớp: %w&quot;</span>, err)
+    }
+    <span class="k">return</span> <span class="b">nil</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    err := <span class="f">createClass</span>(<span class="s">&quot;Lớp chuyên Toán khối 10&quot;</span>)
+
+    <span class="k">var</span> ve *ValidationError   <span class="c">// biến rỗng để errors.As đổ kết quả vào</span>
+    <span class="k">if</span> errors.<span class="f">As</span>(err, &amp;ve) {  <span class="c">// &quot;trong err có lỗi kiểu *ValidationError không? có thì gán vào ve&quot;</span>
+        fmt.<span class="f">Println</span>(<span class="s">&quot;trường sai:&quot;</span>, ve.Field)
+        fmt.<span class="f">Println</span>(<span class="s">&quot;báo người dùng:&quot;</span>, ve.Message)
+    }
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>trường sai: name
+báo người dùng: Tên lớp tối đa 10 ký tự</pre></div>
+<p>Nhớ nhanh: <code>errors.Is</code> hỏi "có phải lỗi <b>này</b> không" (so với một biến lỗi định sẵn). <code>errors.As</code> hỏi "có lỗi nào thuộc <b>kiểu</b> này không" (rồi lấy dữ liệu bên trong). Giống <code>e instanceof ValidationError</code> trong JS.</p>
 
 <h2 id="bien-loi-thanh-response-http-o-mot-cho"><a href="#bien-loi-thanh-response-http-o-mot-cho" class="anchor" aria-hidden="true">#</a>Biến lỗi thành response HTTP ở một chỗ</h2>
-<p>Ngoài thực tế, mỗi dự án có một hàm duy nhất quyết định lỗi nào thành status code nào và người dùng thấy câu gì. Không handler nào tự viết <code>500</code> lung tung.</p>
-<div class="code"><div class="code-h"><span>internal/httpx/errors.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">WriteError</span>(w http.ResponseWriter, r *http.Request, err <span class="t">error</span>) {
+<p>Ngoài thực tế, mỗi dự án có một hàm duy nhất quyết định lỗi nào thành status code nào và người dùng thấy câu gì. Không handler nào tự viết <code>500</code> lung tung. Đây là trích đoạn từ dự án thật, bạn sẽ dựng nó ở bài 12:</p>
+<div class="code"><div class="code-h"><span>internal/httpx/errors.go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">WriteError</span>(w http.ResponseWriter, r *http.Request, err <span class="t">error</span>) {
     <span class="k">var</span> ve *ValidationError
     <span class="k">switch</span> {
-    <span class="k">case</span> errors.<span class="f">As</span>(err, &amp;ve):
+    <span class="k">case</span> errors.<span class="f">As</span>(err, &amp;ve): <span class="c">// lỗi dữ liệu đầu vào: báo rõ cho người dùng</span>
         <span class="f">writeJSON</span>(w, http.StatusBadRequest, <span class="f">errBody</span>(<span class="s">&quot;INVALID&quot;</span>, ve.Message))
     <span class="k">case</span> errors.<span class="f">Is</span>(err, ErrNotFound):
         <span class="f">writeJSON</span>(w, http.StatusNotFound, <span class="f">errBody</span>(<span class="s">&quot;NOT_FOUND&quot;</span>, <span class="s">&quot;Không tìm thấy&quot;</span>))
     <span class="k">case</span> errors.<span class="f">Is</span>(err, ErrForbidden):
         <span class="f">writeJSON</span>(w, http.StatusForbidden, <span class="f">errBody</span>(<span class="s">&quot;FORBIDDEN&quot;</span>, <span class="s">&quot;Bạn không có quyền&quot;</span>))
-    <span class="k">case</span> errors.<span class="f">Is</span>(err, context.DeadlineExceeded):
+    <span class="k">case</span> errors.<span class="f">Is</span>(err, context.DeadlineExceeded): <span class="c">// quá thời gian (bài 10)</span>
         <span class="f">writeJSON</span>(w, http.StatusGatewayTimeout, <span class="f">errBody</span>(<span class="s">&quot;TIMEOUT&quot;</span>, <span class="s">&quot;Máy chủ xử lý quá lâu&quot;</span>))
     <span class="k">default</span>:
         <span class="c">// Lỗi không lường trước: ghi log đầy đủ, KHÔNG trả chi tiết cho client</span>
@@ -147,24 +224,48 @@
 <aside class="warn"><p>Đừng bao giờ trả nguyên <code>err.Error()</code> của lỗi hệ thống cho client. Chuỗi lỗi có thể chứa tên bảng, câu SQL, địa chỉ IP nội bộ, đường dẫn file: những thứ kẻ tấn công rất muốn biết. Lỗi nghiệp vụ (validation) thì được viết sẵn cho người dùng đọc nên trả được.</p></aside>
 
 <h3>Xử lý lỗi một lần</h3>
-<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">if</span> err != <span class="b">nil</span> {
+<div class="code bad"><div class="code-h"><span>Go · trích đoạn</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">if</span> err != <span class="b">nil</span> {
     log.<span class="f">Printf</span>(<span class="s">&quot;lỗi lấy lớp: %v&quot;</span>, err) <span class="c">// ghi log ở đây</span>
     <span class="k">return</span> err                          <span class="c">// rồi trả lên, tầng trên lại ghi log lần nữa</span>
 }</code></pre></div>
 <p>Kết quả là một lỗi xuất hiện 4 lần trong log ở 4 tầng. Quy tắc: <b>hoặc xử lý (ghi log, trả response), hoặc bọc và trả lên. Không làm cả hai.</b> Thường chỉ tầng ngoài cùng (handler / middleware) ghi log.</p>
 
 <h2 id="panic-va-recover"><a href="#panic-va-recover" class="anchor" aria-hidden="true">#</a>panic và recover</h2>
-<p><code>panic</code> dừng hàm ngay lập tức và đi ngược lên chuỗi gọi hàm, chạy các <code>defer</code> trên đường đi. Nếu không ai <code>recover</code>, cả chương trình dừng.</p>
+<p><code>panic</code> dừng hàm ngay lập tức và đi ngược lên chuỗi gọi hàm, chạy các <code>defer</code> trên đường đi. Nếu không ai <code>recover</code>, cả chương trình dừng. Gần giống <code>throw</code> mà không có <code>catch</code>.</p>
 <p>Panic dành cho <b>lỗi lập trình</b>, những thứ "không thể xảy ra nếu code đúng": truy cập ngoài phạm vi slice, nil pointer, cấu hình bắt buộc bị thiếu lúc khởi động. Lỗi có thể đoán trước (người dùng nhập sai, không tìm thấy, mạng lỗi) <b>luôn</b> dùng <code>error</code>.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">mustEnv</span>(key <span class="t">string</span>) <span class="t">string</span> {
-    v := os.<span class="f">Getenv</span>(key)
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">mustEnv</span>(key <span class="t">string</span>) <span class="t">string</span> {
+    v := os.<span class="f">Getenv</span>(key) <span class="c">// đọc biến môi trường, giống process.env[key]</span>
     <span class="k">if</span> v == <span class="s">&quot;&quot;</span> {
-        <span class="b">panic</span>(<span class="s">&quot;thiếu biến môi trường &quot;</span> + key) <span class="c">// chấp nhận được: lúc khởi động, sai cấu hình thì nên dừng ngay</span>
+        <span class="c">// chấp nhận được: lúc khởi động, sai cấu hình thì nên dừng ngay</span>
+        <span class="b">panic</span>(<span class="s">&quot;thiếu biến môi trường &quot;</span> + key)
     }
     <span class="k">return</span> v
 }</code></pre></div>
-<p><code>recover</code> chỉ có tác dụng bên trong một hàm <code>defer</code>. Ứng dụng phổ biến nhất: middleware chặn panic để một request lỗi không kéo sập cả server:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">Recover</span>(next http.Handler) http.Handler {
+<p><code>recover()</code> "bắt" panic, nhưng chỉ có tác dụng khi gọi bên trong một hàm <code>defer</code>. Xem nó chạy:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">func</span> <span class="f">safeDivide</span>(a, b <span class="t">int</span>) (result <span class="t">int</span>, err <span class="t">error</span>) {
+    <span class="k">defer</span> <span class="k">func</span>() {
+        <span class="k">if</span> v := <span class="b">recover</span>(); v != <span class="b">nil</span> { <span class="c">// có panic: v là giá trị panic, chương trình KHÔNG dừng</span>
+            err = fmt.<span class="f">Errorf</span>(<span class="s">&quot;đã chặn panic: %v&quot;</span>, v)
+        }
+    }()
+    <span class="k">return</span> a / b, <span class="b">nil</span> <span class="c">// b = 0 thì phép chia gây panic</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    fmt.<span class="f">Println</span>(<span class="f">safeDivide</span>(<span class="n">10</span>, <span class="n">2</span>))
+    fmt.<span class="f">Println</span>(<span class="f">safeDivide</span>(<span class="n">10</span>, <span class="n">0</span>))
+    fmt.<span class="f">Println</span>(<span class="s">&quot;chương trình vẫn chạy tiếp&quot;</span>)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>5 &lt;nil&gt;
+0 đã chặn panic: runtime error: integer divide by zero
+chương trình vẫn chạy tiếp</pre></div>
+<p><code>(result int, err error)</code> là <b>giá trị trả về có tên</b>: hàm defer gán được <code>err</code> trước khi hàm thật sự trả về. Đây là một trong số ít chỗ nên dùng cách viết này.</p>
+<p>Ứng dụng phổ biến nhất của recover: middleware chặn panic để một request lỗi không làm hỏng cả server (trích đoạn, bài 13 dùng lại):</p>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">Recover</span>(next http.Handler) http.Handler {
     <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
         <span class="k">defer</span> <span class="k">func</span>() {
             <span class="k">if</span> v := <span class="b">recover</span>(); v != <span class="b">nil</span> {
@@ -172,7 +273,7 @@
                 http.<span class="f">Error</span>(w, <span class="s">&quot;Có lỗi xảy ra&quot;</span>, http.StatusInternalServerError)
             }
         }()
-        next.<span class="f">ServeHTTP</span>(w, r)
+        next.<span class="f">ServeHTTP</span>(w, r) <span class="c">// chạy handler thật, panic ở trong sẽ bị defer phía trên bắt</span>
     })
 }</code></pre></div>
 <aside class="real"><p><code>net/http</code> của Go đã tự recover panic trong handler và chỉ đóng kết nối đó, nên server không sập. Nhưng nó không ghi log theo định dạng của bạn và client chỉ thấy kết nối bị cắt. Middleware như trên cho bạn log có cấu trúc và một response tử tế. <b>Lưu ý:</b> panic trong một goroutine bạn tự tạo ra (<code>go func() {...}()</code>) thì không middleware nào cứu được: nó làm dừng <b>cả tiến trình</b>. Goroutine chạy nền phải tự có recover.</p></aside>
@@ -183,9 +284,38 @@
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Rút tiền</summary>
-<p>Viết <code>Withdraw(balance, amount int64) (int64, error)</code>. Trả <code>*ValidationError</code> khi <code>amount &lt;= 0</code>, trả lỗi định sẵn <code>ErrInsufficientFunds</code> khi không đủ tiền, bọc kèm số dư hiện tại. Viết hàm <code>statusOf(err error) int</code> trả 400 / 409 / 500 tương ứng.</p>
+<p>Viết hàm <code>Withdraw(balance, amount int64) (int64, error)</code>: rút <code>amount</code> từ số dư <code>balance</code>, trả về số dư mới.</p>
+<ul>
+<li><code>amount &lt;= 0</code>: trả <code>*ValidationError</code> (kiểu lỗi ở trên) với thông báo "Số tiền phải lớn hơn 0".</li>
+<li>không đủ tiền: trả lỗi định sẵn <code>ErrInsufficientFunds</code>, bọc kèm số tiền muốn rút và số dư hiện tại.</li>
+</ul>
+<p>Viết thêm <code>statusOf(err error) int</code> đổi lỗi thành mã HTTP: không lỗi 200, validation 400, không đủ tiền 409, còn lại 500. Kết quả mong muốn:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>rút 30000: số dư 70000, lỗi &lt;nil&gt;, mã 200
+rút 0: số dư 100000, lỗi amount: Số tiền phải lớn hơn 0, mã 400
+rút 500000: số dư 100000, lỗi rút 500000, còn 100000: số dư không đủ, mã 409</pre></div>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Khai báo <code>var ErrInsufficientFunds = errors.New("số dư không đủ")</code> ở ngoài hàm.</li>
+<li>Trong <code>Withdraw</code>, kiểm tra theo kiểu guard clause (bài 03): sai thì <code>return</code> luôn. Khi lỗi, trả lại <code>balance</code> cũ.</li>
+<li>Bọc lỗi: <code>fmt.Errorf("rút %d, còn %d: %w", amount, balance, ErrInsufficientFunds)</code>.</li>
+<li>Trong <code>statusOf</code>, dùng <code>switch</code> không biểu thức với <code>errors.As</code> và <code>errors.Is</code>, giống hàm <code>WriteError</code> ở trên.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> ErrInsufficientFunds = errors.<span class="f">New</span>(<span class="s">&quot;số dư không đủ&quot;</span>)
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+)
+
+<span class="k">type</span> ValidationError <span class="k">struct</span> {
+    Field   <span class="t">string</span>
+    Message <span class="t">string</span>
+}
+
+<span class="k">func</span> (e *ValidationError) <span class="f">Error</span>() <span class="t">string</span> { <span class="k">return</span> e.Field + <span class="s">&quot;: &quot;</span> + e.Message }
+
+<span class="k">var</span> ErrInsufficientFunds = errors.<span class="f">New</span>(<span class="s">&quot;số dư không đủ&quot;</span>)
 
 <span class="k">func</span> <span class="f">Withdraw</span>(balance, amount <span class="t">int64</span>) (<span class="t">int64</span>, <span class="t">error</span>) {
     <span class="k">if</span> amount &lt;= <span class="n">0</span> {
@@ -205,11 +335,22 @@
     <span class="k">case</span> errors.<span class="f">As</span>(err, &amp;ve):
         <span class="k">return</span> <span class="n">400</span>
     <span class="k">case</span> errors.<span class="f">Is</span>(err, ErrInsufficientFunds):
-        <span class="k">return</span> <span class="n">409</span>
+        <span class="k">return</span> <span class="n">409</span> <span class="c">// Conflict: yêu cầu hợp lệ nhưng mâu thuẫn với trạng thái hiện tại</span>
     <span class="k">default</span>:
         <span class="k">return</span> <span class="n">500</span>
     }
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">for</span> _, amount := <span class="k">range</span> []<span class="t">int64</span>{<span class="n">30000</span>, <span class="n">0</span>, <span class="n">500000</span>} {
+        newBalance, err := <span class="f">Withdraw</span>(<span class="n">100000</span>, amount)
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;rút %d: số dư %d, lỗi %v, mã %d\n&quot;</span>, amount, newBalance, err, <span class="f">statusOf</span>(err))
+    }
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>rút 30000: số dư 70000, lỗi &lt;nil&gt;, mã 200
+rút 0: số dư 100000, lỗi amount: Số tiền phải lớn hơn 0, mã 400
+rút 500000: số dư 100000, lỗi rút 500000, còn 100000: số dư không đủ, mã 409</pre></div>
+<p><b>Giải thích:</b> lỗi thứ ba đã bị bọc (có thêm "rút 500000, còn 100000"), nhưng <code>errors.Is</code> vẫn tìm thấy <code>ErrInsufficientFunds</code> bên trong nên ra 409. Thử đổi <code>%w</code> thành <code>%v</code> trong <code>Withdraw</code>: chữ in ra y hệt, nhưng mã thành 500.</p>
 <p>Ở bài 16 bạn sẽ thấy kiểm tra số dư ngay trong Go như thế này là <b>chưa đủ</b> khi có hai request rút tiền cùng lúc. Kiểm tra phải nằm trong câu SQL.</p>
 </details>
 </details>

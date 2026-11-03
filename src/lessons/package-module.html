@@ -1,5 +1,18 @@
 <h2>Package = một thư mục</h2>
-<p>Mọi file <code>.go</code> trong cùng một thư mục thuộc cùng một package và nhìn thấy nhau hoàn toàn (không cần import lẫn nhau). Tên package khai báo ở dòng đầu mỗi file, thường trùng tên thư mục.</p>
+<p>Đến giờ mọi chương trình chỉ có một file <code>main.go</code>. Dự án thật có hàng trăm file, chia vào các thư mục. Mỗi thư mục là một <b>package</b>.</p>
+<ul>
+<li>Mọi file <code>.go</code> trong cùng một thư mục thuộc cùng một package, và nhìn thấy nhau hoàn toàn: hàm viết ở file này gọi được ở file kia mà không cần import.</li>
+<li>Tên package khai báo ở dòng đầu mỗi file (<code>package grade</code>), thường trùng tên thư mục.</li>
+<li>Muốn dùng package ở thư mục khác thì import nó bằng đường dẫn: <b>tên module</b> (dòng <code>module</code> trong <code>go.mod</code>) + tên thư mục.</li>
+</ul>
+<p>Làm theo từng bước để tạo một dự án có hai package.</p>
+<p><b>Bước 1.</b> Tạo thư mục dự án và thư mục con <code>grade</code>:</p>
+<pre lang="sh">
+mkdir sobaitap && cd sobaitap
+go mod init github.com/lan/sobaitap   # tên module, dùng làm tiền tố khi import
+mkdir grade
+</pre>
+<p>Cấu trúc bạn sẽ có sau bước 3:</p>
 <pre lang="text" file="Cấu trúc">
 sobaitap/
 ├── go.mod                      module github.com/lan/sobaitap
@@ -8,6 +21,7 @@ sobaitap/
     ├── grade.go                package grade
     └── grade_test.go           package grade
 </pre>
+<p><b>Bước 2.</b> Tạo file <code>grade/grade.go</code> (nằm trong thư mục <code>grade</code>):</p>
 <pre lang="go" file="grade/grade.go">
 package grade
 
@@ -25,20 +39,32 @@ func Classify(score float64) string {
 // isPass: viết thường → chỉ dùng trong package grade
 func isPass(score float64) bool { return score >= 5 }
 </pre>
-<pre lang="go" file="main.go">
+<p><b>Bước 3.</b> Tạo file <code>main.go</code> ở thư mục gốc <code>sobaitap</code>:</p>
+<pre lang="go" file="main.go" check="no">
 package main
 
 import (
     "fmt"
 
-    "github.com/lan/sobaitap/grade" // đường dẫn = tên module + thư mục
+    "github.com/lan/sobaitap/grade" // đường dẫn = tên module + "/grade"
 )
 
 func main() {
-    fmt.Println(grade.Classify(8.5)) // gọi qua tên package
-    // grade.isPass(6)               // lỗi: isPass không được export
+    fmt.Println(grade.Classify(8.5)) // gọi qua tên package: grade.TênHàm
+    fmt.Println(grade.Classify(6))
+    fmt.Println(grade.Classify(3))
+    // grade.isPass(6)               // bỏ // sẽ lỗi: undefined: grade.isPass
 }
 </pre>
+<p><b>Bước 4.</b> Chạy ở thư mục gốc <code>sobaitap</code> (nơi có <code>go.mod</code>):</p>
+<pre lang="out">
+$ go run .
+Giỏi
+Đạt
+Chưa đạt
+</pre>
+<p>Bỏ dấu <code>//</code> ở dòng <code>grade.isPass(6)</code> rồi chạy lại: Go báo <code>undefined: grade.isPass</code>, vì tên viết thường không ra được khỏi package. Đó là cách Go làm "private".</p>
+<p>Lưu ý <code>grade/grade_test.go</code> trong cây thư mục là file test, bài 10 mới viết. Chưa có nó thì chương trình vẫn chạy.</p>
 <aside class="fe"><p>Thay cho <code>export</code> / không <code>export</code> trong ES module, Go dùng chữ hoa / chữ thường của <b>chính cái tên</b>. Quy tắc áp dụng cho mọi thứ: hàm, kiểu, hằng, biến, trường của struct, method. Vì vậy trường struct viết thường thì <code>encoding/json</code> (một package khác) không nhìn thấy (bài 05).</p></aside>
 
 <h2>Đặt tên package</h2>
@@ -134,9 +160,34 @@ import _ "net/http/pprof" // đăng ký các đường dẫn /debug/pprof vào D
 </quiz>
 
 <h2>Bài tập</h2>
-<details class="ex"><summary>Tách package</summary>
-<p>Tạo module <code>example.com/money</code> có package <code>vnd</code> với kiểu <code>VND int64</code>, method <code>String()</code> in dạng <code>1.234.000đ</code> (dùng lại lời giải bài 02) và hàm <code>Parse(s string) (VND, error)</code>. Viết <code>main.go</code> import và dùng nó. Thử gọi một hàm viết thường của <code>vnd</code> từ main để xem lỗi.</p>
+<details class="ex"><summary>Tách package tiền tệ</summary>
+<p>Tạo dự án <code>example.com/money</code> có một package riêng tên <code>vnd</code>, chứa:</p>
+<ul>
+<li>kiểu <code>VND int64</code>, có method <code>String()</code> in dạng <code>1.234.000đ</code> (dùng lại lời giải "Định dạng tiền Việt" ở bài 02).</li>
+<li>hàm <code>Parse(s string) (VND, error)</code> đọc chuỗi người dùng gõ như <code>"1.234.000"</code>, <code>"49000đ"</code> thành số.</li>
+</ul>
+<p>Viết <code>main.go</code> import package <code>vnd</code> và dùng nó. Kết quả mong muốn:</p>
+<pre lang="out">
+$ go run .
+1.234.000đ
+49.000đ
+lỗi: số tiền không hợp lệ "abc": strconv.ParseInt: parsing "abc": invalid syntax
+</pre>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Làm giống ví dụ <code>grade</code> ở trên: <code>mkdir money &amp;&amp; cd money</code>, <code>go mod init example.com/money</code>, <code>mkdir vnd</code>.</li>
+<li>File <code>vnd/vnd.go</code> bắt đầu bằng <code>package vnd</code>. Tên <code>VND</code>, <code>Parse</code>, <code>String</code> viết hoa để <code>main</code> dùng được. Hàm định dạng phụ đặt tên viết thường (<code>format</code>), chỉ dùng bên trong.</li>
+<li><code>Parse</code>: bỏ khoảng trắng, bỏ chữ <code>đ</code> ở cuối (<code>strings.TrimSuffix</code>), bỏ mọi dấu chấm (<code>strings.ReplaceAll</code>), rồi <code>strconv.ParseInt</code>.</li>
+<li>Trong <code>main.go</code>: <code>import "example.com/money/vnd"</code>, rồi gọi <code>vnd.Parse(...)</code>. Vì <code>VND</code> có method <code>String()</code>, <code>fmt.Println</code> tự in dạng đẹp (bài 06).</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
+<pre lang="text" file="Cấu trúc">
+money/
+├── go.mod          module example.com/money
+├── main.go         package main
+└── vnd/
+    └── vnd.go      package vnd
+</pre>
 <pre lang="go" file="vnd/vnd.go">
 package vnd
 
@@ -146,14 +197,19 @@ import (
     "strings"
 )
 
+// VND viết hoa: package khác dùng được
 type VND int64
 
-func (v VND) String() string { return format(int64(v)) }
+// String giúp fmt.Println(v) in ra dạng 1.234.000đ
+func (v VND) String() string {
+    return format(int64(v))
+}
 
 // Parse nhận "1.234.000", "1234000" hoặc "1.234.000đ"
 func Parse(s string) (VND, error) {
-    s = strings.TrimSuffix(strings.TrimSpace(s), "đ")
-    s = strings.ReplaceAll(s, ".", "")
+    s = strings.TrimSpace(s)          // "  49.000đ " -> "49.000đ"
+    s = strings.TrimSuffix(s, "đ")    // "49.000đ"   -> "49.000"
+    s = strings.ReplaceAll(s, ".", "") // "49.000"    -> "49000"
     n, err := strconv.ParseInt(s, 10, 64)
     if err != nil {
         return 0, fmt.Errorf("số tiền không hợp lệ %q: %w", s, err)
@@ -161,8 +217,58 @@ func Parse(s string) (VND, error) {
     return VND(n), nil
 }
 
-func format(v int64) string { /* như lời giải bài 02 */ return strconv.FormatInt(v, 10) + "đ" }
+// format viết thường: chỉ dùng trong package vnd (giống lời giải bài 02)
+func format(v int64) string {
+    neg := v < 0
+    if neg {
+        v = -v
+    }
+    s := strconv.FormatInt(v, 10)
+    var sb strings.Builder
+    for i, ch := range s {
+        if i > 0 && (len(s)-i)%3 == 0 {
+            sb.WriteByte('.')
+        }
+        sb.WriteRune(ch)
+    }
+    if neg {
+        return "-" + sb.String() + "đ"
+    }
+    return sb.String() + "đ"
+}
 </pre>
-<p>Vì <code>VND</code> có method <code>String()</code>, nó thoả <code>fmt.Stringer</code>: <code>fmt.Println(vnd.VND(1234000))</code> tự in dạng đẹp.</p>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "fmt"
+
+    "example.com/money/vnd" // tên module + tên thư mục
+)
+
+func main() {
+    fmt.Println(vnd.VND(1234000)) // đổi số thành kiểu vnd.VND, Println gọi String()
+
+    price, err := vnd.Parse(" 49.000đ ")
+    if err != nil {
+        fmt.Println("lỗi:", err)
+        return
+    }
+    fmt.Println(price)
+
+    _, err = vnd.Parse("abc")
+    fmt.Println("lỗi:", err)
+
+    // vnd.format(5) // bỏ // sẽ lỗi: undefined: vnd.format (tên viết thường)
+}
+</pre>
+<pre lang="out">
+$ go run .
+1.234.000đ
+49.000đ
+lỗi: số tiền không hợp lệ "abc": strconv.ParseInt: parsing "abc": invalid syntax
+</pre>
+<p><b>Giải thích:</b> bên ngoài package, kiểu được gọi kèm tên package: <code>vnd.VND</code>, <code>vnd.Parse</code>. Chính vì vậy package tên <code>vnd</code> thì hàm nên tên <code>Parse</code>, không cần <code>ParseVND</code> (đọc thành <code>vnd.ParseVND</code>, lặp chữ).</p>
+<p>Nếu gặp lỗi <code>package example.com/money/vnd is not in std</code>, kiểm tra dòng <code>module</code> trong <code>go.mod</code> có đúng là <code>example.com/money</code> và bạn đang chạy lệnh ở thư mục chứa <code>go.mod</code>.</p>
 </details>
 </details>

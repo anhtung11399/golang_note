@@ -18,6 +18,16 @@ func main() {
     fmt.Println(appName, age, city, score, count, a, b)
 }
 </pre>
+<pre lang="out">
+Sổ bài tập 30 Hà Nội 0 11 1 hai
+</pre>
+<p><b>Đọc chương trình trên:</b></p>
+<ul>
+<li><code>var age int = 30</code>: đọc là "tạo biến <code>age</code>, kiểu <code>int</code> (số nguyên), giá trị 30". Trong Go, <b>kiểu viết sau tên biến</b>, ngược với Java / C. TypeScript cũng viết sau: <code>let age: number = 30</code>.</li>
+<li><code>var score float64</code> không gán giá trị, nên <code>score</code> tự có giá trị <code>0</code> (xem "Zero value" bên dưới). In ra thấy số <code>0</code>.</li>
+<li><code>count := 10</code>: cách viết ngắn của <code>var count = 10</code>. Dấu <code>:=</code> = "tạo mới và gán". Dấu <code>=</code> = "gán lại cho biến đã có".</li>
+<li><code>fmt.Println(...)</code> in tất cả giá trị trên một dòng, cách nhau bởi dấu cách, rồi xuống dòng. Giống <code>console.log(a, b, c)</code>.</li>
+</ul>
 <table>
 <tr><th>TypeScript</th><th>Go</th></tr>
 <tr><td><code>let x = 5</code></td><td><code>x := 5</code></td></tr>
@@ -41,16 +51,40 @@ func main() {
 <aside class="fe"><p>JavaScript chỉ có một kiểu <code>number</code> (số thực 64 bit), nên số nguyên lớn hơn 2<sup>53</sup> bị mất chính xác. Go phân biệt số nguyên và số thực. Đây là lý do nhiều API trả id 64 bit dạng <b>chuỗi</b> trong JSON: Twitter / X từng phải thêm trường <code>id_str</code> vì JavaScript đọc sai id dạng số.</p></aside>
 
 <h3>Không bao giờ dùng float cho tiền</h3>
+<p>Số thực (<code>float64</code>) được lưu dạng nhị phân nên không biểu diễn chính xác được nhiều số thập phân, giống hệt JavaScript:</p>
 <pre lang="go">
-fmt.Println(0.1 + 0.2)          // 0.30000000000000004, giống hệt JavaScript
+package main
+
+import "fmt"
+
+func main() {
+    a := 0.1
+    b := 0.2
+    fmt.Println(a + b) // mong 0.3 nhưng không phải
+}
 </pre>
-<p>Ngoài thực tế, tiền được lưu bằng <b>số nguyên ở đơn vị nhỏ nhất</b>: đồng với VND, cent với USD. Stripe API nhận <code>amount: 1999</code> nghĩa là 19,99 USD. Trong database dùng <code>bigint</code> hoặc <code>numeric</code>.</p>
+<pre lang="out">
+0.30000000000000004
+</pre>
+<p>Cộng lệch một chút thì với tiền là sai: cộng dồn hàng nghìn đơn hàng sẽ lệch cả đồng. Ngoài thực tế, tiền được lưu bằng <b>số nguyên ở đơn vị nhỏ nhất</b>: đồng với VND, cent với USD. Stripe API nhận <code>amount: 1999</code> nghĩa là 19,99 USD. Trong database dùng <code>bigint</code> hoặc <code>numeric</code>.</p>
 <pre lang="go" mark="good">
+package main
+
+import "fmt"
+
+// Tạo kiểu mới tên VND, bên trong là số nguyên 64 bit
 type VND int64
 
-price := VND(49_000)       // dấu _ chỉ để dễ đọc
-total := price * 3         // 147000, luôn chính xác
+func main() {
+    price := VND(49_000) // dấu _ chỉ để dễ đọc, Go bỏ qua nó: 49_000 = 49000
+    total := price * 3   // số nguyên nhân số nguyên: luôn chính xác
+    fmt.Println(total)
+}
 </pre>
+<pre lang="out">
+147000
+</pre>
+<p><code>VND(49_000)</code> là <b>đổi kiểu</b>: biến số 49000 thành giá trị kiểu <code>VND</code>. Phần "Kiểu tự định nghĩa" cuối bài giải thích vì sao nên tạo kiểu riêng như vậy.</p>
 
 <h2>Zero value: không có undefined</h2>
 <p>Trong Go, biến khai báo mà chưa gán <b>luôn</b> có giá trị mặc định gọi là <i>zero value</i>. Không có <code>undefined</code>, không có biến "chưa khởi tạo".</p>
@@ -65,22 +99,61 @@ total := price * 3         // 147000, luôn chính xác
 <p>Nhà thiết kế Go cố tình làm cho zero value hữu dụng: một <code>sync.Mutex</code> hay <code>bytes.Buffer</code> mới khai báo là dùng được ngay, không cần gọi hàm khởi tạo.</p>
 <aside class="warn"><p>Zero value gây ra một câu hỏi rất thật ở backend: client gửi <code>{"score": 0}</code> hay <b>không gửi</b> <code>score</code>? Với <code>int</code>, cả hai đều thành <code>0</code>. Khi cần phân biệt "không có" và "bằng 0" (ví dụ API cập nhật một phần, PATCH), người ta dùng con trỏ <code>*int</code> (nil = không gửi). Bài 05 và 12 sẽ dùng cách này.</p></aside>
 
-<h2>Hằng số và iota</h2>
+<p>Tự kiểm chứng:</p>
 <pre lang="go">
+package main
+
+import "fmt"
+
+func main() {
+    var n int
+    var s string
+    var ok bool
+    var list []int // slice (giống mảng), bài 04
+
+    fmt.Println(n, ok)            // số 0 và false
+    fmt.Printf("%q\n", s)         // %q in chuỗi kèm dấu nháy, để thấy chuỗi rỗng
+    fmt.Println(list == nil)      // slice chưa tạo là nil
+}
+</pre>
+<pre lang="out">
+0 false
+""
+true
+</pre>
+
+<h2>Hằng số và iota</h2>
+<p><code>const</code> giống <code>const</code> của JS nhưng chặt hơn: giá trị phải biết được ngay lúc biên dịch (số, chuỗi, bool). Không thể <code>const now = time.Now()</code>.</p>
+<pre lang="go">
+package main
+
+import "fmt"
+
 const MaxUploadMB = 5
+
 const (
     PageSize    = 20
     MaxPageSize = 100
 )
 
-// iota: bộ đếm tự tăng trong một khối const, hay dùng để làm "enum"
+// Role là kiểu mới, bên trong là int
 type Role int
 
+// iota: bộ đếm tự tăng trong một khối const, bắt đầu từ 0
 const (
-    RoleStudent Role = iota // 0
-    RoleParent              // 1
-    RoleTeacher             // 2
+    RoleStudent Role = iota // iota = 0
+    RoleParent              // không viết gì: Go lặp lại "Role = iota", lúc này iota = 1
+    RoleTeacher             // iota = 2
 )
+
+func main() {
+    fmt.Println(MaxUploadMB, PageSize, MaxPageSize)
+    fmt.Println(RoleStudent, RoleParent, RoleTeacher)
+}
+</pre>
+<pre lang="out">
+5 20 100
+0 1 2
 </pre>
 <aside class="tip"><p>Go không có từ khoá <code>enum</code>. Với giá trị sẽ lưu vào database hoặc gửi qua JSON, nhiều đội thích dùng kiểu chuỗi hơn vì đọc log và dữ liệu dễ hiểu, và không bị lệch khi ai đó chèn thêm hằng vào giữa khối iota:</p>
 <pre lang="go">
@@ -93,109 +166,243 @@ const (
 </pre></aside>
 
 <h2>Chuyển kiểu: luôn phải viết rõ</h2>
-<p>Go không tự đổi kiểu, kể cả giữa <code>int</code> và <code>int64</code>.</p>
+<p>JavaScript tự đổi kiểu (<code>"5" * 2</code> ra <code>10</code>). Go thì không bao giờ tự đổi, kể cả giữa hai loại số <code>int</code> và <code>int64</code>. Muốn đổi, viết <code>KiểuMới(giá_trị)</code>, nhìn giống gọi hàm.</p>
 <pre lang="go">
-var a int = 10
-var b int64 = 20
-// c := a + b          // lỗi: mismatched types int and int64
-c := int64(a) + b      // phải đổi rõ ràng
+package main
 
-f := float64(a) / 3    // 3.3333333333333335
-n := int(3.99)         // 3: cắt phần thập phân, không làm tròn
+import "fmt"
+
+func main() {
+    var a int = 10
+    var b int64 = 20
+
+    // c := a + b       // bỏ dấu // ở đầu dòng này sẽ lỗi: mismatched types int and int64
+    c := int64(a) + b   // đổi a sang int64 rồi mới cộng
+    fmt.Println(c)
+
+    f := float64(a) / 3 // đổi sang số thực thì phép chia mới có phần thập phân
+    fmt.Println(f)
+
+    fmt.Println(a / 3)  // int chia int: bỏ phần dư, giống Math.trunc(10 / 3)
+
+    x := 3.99
+    fmt.Println(int(x)) // cắt phần thập phân, KHÔNG làm tròn
+}
 </pre>
-<p>Chuỗi và số đổi qua lại bằng package <code>strconv</code>, và việc này có thể lỗi:</p>
+<pre lang="out">
+30
+3.3333333333333335
+3
+3
+</pre>
+<p>Chuỗi và số đổi qua lại bằng package <code>strconv</code> (viết tắt của string convert). Đổi chuỗi sang số có thể thất bại (chuỗi <code>"abc"</code> đâu phải số), nên hàm trả về <b>thêm một giá trị lỗi</b>:</p>
 <pre lang="go">
-import "strconv"
+package main
 
-n, err := strconv.Atoi("42")        // 42, nil
-_, err = strconv.Atoi("abc")        // 0, lỗi: invalid syntax
-s := strconv.Itoa(42)               // "42"
-id, err := strconv.ParseInt("9001", 10, 64) // cơ số 10, 64 bit
+import (
+    "fmt"
+    "strconv"
+)
+
+func main() {
+    n, err := strconv.Atoi("42") // Atoi = "ASCII to int": chuỗi -> số
+    fmt.Println(n, err)          // err là nil: không có lỗi
+
+    n, err = strconv.Atoi("abc") // dùng = vì n, err đã tạo ở trên
+    fmt.Println(n, err)          // n = 0, err mô tả lỗi
+
+    s := strconv.Itoa(42)        // Itoa = "int to ASCII": số -> chuỗi
+    fmt.Printf("%q\n", s)
+
+    id, err := strconv.ParseInt("9001", 10, 64) // cơ số 10, kết quả int64
+    fmt.Println(id, err)
+}
 </pre>
+<pre lang="out">
+42 <nil>
+0 strconv.Atoi: parsing "abc": invalid syntax
+"42"
+9001 <nil>
+</pre>
+<p>Dòng cuối dùng lại <code>:=</code> dù <code>err</code> đã có: được phép vì bên trái có ít nhất một biến <b>mới</b> (<code>id</code>). Go tạo <code>id</code> mới và gán lại cho <code>err</code> cũ.</p>
 <aside class="warn"><p><code>string(65)</code> cho ra <code>"A"</code> (ký tự mã 65), <b>không</b> phải <code>"65"</code>. <code>go vet</code> sẽ cảnh báo chỗ này. Muốn đổi số thành chuỗi số, luôn dùng <code>strconv.Itoa</code> hoặc <code>fmt.Sprint</code>.</p></aside>
 
 <h2>Chuỗi tiếng Việt: byte và rune</h2>
 <p>Đây là chỗ dân Việt hay vấp. Chuỗi Go là một dãy <b>byte</b> mã hoá UTF-8. Chữ có dấu chiếm nhiều byte.</p>
 <pre lang="go">
-s := "Việt"
-fmt.Println(len(s))                    // 6: số byte, không phải số ký tự
-fmt.Println(utf8.RuneCountInString(s)) // 4: số ký tự (cần import "unicode/utf8")
-fmt.Println(s[1])                      // 105: byte thứ 2 (chữ 'i')
+package main
 
-for i, r := range s {                  // range trên chuỗi đi theo từng rune
-    fmt.Printf("%d:%c ", i, r)         // 0:V 1:i 2:ệ 5:t
+import (
+    "fmt"
+    "unicode/utf8"
+)
+
+func main() {
+    s := "Việt"
+    fmt.Println(len(s))                    // len đếm BYTE
+    fmt.Println(utf8.RuneCountInString(s)) // đếm KÝ TỰ
+    fmt.Println(s[1])                      // s[1] là byte thứ 2, in ra dạng số
+
+    // range trên chuỗi đi theo từng ký tự (rune):
+    // i = vị trí byte bắt đầu của ký tự, r = chính ký tự đó
+    for i, r := range s {
+        fmt.Printf("%d:%c ", i, r) // %d in số, %c in ký tự
+    }
+    fmt.Println()
 }
 </pre>
+<pre lang="out">
+6
+4
+105
+0:V 1:i 2:ệ 5:t 
+</pre>
+<p>Để ý vị trí nhảy từ <code>2</code> lên <code>5</code>: chữ <code>ệ</code> chiếm 3 byte (vị trí 2, 3, 4). <code>105</code> là mã của chữ <code>i</code> trong bảng mã. Trong JS, <code>"Việt".length</code> là 4 vì JS đếm theo đơn vị UTF-16, nên dân frontend hay bất ngờ ở đây.</p>
 <fig type="flow" caption="&quot;Việt&quot; trong bộ nhớ: 4 ký tự nhưng 6 byte, chữ ệ chiếm 3 byte">
 V / byte 0
 i / byte 1
 [cache] ệ / byte 2, 3, 4
 t / byte 5
 </fig>
-<pre lang="go" mark="bad">
-// Cắt chuỗi theo byte có thể cắt đôi một chữ có dấu, sinh ra ký tự lỗi
-short := s[:3] // "Vi\xe1": hỏng chữ ệ
-</pre>
-<pre lang="go" mark="good">
-// Giới hạn độ dài theo ký tự: đổi sang []rune
+<p>Hậu quả: cắt chuỗi bằng <code>s[:3]</code> (lấy 3 byte đầu) có thể cắt đôi chữ có dấu. Cách đúng là đổi chuỗi thành danh sách ký tự <code>[]rune</code> rồi mới cắt:</p>
+<pre lang="go">
+package main
+
+import "fmt"
+
+// truncate cắt chuỗi còn tối đa max KÝ TỰ, thêm "…" nếu bị cắt
 func truncate(s string, max int) string {
-    r := []rune(s)
-    if len(r) <= max {
+    r := []rune(s)    // "Việt Nam" -> [V i ệ t _ N a m], mỗi phần tử một ký tự
+    if len(r) <= max { // ngắn sẵn thì trả nguyên
         return s
     }
-    return string(r[:max]) + "…"
+    return string(r[:max]) + "…" // r[:max] = max phần tử đầu, string(...) ghép lại thành chuỗi
+}
+
+func main() {
+    s := "Việt Nam"
+    fmt.Printf("%q\n", s[:3])      // SAI: cắt 3 byte, đứt đôi chữ ệ
+    fmt.Println(truncate(s, 3))    // ĐÚNG: 3 ký tự
+    fmt.Println(truncate(s, 20))   // chuỗi ngắn hơn 20 thì giữ nguyên
 }
 </pre>
+<pre lang="out">
+"Vi\xe1"
+Việ…
+Việt Nam
+</pre>
+<p><code>"Vi\xe1"</code>: <code>\xe1</code> là byte đầu tiên của chữ ệ bị bỏ lại một mình, không thành chữ nào cả. Lên giao diện sẽ hiện dấu <code>�</code>.</p>
 <aside class="real"><p>Khi API nói "tên tối đa 80 ký tự", hãy đếm bằng <code>utf8.RuneCountInString</code>. Nếu đếm bằng <code>len</code>, người dùng gõ tên tiếng Việt có dấu sẽ bị báo quá dài sớm hơn người gõ không dấu. Còn khi giới hạn dung lượng lưu trữ (cột database tính theo byte), thì mới dùng <code>len</code>.</p></aside>
 
 <h3>Làm việc với chuỗi</h3>
+<p>Các hàm xử lý chuỗi nằm trong package <code>strings</code>. Khác JS: JS gọi method trên chuỗi (<code>"abc".toLowerCase()</code>), Go gọi hàm và truyền chuỗi vào (<code>strings.ToLower("abc")</code>).</p>
 <pre lang="go">
-import "strings"
+package main
 
-strings.ToLower("Email@Gmail.COM")          // "email@gmail.com"
-strings.TrimSpace("  lan  ")                // "lan"
-strings.Contains("hotoedu", "edu")          // true
-strings.Split("a,b,c", ",")                 // []string{"a", "b", "c"}
-strings.Join([]string{"a", "b"}, "-")       // "a-b"
-strings.HasPrefix("/api/users", "/api/")    // true
+import (
+    "fmt"
+    "strings"
+)
 
-// Ghép nhiều chuỗi trong vòng lặp: dùng strings.Builder, không dùng +=
-var sb strings.Builder
-for i := 0; i < 3; i++ {
-    fmt.Fprintf(&sb, "dòng %d\n", i)
+func main() {
+    fmt.Println(strings.ToLower("Email@Gmail.COM"))       // .toLowerCase()
+    fmt.Printf("%q\n", strings.TrimSpace("  lan  "))      // .trim()
+    fmt.Println(strings.Contains("hotoedu", "edu"))       // .includes()
+    fmt.Println(strings.Split("a,b,c", ","))              // .split(","): ra slice 3 phần tử
+    fmt.Println(strings.Join([]string{"a", "b"}, "-"))    // [a, b].join("-")
+    fmt.Println(strings.HasPrefix("/api/users", "/api/")) // .startsWith()
+
+    // Ghép nhiều chuỗi trong vòng lặp: dùng strings.Builder, không dùng +=
+    var sb strings.Builder
+    for i := 0; i < 3; i++ {
+        fmt.Fprintf(&sb, "dòng %d\n", i) // ghi vào sb thay vì in ra màn hình
+    }
+    fmt.Print(sb.String()) // lấy toàn bộ chuỗi đã ghép
 }
-out := sb.String()
+</pre>
+<pre lang="out">
+email@gmail.com
+"lan"
+true
+[a b c]
+a-b
+true
+dòng 0
+dòng 1
+dòng 2
 </pre>
 <p>Chuỗi trong Go không đổi được, nên <code>s += "x"</code> trong vòng lặp lớn sẽ tạo chuỗi mới mỗi lần. <code>strings.Builder</code> tránh việc đó.</p>
 
 <h2>In và định dạng với fmt</h2>
+<p><code>fmt.Printf</code> nhận một chuỗi mẫu có các "chỗ trống" bắt đầu bằng <code>%</code>, rồi lần lượt điền các giá trị phía sau vào. Các chỗ trống hay dùng:</p>
+<table>
+<tr><th>Ký hiệu</th><th>In ra</th></tr>
+<tr><td><code>%v</code></td><td>Giá trị, kiểu nào cũng được (v = value). Không biết dùng gì thì dùng cái này.</td></tr>
+<tr><td><code>%+v</code></td><td>Như <code>%v</code>, kèm tên trường của struct. Hay dùng khi gỡ lỗi.</td></tr>
+<tr><td><code>%d</code> / <code>%s</code></td><td>Số nguyên / chuỗi</td></tr>
+<tr><td><code>%.2f</code></td><td>Số thực, lấy 2 chữ số sau dấu chấm</td></tr>
+<tr><td><code>%q</code></td><td>Chuỗi kèm dấu nháy, thấy rõ khoảng trắng thừa</td></tr>
+<tr><td><code>%T</code></td><td>Tên kiểu của giá trị</td></tr>
+</table>
 <pre lang="go">
+package main
+
+import "fmt"
+
+// struct: gom nhiều trường thành một kiểu, giống interface của TS (bài 05)
 type User struct {
     ID   int64
     Name string
 }
-u := User{ID: 1, Name: "Lan"}
 
-fmt.Printf("%v\n", u)   // {1 Lan}
-fmt.Printf("%+v\n", u)  // {ID:1 Name:Lan}    hay dùng khi gỡ lỗi
-fmt.Printf("%T\n", u)   // main.User          kiểu của giá trị
-fmt.Printf("%q\n", "a") // "a"                chuỗi có nháy, thấy rõ khoảng trắng
-fmt.Printf("%d %.2f %s\n", 7, 3.14159, "x")   // 7 3.14 x
-msg := fmt.Sprintf("Đơn #%d", 9001)            // tạo chuỗi, không in
+func main() {
+    u := User{ID: 1, Name: "Lan"}
+
+    fmt.Printf("%v\n", u)
+    fmt.Printf("%+v\n", u)
+    fmt.Printf("%T\n", u)
+    fmt.Printf("%q\n", " a ")
+    fmt.Printf("%d %.2f %s\n", 7, 3.14159, "x") // 3 chỗ trống, 3 giá trị theo thứ tự
+
+    msg := fmt.Sprintf("Đơn #%d", 9001) // Sprintf: tạo chuỗi, KHÔNG in
+    fmt.Println(msg)
+}
 </pre>
+<pre lang="out">
+{1 Lan}
+{ID:1 Name:Lan}
+main.User
+" a "
+7 3.14 x
+Đơn #9001
+</pre>
+<p>Ba hàm in cần nhớ: <code>Println</code> (in các giá trị, tự xuống dòng), <code>Printf</code> (in theo mẫu, phải tự thêm <code>\n</code>), <code>Sprintf</code> (giống <code>Printf</code> nhưng trả về chuỗi thay vì in).</p>
 
 <h2>Kiểu tự định nghĩa</h2>
 <p>Bạn có thể tạo kiểu mới từ kiểu có sẵn. Go coi chúng là <b>khác nhau</b>, nên trình biên dịch giúp bạn không truyền nhầm.</p>
 <pre lang="go">
-type UserID int64
-type ClassID int64
+package main
 
-func GetUser(id UserID) {}
+import "fmt"
 
-var c ClassID = 5
-// GetUser(c)        // lỗi biên dịch: không thể dùng ClassID làm UserID
-GetUser(UserID(7))  // đúng
+type UserID int64  // bên trong đều là int64...
+type ClassID int64 // ...nhưng Go coi là hai kiểu khác nhau
+
+func GetUser(id UserID) {
+    fmt.Println("lấy người dùng", id)
+}
+
+func main() {
+    var c ClassID = 5
+    // GetUser(c)      // bỏ // sẽ lỗi: cannot use c (variable of type ClassID) as UserID value
+    GetUser(UserID(7)) // đúng: giá trị đúng kiểu UserID
+    _ = c              // dấu _ : "biết là có biến c, cố ý không dùng" để Go không báo lỗi
+}
 </pre>
+<pre lang="out">
+lấy người dùng 7
+</pre>
+<p>Lợi ích thật: hàm <code>MoveStudent(studentID, classID)</code> mà truyền ngược hai tham số là lỗi ngay lúc biên dịch, không phải đợi lên production mới phát hiện.</p>
 <aside class="fe"><p>TypeScript dùng kiểu cấu trúc (structural), nên <code>type UserId = number</code> và <code>type ClassId = number</code> là một. Người ta phải dùng mẹo "branded types". Trong Go, kiểu đặt tên là khác nhau thật sự.</p></aside>
 
 <quiz q="<code>len(&quot;Học&quot;)</code> trả về bao nhiêu?">
@@ -214,9 +421,26 @@ GetUser(UserID(7))  // đúng
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Chuẩn hoá email và kiểm tra độ dài tên</summary>
-<p>Viết hàm <code>normalizeEmail(s string) string</code> (bỏ khoảng trắng hai đầu, đổi về chữ thường) và <code>validName(s string) bool</code> (sau khi bỏ khoảng trắng, tên phải có từ 2 đến 80 <b>ký tự</b>). Thử với <code>"  Nguyễn Thị Ánh  "</code>.</p>
+<p>Viết hai hàm:</p>
+<ul>
+<li><code>normalizeEmail(s string) string</code>: nhận email người dùng gõ, bỏ khoảng trắng hai đầu và đổi về chữ thường.</li>
+<li><code>validName(s string) bool</code>: trả <code>true</code> nếu tên (sau khi bỏ khoảng trắng hai đầu) có từ 2 đến 80 <b>ký tự</b>.</li>
+</ul>
+<p>Kết quả mong muốn khi chạy:</p>
+<pre lang="out">
+lan.nguyen@gmail.com
+true
+false
+</pre>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Cách viết hàm trong Go: <code>func tênHàm(thamSố kiểu) kiểuTrảVề { ... }</code>. Ví dụ <code>func normalizeEmail(s string) string</code> = hàm nhận một chuỗi <code>s</code>, trả về một chuỗi. Giống <code>function normalizeEmail(s: string): string</code> trong TS.</li>
+<li>Bỏ khoảng trắng: <code>strings.TrimSpace(s)</code>. Chữ thường: <code>strings.ToLower(s)</code>. Có thể lồng: kết quả của hàm này làm đầu vào của hàm kia.</li>
+<li>Đếm ký tự (không phải byte, vì tên tiếng Việt có dấu): <code>utf8.RuneCountInString(s)</code>.</li>
+<li>Trong <code>main</code>, gọi hai hàm với dữ liệu thử và in kết quả.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go">
+<pre lang="go" file="main.go">
 package main
 
 import (
@@ -226,12 +450,13 @@ import (
 )
 
 func normalizeEmail(s string) string {
+    // Chạy từ trong ra ngoài: TrimSpace trước, kết quả đưa vào ToLower
     return strings.ToLower(strings.TrimSpace(s))
 }
 
 func validName(s string) bool {
-    n := utf8.RuneCountInString(strings.TrimSpace(s))
-    return n >= 2 && n <= 80
+    n := utf8.RuneCountInString(strings.TrimSpace(s)) // số ký tự sau khi bỏ khoảng trắng
+    return n >= 2 && n <= 80                          // biểu thức so sánh cho ra true / false
 }
 
 func main() {
@@ -240,32 +465,88 @@ func main() {
     fmt.Println(validName("A"))                            // false
 }
 </pre>
+<pre lang="out">
+lan.nguyen@gmail.com
+true
+false
+</pre>
+<p><b>Cách chạy:</b> tạo thư mục mới, <code>go mod init bai02</code>, dán code vào <code>main.go</code>, gõ <code>go run .</code>. Hoặc dán vào go.dev/play và bấm Run (bài này không cần tham số).</p>
+<p><b>Giải thích:</b> <code>"  Nguyễn Thị Ánh  "</code> sau khi bỏ khoảng trắng còn 14 ký tự (nhưng tới 19 byte), nằm trong khoảng 2 đến 80 nên ra <code>true</code>. <code>"A"</code> chỉ có 1 ký tự nên <code>false</code>.</p>
 <p>Ngoài thực tế, email luôn được chuẩn hoá về chữ thường <b>trước khi lưu và trước khi tìm</b>, nếu không <code>Lan@gmail.com</code> và <code>lan@gmail.com</code> sẽ thành hai tài khoản.</p>
 </details>
 </details>
 <details class="ex"><summary>Định dạng tiền Việt</summary>
-<p>Viết hàm <code>formatVND(v int64) string</code>: <code>1234567</code> thành <code>"1.234.567đ"</code>, số âm có dấu trừ phía trước.</p>
+<p>Viết hàm <code>formatVND(v int64) string</code> đổi số thành chuỗi tiền có dấu chấm ngăn cách hàng nghìn. Số âm có dấu trừ phía trước. Kết quả mong muốn:</p>
+<pre lang="out">
+1.234.567đ
+49.000đ
+500đ
+-1.500.000đ
+</pre>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Nếu số âm: nhớ lại điều đó, rồi đổi thành số dương để xử lý cho dễ.</li>
+<li>Đổi số thành chuỗi chữ số: <code>strconv.FormatInt(v, 10)</code> cho <code>"1234567"</code>.</li>
+<li>Đi qua từng chữ số từ trái sang phải. Trước chữ số nào mà <b>số chữ số còn lại tính từ nó đến cuối</b> chia hết cho 3 thì chèn dấu chấm. Với <code>"1234567"</code> (7 chữ số): trước chữ <code>2</code> còn 6 chữ số, trước chữ <code>5</code> còn 3 chữ số, nên chèn ở hai chỗ đó.</li>
+<li>Ghép dần vào <code>strings.Builder</code>, cuối cùng thêm <code>"đ"</code> (và <code>"-"</code> nếu âm).</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go">
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "fmt"
+    "strconv"
+    "strings"
+)
+
 func formatVND(v int64) string {
-    neg := v < 0
+    neg := v < 0 // nhớ lại là số âm hay không
     if neg {
-        v = -v
+        v = -v // đổi sang số dương
     }
-    s := strconv.FormatInt(v, 10)
+
+    s := strconv.FormatInt(v, 10) // 1234567 -> "1234567"
+
     var sb strings.Builder
-    for i, ch := range s {
-        if i > 0 && (len(s)-i)%3 == 0 {
+    for i, ch := range s { // i = vị trí (0, 1, 2...), ch = chữ số ở vị trí đó
+        remaining := len(s) - i // số chữ số từ vị trí i tới cuối
+        if i > 0 && remaining%3 == 0 { // % là phép chia lấy dư
             sb.WriteByte('.')
         }
         sb.WriteRune(ch)
     }
+
     if neg {
         return "-" + sb.String() + "đ"
     }
     return sb.String() + "đ"
 }
+
+func main() {
+    fmt.Println(formatVND(1234567))
+    fmt.Println(formatVND(49000))
+    fmt.Println(formatVND(500))
+    fmt.Println(formatVND(-1500000))
+}
 </pre>
-<p>Ở đây dùng <code>len(s)</code> và chỉ số byte vẫn đúng vì chuỗi số chỉ có ký tự ASCII (mỗi ký tự 1 byte).</p>
+<pre lang="out">
+1.234.567đ
+49.000đ
+500đ
+-1.500.000đ
+</pre>
+<p><b>Chạy tay với <code>"1234567"</code></b> để thấy vòng lặp làm gì:</p>
+<table>
+<tr><th>i</th><th>ch</th><th>remaining = 7 - i</th><th>Chèn dấu chấm trước?</th><th>Đã ghép được</th></tr>
+<tr><td>0</td><td>1</td><td>7</td><td>không (i = 0)</td><td>1</td></tr>
+<tr><td>1</td><td>2</td><td>6</td><td>có (6 chia hết cho 3)</td><td>1.2</td></tr>
+<tr><td>2</td><td>3</td><td>5</td><td>không</td><td>1.23</td></tr>
+<tr><td>3</td><td>4</td><td>4</td><td>không</td><td>1.234</td></tr>
+<tr><td>4</td><td>5</td><td>3</td><td>có</td><td>1.234.5</td></tr>
+<tr><td>5</td><td>6</td><td>2</td><td>không</td><td>1.234.56</td></tr>
+<tr><td>6</td><td>7</td><td>1</td><td>không</td><td>1.234.567</td></tr>
+</table>
+<p>Ở đây dùng <code>len(s)</code> (đếm byte) vẫn đúng vì chuỗi chỉ có chữ số, mỗi chữ số đúng 1 byte. <code>'.'</code> nháy đơn là một ký tự, <code>"đ"</code> nháy kép là một chuỗi.</p>
 </details>
 </details>

@@ -1,20 +1,57 @@
 <h2>Array: độ dài cố định, ít khi dùng trực tiếp</h2>
 <pre lang="go">
-var days [7]string           // mảng 7 chuỗi, độ dài là một phần của kiểu
-scores := [3]int{8, 9, 10}
-fmt.Println(len(scores))     // 3
+package main
+
+import "fmt"
+
+func main() {
+    var days [7]string         // mảng 7 chuỗi, mỗi phần tử ban đầu là ""
+    scores := [3]int{8, 9, 10} // [3] = đúng 3 phần tử, không thêm bớt được
+
+    days[0] = "Thứ Hai"
+    fmt.Println(len(days), days[0])
+    fmt.Println(len(scores), scores)
+}
+</pre>
+<pre lang="out">
+7 Thứ Hai
+3 [8 9 10]
 </pre>
 <p><code>[3]int</code> và <code>[4]int</code> là hai kiểu khác nhau. Gán mảng cho biến khác là <b>sao chép toàn bộ</b>. Vì cứng nhắc như vậy, code hằng ngày gần như chỉ dùng <b>slice</b>.</p>
 
 <h2>Slice: "mảng" bạn sẽ dùng hằng ngày</h2>
+<p>Slice giống mảng của JavaScript: thêm bớt được, độ dài thay đổi. Cách viết khác array đúng một chỗ: <b>không ghi số</b> trong <code>[]</code>.</p>
 <pre lang="go">
-names := []string{"An", "Bình"}   // không ghi độ dài trong [] → slice
-names = append(names, "Chi")      // thêm phần tử: PHẢI gán lại kết quả
-fmt.Println(len(names))           // 3
+package main
 
-nums := make([]int, 0, 100)       // slice rỗng, chuẩn bị sẵn chỗ cho 100 phần tử
-sub := names[1:3]                 // cắt: phần tử 1 và 2 → ["Bình", "Chi"]
+import (
+    "fmt"
+    "slices"
+)
+
+func main() {
+    names := []string{"An", "Bình"} // [] trống = slice. Đọc là "slice các string"
+    names = append(names, "Chi")    // thêm vào cuối. PHẢI gán lại: names = append(...)
+    fmt.Println(names, len(names))
+
+    fmt.Println(names[0])   // lấy phần tử đầu, giống JS
+    sub := names[1:3]       // cắt từ vị trí 1 đến TRƯỚC vị trí 3, giống names.slice(1, 3)
+    fmt.Println(sub)
+
+    fmt.Println(slices.Contains(names, "Chi")) // giống names.includes("Chi")
+
+    nums := make([]int, 0, 100) // make(kiểu, len, cap): rỗng, nhưng giữ sẵn chỗ cho 100 phần tử
+    fmt.Println(len(nums), cap(nums))
+}
 </pre>
+<pre lang="out">
+[An Bình Chi] 3
+An
+[Bình Chi]
+true
+0 100
+</pre>
+<p><code>len</code> là số phần tử đang có, <code>cap</code> (capacity) là sức chứa: còn bao nhiêu chỗ trước khi Go phải xin bộ nhớ mới. Phần tiếp theo giải thích vì sao điều này quan trọng.</p>
 <table>
 <tr><th>JavaScript</th><th>Go</th></tr>
 <tr><td><code>const a = []</code></td><td><code>var a []int</code> (nil, dùng được ngay) hoặc <code>a := []int{}</code></td></tr>
@@ -59,106 +96,237 @@ sub := names[1:3]                 // cắt: phần tử 1 và 2 → ["Bình", "C
 
 <h3>Cạm bẫy 1: hai slice dùng chung bộ nhớ</h3>
 <pre lang="go">
-a := []string{"A", "B", "C", "D", "E"}
-s := a[1:3]       // ["B", "C"]
-s[0] = "X"
-fmt.Println(a)    // [A X C D E]  ← a cũng bị sửa!
+package main
+
+import "fmt"
+
+func main() {
+    a := []string{"A", "B", "C", "D", "E"}
+    s := a[1:3] // ["B", "C"], nhưng KHÔNG sao chép: s nhìn vào chính mảng của a
+    s[0] = "X"  // s[0] chính là a[1]
+    fmt.Println(s)
+    fmt.Println(a) // a cũng bị sửa!
+}
 </pre>
+<pre lang="out">
+[X C]
+[A X C D E]
+</pre>
+<p>Trong JS, <code>a.slice(1, 3)</code> tạo mảng mới nên sửa nó không ảnh hưởng <code>a</code>. Trong Go, <code>a[1:3]</code> chỉ là cửa sổ nhìn vào cùng một vùng nhớ.</p>
 
 <h3>Cạm bẫy 2: append ghi đè dữ liệu của slice khác</h3>
 <p>Khi còn chỗ trong <code>cap</code>, <code>append</code> ghi thẳng vào mảng nền. Khi hết chỗ, nó cấp mảng mới lớn hơn (thường gấp đôi khi slice còn nhỏ), sao chép sang và trả về slice trỏ vào mảng mới. Vì vậy bạn không đoán được kết quả của append có dùng chung bộ nhớ với slice cũ hay không.</p>
-<pre lang="go" mark="bad">
-a := []string{"A", "B", "C", "D", "E"}
-s := a[1:3]               // len 2, cap 4
-s = append(s, "Z")        // còn chỗ → ghi vào a[3]
-fmt.Println(a)            // [A B C Z E]  ← "D" bị ghi đè âm thầm
+<pre lang="go">
+package main
+
+import (
+    "fmt"
+    "slices"
+)
+
+func main() {
+    // SAI: append vào một slice cắt ra từ slice khác
+    a := []string{"A", "B", "C", "D", "E"}
+    s := a[1:3]                   // len 2, cap 4 (từ vị trí 1 tới hết mảng a còn 4 chỗ)
+    fmt.Println(len(s), cap(s))
+    s = append(s, "Z")            // còn chỗ trong cap -> ghi thẳng vào a[3]
+    fmt.Println(a)                // "D" bị ghi đè âm thầm
+
+    // ĐÚNG: sao chép ra mảng riêng trước khi append
+    b := []string{"A", "B", "C", "D", "E"}
+    t := slices.Clone(b[1:3])     // t có vùng nhớ riêng, giống [...arr] trong JS
+    t = append(t, "Z")
+    fmt.Println(b)                // b không bị ảnh hưởng
+    fmt.Println(t)
+}
 </pre>
-<pre lang="go" mark="good">
-s := slices.Clone(a[1:3]) // sao chép ra mảng riêng
-s = append(s, "Z")        // a không bị ảnh hưởng
+<pre lang="out">
+2 4
+[A B C Z E]
+[A B C D E]
+[B C Z]
 </pre>
 <aside class="warn"><p>Luôn viết <code>s = append(s, x)</code>. Quên gán lại thì phần tử mới có thể "biến mất" vì nó nằm trong mảng mới mà biến <code>s</code> không trỏ tới. Trình biên dịch sẽ báo lỗi nếu bạn gọi <code>append</code> mà bỏ kết quả.</p></aside>
 
 <h3>Chuẩn bị sẵn sức chứa</h3>
 <p>Khi biết trước số phần tử (ví dụ đổi 1.000 dòng database thành 1.000 DTO), cấp sẵn <code>cap</code> để tránh cấp phát và sao chép nhiều lần:</p>
 <pre lang="go">
-out := make([]UserDTO, 0, len(users))
+out := make([]UserDTO, 0, len(users)) // len 0, cap = số người dùng
 for _, u := range users {
-    out = append(out, toDTO(u))
+    out = append(out, toDTO(u))       // không lần nào phải xin thêm bộ nhớ
 }
 </pre>
+<p>Đây là trích đoạn: <code>users</code>, <code>UserDTO</code>, <code>toDTO</code> là những thứ có trong dự án thật (bài 12). Chỉ cần nhớ mẫu: biết trước số lượng thì <code>make([]T, 0, n)</code>.</p>
 
 <h3>nil slice và slice rỗng trong JSON</h3>
 <pre lang="go">
-var a []int        // nil
-b := []int{}       // rỗng, không nil
-// len, append, range đều chạy bình thường với cả hai.
-// Nhưng khi đổi sang JSON:
-json.Marshal(a)    // null
-json.Marshal(b)    // []
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+)
+
+func main() {
+    var a []int  // khai báo mà không tạo: a là nil
+    b := []int{} // tạo slice rỗng: không nil
+
+    fmt.Println(len(a), len(b)) // len, append, range chạy bình thường với cả hai
+
+    ja, _ := json.Marshal(a) // Marshal: đổi giá trị Go sang JSON, giống JSON.stringify
+    jb, _ := json.Marshal(b)
+    fmt.Println(string(ja)) // Marshal trả về []byte, đổi sang string để in
+    fmt.Println(string(jb))
+}
+</pre>
+<pre lang="out">
+0 0
+null
+[]
 </pre>
 <aside class="fe"><p>Đây là lý do frontend đôi khi nhận <code>"items": null</code> thay vì <code>[]</code> và vỡ ở dòng <code>items.map(...)</code>. Backend Go nên khởi tạo slice rỗng cho các trường danh sách trong response. Bây giờ bạn biết lỗi đó đến từ đâu.</p></aside>
 
 <h2>Map: giống object / Map trong JavaScript</h2>
+<p><code>map[string]int</code> đọc là "map có khoá kiểu string, giá trị kiểu int". Trong TS là <code>Record&lt;string, number&gt;</code>. Khác object JS: mọi khoá cùng một kiểu, mọi giá trị cùng một kiểu.</p>
 <pre lang="go">
-ages := map[string]int{
-    "An":   20,
-    "Bình": 22,
-}
-ages["Chi"] = 19          // thêm hoặc sửa
-delete(ages, "An")        // xoá
-fmt.Println(len(ages))    // 2
+package main
 
-age := ages["Không có"]   // trả về zero value: 0, không lỗi
-age, ok := ages["Bình"]   // "comma ok": ok = true nếu khoá có tồn tại
-if !ok {
-    fmt.Println("không có")
-}
+import "fmt"
 
-counts := make(map[string]int) // map rỗng, ghi được ngay
-counts["go"]++                 // khoá chưa có thì bắt đầu từ 0
+func main() {
+    ages := map[string]int{
+        "An":   20,
+        "Bình": 22, // dấu phẩy cuối là BẮT BUỘC khi xuống dòng
+    }
+    ages["Chi"] = 19   // thêm (khoá chưa có) hoặc sửa (khoá đã có)
+    delete(ages, "An") // xoá, giống delete obj.An
+    fmt.Println(len(ages))
+
+    // Khoá không có: trả về zero value (0), KHÔNG lỗi, KHÔNG undefined
+    fmt.Println(ages["Không có"])
+
+    // "comma ok": nhận thêm biến thứ hai cho biết khoá có tồn tại không
+    age, ok := ages["Bình"]
+    fmt.Println(age, ok)
+    age, ok = ages["Dũng"]
+    fmt.Println(age, ok) // 0 vì không có, ok = false
+
+    counts := make(map[string]int) // map rỗng, ghi được ngay
+    counts["go"]++                 // khoá chưa có thì bắt đầu từ 0, rồi tăng lên 1
+    counts["go"]++
+    fmt.Println(counts)
+}
 </pre>
+<pre lang="out">
+2
+0
+22 true
+0 false
+map[go:2]
+</pre>
+<p>Vì khoá không có cũng trả về <code>0</code>, nên <code>ages["Dũng"] == 0</code> không cho biết Dũng 0 tuổi hay không có Dũng. Khi cần phân biệt, luôn dùng dạng <code>v, ok := m[k]</code>.</p>
 
 <h3>Ba điều phải nhớ về map</h3>
 <ol>
 <li><b>Ghi vào nil map gây panic.</b> <code>var m map[string]int; m["a"] = 1</code> làm chương trình dừng. Luôn tạo bằng <code>make</code> hoặc <code>map[...]...{}</code>.</li>
 <li><b>Thứ tự duyệt là ngẫu nhiên</b>, và Go cố tình làm ngẫu nhiên khác nhau mỗi lần chạy để bạn không vô tình phụ thuộc vào nó. Cần thứ tự thì lấy danh sách khoá ra rồi sắp xếp:
 <pre lang="go">
-keys := slices.Sorted(maps.Keys(ages)) // Go 1.23+, import "maps", "slices"
-for _, k := range keys {
-    fmt.Println(k, ages[k])
+package main
+
+import (
+    "fmt"
+    "maps"
+    "slices"
+)
+
+func main() {
+    ages := map[string]int{"Chi": 19, "An": 20, "Bình": 22}
+
+    // maps.Keys lấy các khoá, slices.Sorted sắp xếp chúng (Go 1.23+)
+    keys := slices.Sorted(maps.Keys(ages))
+    for _, k := range keys {
+        fmt.Println(k, ages[k])
+    }
 }
+</pre>
+<pre lang="out">
+An 20
+Bình 22
+Chi 19
 </pre></li>
 <li><b>Map không an toàn khi nhiều goroutine cùng ghi.</b> Runtime phát hiện được và dừng chương trình với lỗi <code>fatal error: concurrent map writes</code>. Trong HTTP server (mỗi request một goroutine), một map dùng chung phải được bảo vệ bằng mutex (bài 09).</li>
 </ol>
 
 <h3>Set: dùng map với giá trị rỗng</h3>
+<p>Go không có kiểu <code>Set</code> như JS. Người ta dùng map mà chỉ quan tâm khoá:</p>
 <pre lang="go">
-seen := map[string]struct{}{}   // struct{} không tốn bộ nhớ
-seen["lan@gmail.com"] = struct{}{}
-if _, ok := seen[email]; ok {
-    fmt.Println("trùng")
+package main
+
+import "fmt"
+
+func main() {
+    emails := []string{"lan@gmail.com", "an@gmail.com", "lan@gmail.com"}
+
+    // struct{} là kiểu "rỗng", không tốn byte nào. struct{}{} là giá trị của kiểu đó
+    seen := map[string]struct{}{}
+    for _, email := range emails {
+        if _, ok := seen[email]; ok { // đã gặp rồi
+            fmt.Println("trùng:", email)
+            continue // bỏ qua phần còn lại, sang vòng tiếp
+        }
+        seen[email] = struct{}{} // ghi nhận đã gặp
+    }
+    fmt.Println("số email khác nhau:", len(seen))
 }
 </pre>
+<pre lang="out">
+trùng: lan@gmail.com
+số email khác nhau: 2
+</pre>
+<p>Dùng <code>map[string]bool</code> cũng được và dễ đọc hơn (<code>if seen[email]</code>). <code>struct{}</code> chỉ tiết kiệm bộ nhớ khi map rất lớn.</p>
 
 <aside class="real"><p>Map trong bộ nhớ là cache đơn giản nhất. Nhưng khi chạy 3 bản server sau load balancer, mỗi bản có map riêng: người dùng gọi lần một vào máy A, lần hai vào máy B và không thấy dữ liệu cũ. Đây là lý do các hệ thống thật dùng Redis cho cache dùng chung (bài 17).</p></aside>
 
 <h2>Gom nhóm: mẫu bạn sẽ viết rất nhiều</h2>
 <p>Ví dụ có danh sách bài nộp, cần gom theo học sinh để tính số bài đã nộp:</p>
 <pre lang="go">
+package main
+
+import "fmt"
+
+// Một bài nộp: của học sinh nào, bao nhiêu điểm
 type Submission struct {
     StudentID int64
     Score     float64
 }
 
+// Đếm số bài nộp của mỗi học sinh. Trả về map: mã học sinh -> số bài
 func countByStudent(subs []Submission) map[int64]int {
-    out := make(map[int64]int, len(subs))
+    out := make(map[int64]int)
     for _, s := range subs {
-        out[s.StudentID]++
+        out[s.StudentID]++ // lần đầu gặp học sinh: 0 -> 1, lần sau tăng tiếp
     }
     return out
 }
+
+func main() {
+    subs := []Submission{
+        {StudentID: 1, Score: 8},
+        {StudentID: 2, Score: 7},
+        {StudentID: 1, Score: 9},
+    }
+    counts := countByStudent(subs)
+    fmt.Println("học sinh 1:", counts[1], "bài")
+    fmt.Println("học sinh 2:", counts[2], "bài")
+    fmt.Println("học sinh 3:", counts[3], "bài") // không có: zero value 0
+}
 </pre>
+<pre lang="out">
+học sinh 1: 2 bài
+học sinh 2: 1 bài
+học sinh 3: 0 bài
+</pre>
+<p>Trong JS bạn sẽ viết <code>subs.reduce((acc, s) =&gt; { acc[s.studentId] = (acc[s.studentId] ?? 0) + 1; return acc }, {})</code>. Go viết bằng vòng for, và không cần <code>?? 0</code> vì khoá chưa có đã là 0.</p>
 <p>Ở bài 16, bạn sẽ dùng chính mẫu này để sửa lỗi N+1 truy vấn: lấy hết dữ liệu liên quan trong một câu SQL rồi gom bằng map trong Go.</p>
 
 <quiz q="<code>a := []int{1, 2, 3, 4}; b := a[:2]; b = append(b, 99)</code>. Giá trị của <code>a</code> là gì?">
@@ -177,49 +345,120 @@ func countByStudent(subs []Submission) map[int64]int {
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Đếm từ xuất hiện nhiều nhất</summary>
-<p>Viết <code>topWords(text string, n int) []string</code> trả về <code>n</code> từ xuất hiện nhiều nhất (không phân biệt hoa thường). Gợi ý: <code>strings.Fields</code>, <code>strings.ToLower</code>, map đếm, rồi <code>slices.SortFunc</code>.</p>
+<p>Viết <code>topWords(text string, n int) []string</code> trả về <code>n</code> từ xuất hiện nhiều nhất trong <code>text</code>, không phân biệt hoa thường. Với đoạn văn <code>"Go nhanh. go gọn, GO dễ học và dễ đọc"</code> và <code>n = 2</code>, kết quả là:</p>
+<pre lang="out">
+[go dễ]
+</pre>
+<p>(<code>go</code> xuất hiện 3 lần, <code>dễ</code> 2 lần. Để đơn giản, coi dấu câu dính vào từ: <code>nhanh.</code> là một từ.)</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Đổi cả đoạn về chữ thường: <code>strings.ToLower</code>.</li>
+<li>Tách thành danh sách từ: <code>strings.Fields(text)</code> tách theo khoảng trắng, giống <code>text.split(/\s+/)</code>.</li>
+<li>Đếm mỗi từ bằng <code>map[string]int</code>, giống ví dụ "Gom nhóm" ở trên.</li>
+<li>Map không sắp xếp được. Lấy các từ ra một slice, rồi sắp xếp slice đó theo số lần đếm, nhiều đứng trước.</li>
+<li>Lấy <code>n</code> phần tử đầu: <code>words[:n]</code> (nhớ kiểm tra slice có đủ <code>n</code> phần tử không).</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go">
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "fmt"
+    "slices"
+    "strings"
+)
+
 func topWords(text string, n int) []string {
+    // Bước 1-3: đếm từng từ
     counts := map[string]int{}
     for _, w := range strings.Fields(strings.ToLower(text)) {
         counts[w]++
     }
+
+    // Bước 4: lấy các từ ra slice
     words := make([]string, 0, len(counts))
-    for w := range counts {
+    for w := range counts { // range trên map, chỉ lấy khoá
         words = append(words, w)
     }
+
+    // Sắp xếp. Hàm so sánh trả về số âm nếu a đứng trước b, số dương nếu a đứng sau,
+    // giống hệt hàm truyền vào arr.sort((a, b) => ...) của JS
     slices.SortFunc(words, func(a, b string) int {
         if counts[a] != counts[b] {
-            return counts[b] - counts[a] // nhiều hơn đứng trước
+            return counts[b] - counts[a] // a đếm nhiều hơn -> kết quả âm -> a đứng trước
         }
-        return strings.Compare(a, b)     // bằng nhau thì theo chữ cái, kết quả luôn ổn định
+        return strings.Compare(a, b) // bằng nhau thì xếp theo chữ cái
     })
+
+    // Bước 5: lấy n từ đầu
     if len(words) > n {
         words = words[:n]
     }
     return words
 }
+
+func main() {
+    text := "Go nhanh. go gọn, GO dễ học và dễ đọc"
+    fmt.Println(topWords(text, 2))
+    fmt.Println(topWords(text, 100)) // n lớn hơn số từ: trả về tất cả, không lỗi
+}
 </pre>
-<p>Để ý dòng so sánh phụ theo chữ cái: vì map duyệt ngẫu nhiên, nếu không có nó thì các từ cùng số lần xuất hiện sẽ đổi chỗ giữa các lần chạy, làm test lúc đúng lúc sai.</p>
+<pre lang="out">
+[go dễ]
+[go dễ gọn, học nhanh. và đọc]
+</pre>
+<p><b>Giải thích:</b> để ý dòng so sánh phụ theo chữ cái. Map duyệt theo thứ tự ngẫu nhiên, nên nếu không có dòng đó, các từ cùng xuất hiện 1 lần (<code>gọn,</code>, <code>học</code>...) sẽ đổi chỗ giữa các lần chạy, làm test lúc đúng lúc sai. Thử xoá dòng đó và chạy vài lần để thấy.</p>
 </details>
 </details>
 <details class="ex"><summary>Phân trang trên slice</summary>
-<p>Viết <code>page[T any](items []T, page, size int) []T</code> trả về phần tử của trang <code>page</code> (bắt đầu từ 1). Không được panic khi trang vượt quá dữ liệu hoặc tham số âm. (Chữ <code>[T any]</code> là generics, bài 06 sẽ giải thích. Tạm hiểu là "hàm dùng được cho slice kiểu bất kỳ".)</p>
+<p>Danh sách có 7 học sinh, mỗi trang hiện 3 em. Viết hàm <code>pageOf(items []string, page, size int) []string</code> trả về các phần tử của trang <code>page</code> (trang đầu là 1). Không được làm chương trình dừng (panic) khi trang vượt quá dữ liệu hoặc tham số âm. Kết quả mong muốn:</p>
+<pre lang="out">
+trang 1: [An Bình Chi]
+trang 2: [Dũng Em Giang]
+trang 3: [Hà]
+trang 4: []
+trang 0: []
+</pre>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Trang <code>page</code> bắt đầu ở vị trí <code>start = (page - 1) * size</code>. Trang 2, mỗi trang 3: bắt đầu ở vị trí 3.</li>
+<li>Kết thúc ở <code>start + size</code>, nhưng không được vượt quá <code>len(items)</code>. Hàm <code>min(a, b)</code> có sẵn từ Go 1.21.</li>
+<li>Trước khi cắt, kiểm tra: <code>page</code> hoặc <code>size</code> nhỏ hơn 1, hay <code>start</code> đã vượt quá dữ liệu, thì trả về slice rỗng.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go">
-func page[T any](items []T, page, size int) []T {
-    if page < 1 || size < 1 {
-        return []T{}
+<pre lang="go" file="main.go">
+package main
+
+import "fmt"
+
+func pageOf(items []string, page, size int) []string {
+    if page < 1 || size < 1 { // tham số vô nghĩa
+        return []string{}
     }
     start := (page - 1) * size
-    if start >= len(items) {
-        return []T{}
+    if start >= len(items) { // trang nằm sau dữ liệu
+        return []string{}
     }
-    end := min(start+size, len(items)) // min có sẵn từ Go 1.21
+    end := min(start+size, len(items)) // trang cuối có thể thiếu phần tử
     return items[start:end]
 }
+
+func main() {
+    kids := []string{"An", "Bình", "Chi", "Dũng", "Em", "Giang", "Hà"}
+    for _, p := range []int{1, 2, 3, 4, 0} {
+        fmt.Printf("trang %d: %v\n", p, pageOf(kids, p, 3))
+    }
+}
 </pre>
+<pre lang="out">
+trang 1: [An Bình Chi]
+trang 2: [Dũng Em Giang]
+trang 3: [Hà]
+trang 4: []
+trang 0: []
+</pre>
+<p><b>Thử bỏ dòng kiểm tra <code>start &gt;= len(items)</code></b> rồi chạy lại. Chương trình dừng với lỗi <code>panic: runtime error: slice bounds out of range</code>. JavaScript trả <code>undefined</code> hay mảng rỗng khi vượt chỉ số, còn Go thì dừng hẳn. Mọi chỉ số tính từ dữ liệu người dùng gửi lên (như <code>?page=999</code>) đều phải kiểm tra như trên.</p>
+<p><b>Dùng cho mọi kiểu:</b> hàm trên chỉ nhận <code>[]string</code>. Bài 06 dạy generics để viết một lần, dùng cho cả <code>[]int</code>, <code>[]User</code>: <code>func pageOf[T any](items []T, page, size int) []T</code>. Thân hàm giữ nguyên, chỉ đổi <code>string</code> thành <code>T</code>.</p>
 <p>Truy cập ngoài phạm vi slice (<code>items[10]</code> khi len là 5) gây <b>panic</b>, khác với JavaScript trả <code>undefined</code>. Mọi chỉ số tính từ dữ liệu người dùng gửi lên đều phải kiểm tra như trên.</p>
 </details>
 </details>

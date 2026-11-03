@@ -71,9 +71,9 @@
 <h3>Quy tắc số một: không tin client</h3>
 <p>Một lỗi kinh điển của người mới làm backend: lấy giá tiền từ request.</p>
 <div class="code"><div class="code-h"><span>Request gửi lên (người dùng sửa được bằng DevTools)</span><button class="copy" type="button">Sao chép</button></div><pre><code>{ <span class="s">&quot;productId&quot;</span>: <span class="n">7</span>, <span class="s">&quot;quantity&quot;</span>: <span class="n">1</span>, <span class="s">&quot;price&quot;</span>: <span class="n">1000</span> }</code></pre></div>
-<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Tin luôn giá từ client: người dùng sửa price = 1000 là mua iPhone giá 1.000đ</span>
+<div class="code bad"><div class="code-h"><span>Go · trích đoạn</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Tin luôn giá từ client: người dùng sửa price = 1000 là mua iPhone giá 1.000đ</span>
 total := req.Price * req.Quantity</code></pre></div>
-<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Giá luôn lấy từ database. Client chỉ được nói &quot;tôi muốn mua món nào, bao nhiêu cái&quot;.</span>
+<div class="code good"><div class="code-h"><span>Go · trích đoạn</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Giá luôn lấy từ database. Client chỉ được nói &quot;tôi muốn mua món nào, bao nhiêu cái&quot;.</span>
 product, err := repo.<span class="f">GetProduct</span>(ctx, req.ProductID)
 <span class="k">if</span> err != <span class="b">nil</span> {
     <span class="k">return</span> err

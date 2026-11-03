@@ -183,14 +183,318 @@ CREATE TABLE idempotency_keys (
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Worker gửi thông báo</summary>
-<p>Khi giáo viên giao bài, tạo một việc <code>notify.assignment</code> trong cùng transaction với bài tập. Viết worker (chương trình riêng <code>cmd/worker</code>) lấy việc bằng <code>SKIP LOCKED</code>, gửi thông báo cho từng phụ huynh (giả lập bằng log, cho lỗi ngẫu nhiên 20%), thử lại có backoff, không gửi trùng cho một phụ huynh dù việc chạy lại, dừng an toàn khi nhận SIGTERM.</p>
-<details class="sol"><summary>Tiêu chí tự kiểm tra</summary>
+<p>Khi giáo viên giao bài, tạo một việc <code>notify.assignment</code> trong <b>cùng transaction</b> với bài tập. Viết worker lấy việc bằng <code>SKIP LOCKED</code> và gửi thông báo cho từng phụ huynh của lớp (giả lập, lỗi ngẫu nhiên 20%). Yêu cầu:</p>
 <ul>
-<li>Bảng <code>notifications_sent(job_id, user_id)</code> có khoá chính kép: gửi cho ai thì chèn dòng đó, chèn không được nghĩa là đã gửi.</li>
-<li>Chạy 3 worker cùng lúc: không việc nào bị xử lý hai lần cùng lúc.</li>
-<li>Tắt worker bằng Ctrl+C giữa chừng rồi bật lại: việc dở dang được làm tiếp, không ai nhận trùng.</li>
-<li>Việc lỗi 8 lần chuyển sang <code>dead</code> và có <code>last_error</code> để đọc.</li>
-<li>Vòng lặp chính: <code>for ctx.Err() == nil { if no job { sleep 1s } }</code>, không quay liên tục làm nóng CPU khi hàng đợi rỗng.</li>
+<li>lỗi thì thử lại, chờ tăng dần. Lỗi 8 lần thì chuyển việc sang <code>dead</code>, giữ <code>last_error</code> để đọc.</li>
+<li>việc chạy lại nhiều lần cũng không gửi trùng cho một phụ huynh.</li>
+<li>chạy 3 worker cùng lúc: không việc nào bị hai worker cùng làm.</li>
+<li>bấm Ctrl+C: làm nốt việc đang làm rồi mới thoát. Hàng đợi rỗng thì ngủ, không quay liên tục làm nóng CPU.</li>
+</ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Một chương trình, hai lệnh cho gọn: <code>go run . giao-bai</code> (giả làm API: tạo bài + việc) và <code>go run . worker A</code> (chạy worker tên A). Đọc lệnh bằng <code>os.Args</code> như bài 01.</li>
+<li>Chống gửi trùng: bảng <code>notifications_sent(job_id, user_id)</code> có khoá chính kép. Trước khi gửi cho ai, kiểm tra đã có dòng chưa. Gửi xong thì chèn dòng đó ngay.</li>
+<li>Lấy việc và cập nhật trạng thái trong một transaction (<code>pgx.BeginFunc</code>), giống đoạn <code>runOnce</code> ở trên. Lỗi thì <b>vẫn commit</b>, chỉ là cập nhật <code>attempts</code> và dời <code>run_at</code> ra sau.</li>
+<li>Dừng an toàn: <code>signal.NotifyContext</code> (bài 13) cho một ctx bị huỷ khi bấm Ctrl+C. Vòng lặp chính kiểm tra <code>ctx.Err()</code> <b>giữa</b> các việc. Việc đang làm dùng ctx riêng (<code>context.WithoutCancel</code>) để không bị cắt ngang.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<p>Bảng dùng cho bài này (dán vào <code>psql</code>, dùng chung database bài 14 được, tên bảng không trùng):</p>
+<pre lang="sql" file="schema.sql">
+CREATE TABLE parents (
+    id        bigint PRIMARY KEY,
+    name      text NOT NULL,
+    class_id  bigint NOT NULL
+);
+INSERT INTO parents VALUES (1, 'Mẹ An', 42), (2, 'Bố Bình', 42), (3, 'Mẹ Chi', 42), (4, 'Bố Dũng', 42), (5, 'Mẹ Em', 42);
+
+CREATE TABLE homework (
+    id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    class_id  bigint NOT NULL,
+    title     text NOT NULL
+);
+
+CREATE TABLE jobs (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    kind        text NOT NULL,
+    payload     jsonb NOT NULL,
+    run_at      timestamptz NOT NULL DEFAULT now(),
+    attempts    int NOT NULL DEFAULT 0,
+    last_error  text,
+    status      text NOT NULL DEFAULT 'pending'   -- pending | done | dead
+);
+CREATE INDEX jobs_ready ON jobs (run_at) WHERE status = 'pending';
+
+-- Đã gửi cho ai trong việc nào. Khoá chính kép: không bao giờ có hai dòng giống nhau.
+-- Cố ý KHÔNG đặt REFERENCES jobs(id): worker đang giữ khoá FOR UPDATE trên dòng job,
+-- mà chèn dòng có khoá ngoại trỏ tới đúng dòng đó (từ kết nối khác) sẽ phải chờ khoá ấy: tự chặn chính mình
+CREATE TABLE notifications_sent (
+    job_id   bigint NOT NULL,
+    user_id  bigint NOT NULL,
+    sent_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (job_id, user_id)
+);
+</pre>
+<pre lang="sh">
+mkdir worker && cd worker
+go mod init worker
+go get github.com/jackc/pgx/v5
+</pre>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "log/slog"
+    "math/rand/v2"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+const maxAttempts = 8
+
+type Job struct {
+    ID       int64
+    Kind     string
+    Payload  []byte
+    Attempts int
+}
+
+type assignmentPayload struct {
+    HomeworkID int64 `json:"homeworkId"`
+    ClassID    int64 `json:"classId"`
+}
+
+func main() {
+    if len(os.Args) < 2 {
+        fmt.Println("Cách dùng: go run . giao-bai | go run . worker <tên>")
+        os.Exit(1)
+    }
+    ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer stop()
+
+    db, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+    if err != nil {
+        fmt.Println(err)
+        os.Exit(1)
+    }
+    defer db.Close()
+
+    switch os.Args[1] {
+    case "giao-bai":
+        err = assign(ctx, db, 42, "Toán trang 20")
+    case "worker":
+        name := "w"
+        if len(os.Args) > 2 {
+            name = os.Args[2]
+        }
+        log := slog.New(slog.NewTextHandler(os.Stdout, nil)).With("worker", name)
+        err = (&Worker{db: db, log: log}).Run(ctx)
+    }
+    if err != nil {
+        fmt.Println("lỗi:", err)
+        os.Exit(1)
+    }
+}
+
+// assign: phần việc của API khi giáo viên giao bài.
+// Lưu bài tập VÀ tạo việc trong CÙNG một transaction: có bài thì chắc chắn có việc, và ngược lại
+func assign(ctx context.Context, db *pgxpool.Pool, classID int64, title string) error {
+    return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+        var hwID int64
+        if err := tx.QueryRow(ctx,
+            `INSERT INTO homework (class_id, title) VALUES ($1, $2) RETURNING id`, classID, title).Scan(&hwID); err != nil {
+            return err
+        }
+        payload, _ := json.Marshal(assignmentPayload{HomeworkID: hwID, ClassID: classID})
+        var jobID int64
+        if err := tx.QueryRow(ctx,
+            `INSERT INTO jobs (kind, payload) VALUES ('notify.assignment', $1) RETURNING id`, payload).Scan(&jobID); err != nil {
+            return err
+        }
+        fmt.Printf("đã giao bài %d, tạo việc %d\n", hwID, jobID)
+        return nil
+    })
+}
+
+type Worker struct {
+    db  *pgxpool.Pool
+    log *slog.Logger
+}
+
+// Run lặp tới khi nhận Ctrl+C / SIGTERM. Việc đang làm dở thì làm cho xong rồi mới thoát
+func (w *Worker) Run(ctx context.Context) error {
+    w.log.Info("bắt đầu")
+    for ctx.Err() == nil {
+        // Việc chạy với ctx riêng (không bị huỷ theo Ctrl+C), tối đa 30 giây
+        jobCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+        err := w.runOnce(jobCtx)
+        cancel()
+        if errors.Is(err, pgx.ErrNoRows) { // hàng đợi rỗng: ngủ 1 giây, không quay liên tục
+            select {
+            case <-time.After(time.Second):
+            case <-ctx.Done():
+            }
+            continue
+        }
+        if err != nil {
+            w.log.Error("lỗi hệ thống", "err", err)
+            time.Sleep(time.Second)
+        }
+    }
+    w.log.Info("đã dừng an toàn")
+    return nil
+}
+
+func (w *Worker) runOnce(ctx context.Context) error {
+    return pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
+        var j Job
+        // SKIP LOCKED: việc đang bị worker khác khoá thì bỏ qua, lấy việc kế tiếp
+        err := tx.QueryRow(ctx, `
+            SELECT id, kind, payload, attempts FROM jobs
+            WHERE status = 'pending' AND run_at <= now()
+            ORDER BY run_at
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED`).Scan(&j.ID, &j.Kind, &j.Payload, &j.Attempts)
+        if err != nil {
+            return err
+        }
+
+        herr := w.handle(ctx, j)
+        if herr == nil {
+            w.log.Info("xong việc", "job", j.ID, "lần thử", j.Attempts+1)
+            _, err = tx.Exec(ctx, `UPDATE jobs SET status = 'done', attempts = attempts + 1 WHERE id = $1`, j.ID)
+            return err
+        }
+
+        if j.Attempts+1 >= maxAttempts { // thử quá nhiều lần: bỏ, để người đọc last_error
+            w.log.Error("bỏ việc", "job", j.ID, "err", herr)
+            _, err = tx.Exec(ctx, `UPDATE jobs SET status = 'dead', attempts = attempts + 1, last_error = $2 WHERE id = $1`, j.ID, herr.Error())
+            return err
+        }
+        delay := time.Duration(1<<j.Attempts) * time.Second // 1s, 2s, 4s, 8s...
+        w.log.Warn("lỗi, sẽ thử lại", "job", j.ID, "lần thử", j.Attempts+1, "chờ", delay, "err", herr)
+        _, err = tx.Exec(ctx, `
+            UPDATE jobs SET attempts = attempts + 1, last_error = $2, run_at = now() + $3::interval
+            WHERE id = $1`, j.ID, herr.Error(), delay.String())
+        return err // commit: lưu số lần thử, việc sẽ được lấy lại sau `delay`
+    })
+}
+
+func (w *Worker) handle(ctx context.Context, j Job) error {
+    if j.Kind != "notify.assignment" {
+        return fmt.Errorf("không biết loại việc %q", j.Kind)
+    }
+    var p assignmentPayload
+    if err := json.Unmarshal(j.Payload, &p); err != nil {
+        return err
+    }
+    rows, _ := w.db.Query(ctx, `SELECT id, name FROM parents WHERE class_id = $1 ORDER BY id`, p.ClassID)
+    type parent struct {
+        ID   int64
+        Name string
+    }
+    parents, err := pgx.CollectRows(rows, pgx.RowToStructByPos[parent])
+    if err != nil {
+        return err
+    }
+
+    for _, par := range parents {
+        // Đã gửi cho người này trong việc này ở lần chạy trước? Thì bỏ qua
+        var sent bool
+        if err := w.db.QueryRow(ctx,
+            `SELECT EXISTS (SELECT 1 FROM notifications_sent WHERE job_id = $1 AND user_id = $2)`,
+            j.ID, par.ID).Scan(&sent); err != nil {
+            return err
+        }
+        if sent {
+            continue
+        }
+        if err := sendPush(par.Name); err != nil {
+            return fmt.Errorf("gửi cho %s: %w", par.Name, err)
+        }
+        // Ghi nhận ngay (ngoài transaction của việc), để lần thử lại không gửi trùng
+        if _, err := w.db.Exec(ctx,
+            `INSERT INTO notifications_sent (job_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            j.ID, par.ID); err != nil {
+            return err
+        }
+        w.log.Info("đã gửi", "job", j.ID, "tới", par.Name)
+    }
+    return nil
+}
+
+// Giả lập dịch vụ push: chậm 100ms, lỗi ngẫu nhiên 20%
+func sendPush(to string) error {
+    time.Sleep(100 * time.Millisecond)
+    if rand.IntN(5) == 0 {
+        return errors.New("dịch vụ push trả 503")
+    }
+    return nil
+}
+</pre>
+<p><b>Chạy thử:</b> build ra một file chạy cho nhanh, giao 3 bài, rồi mở 3 worker ở 3 terminal (hoặc chạy nền như dưới):</p>
+<pre lang="sh">
+export DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres'
+go build -o w .
+./w giao-bai && ./w giao-bai && ./w giao-bai
+./w worker A &   # dấu & : chạy nền, terminal vẫn gõ tiếp được
+./w worker B &
+./w worker C &
+# chờ khoảng 10 giây, rồi dừng cả ba (giống Ctrl+C):
+pkill -INT -f "w worker"
+</pre>
+<pre lang="out">
+đã giao bài 1, tạo việc 1
+đã giao bài 2, tạo việc 2
+đã giao bài 3, tạo việc 3
+level=INFO msg="bắt đầu" worker=A
+level=INFO msg="đã gửi" worker=A job=1 tới="Mẹ An"
+level=INFO msg="đã gửi" worker=A job=1 tới="Bố Bình"
+level=WARN msg="lỗi, sẽ thử lại" worker=A job=1 "lần thử"=1 chờ=1s err="gửi cho Mẹ Chi: dịch vụ push trả 503"
+level=INFO msg="bắt đầu" worker=B
+level=WARN msg="lỗi, sẽ thử lại" worker=B job=2 "lần thử"=1 chờ=1s err="gửi cho Mẹ An: dịch vụ push trả 503"
+...
+level=INFO msg="đã gửi" worker=B job=1 tới="Mẹ Chi"
+level=INFO msg="đã gửi" worker=B job=1 tới="Bố Dũng"
+level=INFO msg="đã gửi" worker=B job=1 tới="Mẹ Em"
+level=INFO msg="xong việc" worker=B job=1 "lần thử"=3
+...
+level=INFO msg="đã dừng an toàn" worker=A
+level=INFO msg="đã dừng an toàn" worker=B
+</pre>
+<p>Log đã bỏ bớt phần <code>time=...</code> cho gọn. Lỗi xảy ra ngẫu nhiên nên mỗi lần chạy log mỗi khác. Kiểm tra kết quả trong database:</p>
+<pre lang="out">
+postgres=# SELECT id, status, attempts, last_error FROM jobs ORDER BY id;
+ id | status | attempts |              last_error
+----+--------+----------+---------------------------------------
+  1 | done   |        3 | gửi cho Mẹ Chi: dịch vụ push trả 503
+  2 | done   |        3 | gửi cho Mẹ Em: dịch vụ push trả 503
+  3 | done   |        3 | gửi cho Bố Dũng: dịch vụ push trả 503
+(3 rows)
+
+postgres=# SELECT job_id, count(*) AS so_nguoi FROM notifications_sent GROUP BY job_id ORDER BY job_id;
+ job_id | so_nguoi
+--------+----------
+      1 |        5
+      2 |        5
+      3 |        5
+(3 rows)
+</pre>
+<p><b>Giải thích:</b></p>
+<ul>
+<li>Việc 1: worker A gửi được cho Mẹ An, Bố Bình rồi lỗi ở Mẹ Chi. Lần sau worker <b>B</b> lấy lại việc 1 và chỉ gửi cho 3 người còn lại: bảng <code>notifications_sent</code> nhớ ai đã nhận rồi. Mỗi việc đúng 5 người, không ai nhận hai lần.</li>
+<li><code>last_error</code> vẫn giữ lỗi của lần thử gần nhất dù việc đã <code>done</code>: tiện để xem việc từng gặp chuyện gì.</li>
+<li>Ba worker không bao giờ làm cùng một việc cùng lúc nhờ <code>FOR UPDATE SKIP LOCKED</code>: worker B thấy việc 1 đang bị A khoá thì lấy việc khác.</li>
+<li>Vẫn còn một khe hở: gửi thành công mà worker chết ngay trước khi kịp chèn dòng <code>notifications_sent</code>, lần sau sẽ gửi lại người đó. Đây là đặc điểm của mọi hàng đợi "ít nhất một lần" (at-least-once). Muốn tuyệt đối không trùng thì phía nhận phải idempotent, xem mục trên.</li>
+<li>Chú thích trong <code>schema.sql</code> nói vì sao <code>notifications_sent.job_id</code> cố ý không có khoá ngoại: có khoá ngoại thì mỗi lần chèn, Postgres phải khoá nhẹ dòng job đó, mà dòng đó lại đang bị chính worker giữ <code>FOR UPDATE</code> từ một kết nối khác, nên worker tự chờ chính mình mãi mãi. Lỗi này rất khó đoán nếu chưa gặp: chương trình không báo lỗi, chỉ đứng im.</li>
 </ul>
 </details>
 </details>

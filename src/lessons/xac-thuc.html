@@ -190,16 +190,500 @@ func (h *Handler) updateClass(w http.ResponseWriter, r *http.Request) {
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Đăng ký, đăng nhập, đăng xuất</summary>
-<p>Thêm vào API ghi chú: bảng <code>users</code>, <code>sessions(token_hash, user_id, expires_at)</code>. Endpoint <code>POST /register</code>, <code>POST /login</code> (5 lần sai / 15 phút / email thì 429), <code>POST /logout</code>, <code>GET /me</code>. Ghi chú thuộc về người tạo, mọi endpoint ghi chú chỉ thấy ghi chú của mình.</p>
-<details class="sol"><summary>Danh sách kiểm tra</summary>
+<p>Viết API ghi chú có tài khoản, lưu trong Postgres:</p>
 <ul>
-<li>Email chuẩn hoá chữ thường, UNIQUE trong database, trùng trả 409.</li>
-<li>Mật khẩu băm bcrypt / argon2id, không bao giờ trả ra JSON hay ghi log.</li>
-<li>Sai email và sai mật khẩu cùng một thông báo, cùng status 401.</li>
-<li>Token 32 byte từ <code>crypto/rand</code>, database lưu SHA-256 của token.</li>
-<li>Cookie <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>.</li>
-<li>Đăng xuất xoá dòng session, gọi <code>/me</code> bằng cookie cũ phải nhận 401.</li>
-<li>Test: người B gọi <code>GET/PATCH/DELETE /notes/{id của A}</code> nhận 404.</li>
+<li><code>POST /register</code>, <code>POST /login</code>, <code>POST /logout</code>, <code>GET /me</code>.</li>
+<li>Đăng nhập sai 5 lần trong 15 phút cho cùng một email thì trả <code>429</code>.</li>
+<li><code>GET /notes</code>, <code>POST /notes</code>, <code>GET /notes/{id}</code>, <code>DELETE /notes/{id}</code>: mỗi người chỉ thấy và xoá được ghi chú của mình.</li>
+</ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Ba bảng: <code>app_users</code> (email UNIQUE, password_hash), <code>sessions</code> (token_hash, user_id, expires_at), <code>notes</code> (user_id, text). Đặt tên <code>app_users</code> để không đụng bảng <code>users</code> của bài 14 nếu dùng chung database.</li>
+<li>Đăng ký: chuẩn hoá email về chữ thường, kiểm độ dài mật khẩu, băm bằng bcrypt, <code>INSERT</code>. Trùng email thì Postgres trả lỗi <code>23505</code>, đổi thành <code>409</code> (bài 15). Đăng ký xong tạo phiên luôn.</li>
+<li>Đăng nhập: tìm theo email, so mật khẩu bằng <code>bcrypt.CompareHashAndPassword</code>. Không có email và sai mật khẩu trả <b>cùng</b> một câu.</li>
+<li>Phiên: token 32 byte từ <code>crypto/rand</code>, đặt vào cookie, database chỉ lưu SHA-256 của token. Middleware đọc cookie, tìm phiên còn hạn, đưa <code>User</code> vào ctx (bài 10).</li>
+<li>Ghi chú: mọi câu SQL có <code>AND user_id = $n</code> với <code>$n</code> là người đang đăng nhập.</li>
+<li>Giới hạn đăng nhập sai: một map <code>email -&gt; danh sách thời điểm sai</code> có mutex (bài 09) là đủ để làm bài. Nhiều bản server thì dùng Redis như bài 17.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<p><b>Chuẩn bị:</b> dùng Postgres của bài 14, dán lược đồ này vào <code>psql</code>:</p>
+<pre lang="sql" file="schema.sql">
+CREATE TABLE app_users (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    email         text NOT NULL UNIQUE,
+    password_hash text NOT NULL,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE sessions (
+    token_hash  bytea PRIMARY KEY,                 -- sha256 của token, không lưu token thật
+    user_id     bigint NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    expires_at  timestamptz NOT NULL
+);
+
+CREATE TABLE notes (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id     bigint NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    text        text NOT NULL CHECK (char_length(text) BETWEEN 1 AND 500),
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX notes_user_idx ON notes (user_id, id);
+</pre>
+<pre lang="sh">
+mkdir authnotes && cd authnotes
+go mod init authnotes
+go get github.com/jackc/pgx/v5 golang.org/x/crypto
+</pre>
+<p>Ba file Go, cùng thư mục, cùng <code>package main</code>:</p>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "log"
+    "log/slog"
+    "net/http"
+    "os"
+    "time"
+
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+type App struct {
+    db      *pgxpool.Pool
+    limiter *loginLimiter
+}
+
+func main() {
+    ctx := context.Background()
+    db, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+    if err := db.Ping(ctx); err != nil {
+        log.Fatal("không kết nối được database: ", err)
+    }
+
+    a := &App{db: db, limiter: &loginLimiter{fails: map[string][]time.Time{}}}
+
+    mux := http.NewServeMux()
+    mux.HandleFunc("POST /register", a.register)
+    mux.HandleFunc("POST /login", a.login)
+    mux.HandleFunc("POST /logout", a.logout)
+    mux.HandleFunc("GET /me", requireUser(a.me))
+    mux.HandleFunc("GET /notes", requireUser(a.listNotes))
+    mux.HandleFunc("POST /notes", requireUser(a.createNote))
+    mux.HandleFunc("GET /notes/{id}", requireUser(a.getNote))
+    mux.HandleFunc("DELETE /notes/{id}", requireUser(a.deleteNote))
+
+    srv := &http.Server{Addr: ":8080", Handler: a.authMiddleware(mux), ReadHeaderTimeout: 5 * time.Second}
+    log.Println("http://localhost:8080")
+    log.Fatal(srv.ListenAndServe())
+}
+
+func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
+    r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
+    if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+        writeErr(w, http.StatusBadRequest, "JSON không hợp lệ")
+        return false
+    }
+    return true
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+    w.Header().Set("Content-Type", "application/json; charset=utf-8")
+    w.WriteHeader(status)
+    json.NewEncoder(w).Encode(v)
+}
+
+func writeErr(w http.ResponseWriter, status int, msg string) {
+    writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// Lỗi không lường trước: ghi log đầy đủ, client chỉ thấy câu chung chung
+func (a *App) internal(w http.ResponseWriter, r *http.Request, err error) {
+    slog.Error("lỗi", "err", err, "path", r.URL.Path)
+    writeErr(w, http.StatusInternalServerError, "Có lỗi xảy ra, vui lòng thử lại")
+}
+</pre>
+<pre lang="go" file="auth.go" check="no">
+package main
+
+import (
+    "context"
+    "crypto/rand"
+    "crypto/sha256"
+    "encoding/base64"
+    "errors"
+    "net/http"
+    "strings"
+    "sync"
+    "time"
+
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgconn"
+    "golang.org/x/crypto/bcrypt"
+)
+
+const (
+    cookieName = "__Host-session"
+    sessionTTL = 30 * 24 * time.Hour
+)
+
+type User struct {
+    ID    int64  `json:"id"`
+    Email string `json:"email"`
+}
+
+type ctxUserKey struct{}
+
+func userFrom(ctx context.Context) (User, bool) {
+    u, ok := ctx.Value(ctxUserKey{}).(User)
+    return u, ok
+}
+
+func hashToken(token string) []byte {
+    h := sha256.Sum256([]byte(token))
+    return h[:]
+}
+
+// newSession tạo token ngẫu nhiên, lưu BẢN BĂM vào database, trả token thật để đặt vào cookie
+func (a *App) newSession(ctx context.Context, userID int64) (string, error) {
+    b := make([]byte, 32)
+    if _, err := rand.Read(b); err != nil { // crypto/rand: không đoán được
+        return "", err
+    }
+    token := base64.RawURLEncoding.EncodeToString(b)
+    _, err := a.db.Exec(ctx,
+        `INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)`,
+        hashToken(token), userID, time.Now().Add(sessionTTL))
+    return token, err
+}
+
+func setSessionCookie(w http.ResponseWriter, token string, maxAge int) {
+    http.SetCookie(w, &http.Cookie{
+        Name:     cookieName,
+        Value:    token,
+        Path:     "/",
+        MaxAge:   maxAge, // số âm: xoá cookie
+        HttpOnly: true,
+        Secure:   true, // trình duyệt và curl coi localhost là "an toàn" nên vẫn chạy được khi thử trên máy
+        SameSite: http.SameSiteLaxMode,
+    })
+}
+
+// authMiddleware: có cookie hợp lệ thì đưa User vào ctx. Không có thì vẫn cho đi tiếp
+func (a *App) authMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if c, err := r.Cookie(cookieName); err == nil {
+            var u User
+            err := a.db.QueryRow(r.Context(), `
+                SELECT u.id, u.email FROM sessions s JOIN app_users u ON u.id = s.user_id
+                WHERE s.token_hash = $1 AND s.expires_at > now()`, hashToken(c.Value)).Scan(&u.ID, &u.Email)
+            if err == nil {
+                r = r.WithContext(context.WithValue(r.Context(), ctxUserKey{}, u))
+            }
+        }
+        next.ServeHTTP(w, r)
+    })
+}
+
+// requireUser: route nào cần đăng nhập thì bọc bằng hàm này
+func requireUser(next func(http.ResponseWriter, *http.Request, User)) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        u, ok := userFrom(r.Context())
+        if !ok {
+            writeErr(w, http.StatusUnauthorized, "Vui lòng đăng nhập")
+            return
+        }
+        next(w, r, u)
+    }
+}
+
+// loginLimiter: tối đa 5 lần đăng nhập SAI trong 15 phút cho mỗi email.
+// Lưu trong bộ nhớ cho gọn. Chạy nhiều bản server thì chuyển sang Redis (bài 17)
+type loginLimiter struct {
+    mu    sync.Mutex
+    fails map[string][]time.Time
+}
+
+func (l *loginLimiter) blocked(email string) bool {
+    l.mu.Lock()
+    defer l.mu.Unlock()
+    recent := l.fails[email][:0]
+    for _, t := range l.fails[email] {
+        if time.Since(t) < 15*time.Minute {
+            recent = append(recent, t)
+        }
+    }
+    l.fails[email] = recent
+    return len(recent) >= 5
+}
+
+func (l *loginLimiter) fail(email string) {
+    l.mu.Lock()
+    defer l.mu.Unlock()
+    l.fails[email] = append(l.fails[email], time.Now())
+}
+
+type credentials struct {
+    Email    string `json:"email"`
+    Password string `json:"password"`
+}
+
+func (c *credentials) normalize() {
+    c.Email = strings.ToLower(strings.TrimSpace(c.Email))
+}
+
+func (a *App) register(w http.ResponseWriter, r *http.Request) {
+    var in credentials
+    if !decode(w, r, &in) {
+        return
+    }
+    in.normalize()
+    if !strings.Contains(in.Email, "@") || len(in.Email) > 254 {
+        writeErr(w, http.StatusBadRequest, "Email không hợp lệ")
+        return
+    }
+    if len(in.Password) < 8 || len(in.Password) > 72 { // bcrypt chỉ dùng 72 byte đầu
+        writeErr(w, http.StatusBadRequest, "Mật khẩu từ 8 đến 72 ký tự")
+        return
+    }
+    hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), 12)
+    if err != nil {
+        a.internal(w, r, err)
+        return
+    }
+    var u User
+    err = a.db.QueryRow(r.Context(),
+        `INSERT INTO app_users (email, password_hash) VALUES ($1, $2) RETURNING id, email`,
+        in.Email, string(hash)).Scan(&u.ID, &u.Email)
+    var pgErr *pgconn.PgError
+    if errors.As(err, &pgErr) && pgErr.Code == "23505" { // UNIQUE(email): không SELECT kiểm tra trước
+        writeErr(w, http.StatusConflict, "Email đã được dùng")
+        return
+    }
+    if err != nil {
+        a.internal(w, r, err)
+        return
+    }
+    a.startSession(w, r, u, http.StatusCreated)
+}
+
+func (a *App) login(w http.ResponseWriter, r *http.Request) {
+    var in credentials
+    if !decode(w, r, &in) {
+        return
+    }
+    in.normalize()
+    if a.limiter.blocked(in.Email) {
+        w.Header().Set("Retry-After", "900")
+        writeErr(w, http.StatusTooManyRequests, "Thử sai quá nhiều lần, vui lòng thử lại sau 15 phút")
+        return
+    }
+    var u User
+    var hash string
+    err := a.db.QueryRow(r.Context(),
+        `SELECT id, email, password_hash FROM app_users WHERE email = $1`, in.Email).Scan(&u.ID, &u.Email, &hash)
+    if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+        a.internal(w, r, err)
+        return
+    }
+    // Sai email hay sai mật khẩu: CÙNG một câu trả lời, để không dò được email nào đã đăng ký
+    if err != nil || bcrypt.CompareHashAndPassword([]byte(hash), []byte(in.Password)) != nil {
+        a.limiter.fail(in.Email)
+        writeErr(w, http.StatusUnauthorized, "Email hoặc mật khẩu không đúng")
+        return
+    }
+    a.startSession(w, r, u, http.StatusOK)
+}
+
+func (a *App) startSession(w http.ResponseWriter, r *http.Request, u User, status int) {
+    token, err := a.newSession(r.Context(), u.ID)
+    if err != nil {
+        a.internal(w, r, err)
+        return
+    }
+    setSessionCookie(w, token, int(sessionTTL.Seconds()))
+    writeJSON(w, status, u)
+}
+
+func (a *App) logout(w http.ResponseWriter, r *http.Request) {
+    if c, err := r.Cookie(cookieName); err == nil {
+        a.db.Exec(r.Context(), `DELETE FROM sessions WHERE token_hash = $1`, hashToken(c.Value))
+    }
+    setSessionCookie(w, "", -1)
+    w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *App) me(w http.ResponseWriter, r *http.Request, u User) {
+    writeJSON(w, http.StatusOK, u)
+}
+</pre>
+<pre lang="go" file="notes.go" check="no">
+package main
+
+import (
+    "net/http"
+    "strconv"
+    "strings"
+    "time"
+    "unicode/utf8"
+)
+
+type Note struct {
+    ID        int64     `json:"id"`
+    Text      string    `json:"text"`
+    CreatedAt time.Time `json:"createdAt"`
+}
+
+// Mọi câu SQL đều có "user_id = người đang đăng nhập": không ai đọc được ghi chú của người khác
+
+func (a *App) listNotes(w http.ResponseWriter, r *http.Request, u User) {
+    rows, err := a.db.Query(r.Context(),
+        `SELECT id, text, created_at FROM notes WHERE user_id = $1 ORDER BY id`, u.ID)
+    if err != nil {
+        a.internal(w, r, err)
+        return
+    }
+    defer rows.Close()
+    out := []Note{}
+    for rows.Next() {
+        var n Note
+        if err := rows.Scan(&n.ID, &n.Text, &n.CreatedAt); err != nil {
+            a.internal(w, r, err)
+            return
+        }
+        out = append(out, n)
+    }
+    writeJSON(w, http.StatusOK, out)
+}
+
+func (a *App) createNote(w http.ResponseWriter, r *http.Request, u User) {
+    var in struct {
+        Text string `json:"text"`
+    }
+    if !decode(w, r, &in) {
+        return
+    }
+    in.Text = strings.TrimSpace(in.Text)
+    if n := utf8.RuneCountInString(in.Text); n == 0 || n > 500 {
+        writeErr(w, http.StatusBadRequest, "Nội dung từ 1 đến 500 ký tự")
+        return
+    }
+    n := Note{Text: in.Text}
+    err := a.db.QueryRow(r.Context(),
+        `INSERT INTO notes (user_id, text) VALUES ($1, $2) RETURNING id, created_at`, u.ID, in.Text,
+    ).Scan(&n.ID, &n.CreatedAt)
+    if err != nil {
+        a.internal(w, r, err)
+        return
+    }
+    writeJSON(w, http.StatusCreated, n)
+}
+
+func (a *App) getNote(w http.ResponseWriter, r *http.Request, u User) {
+    id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+    var n Note
+    err := a.db.QueryRow(r.Context(),
+        `SELECT id, text, created_at FROM notes WHERE id = $1 AND user_id = $2`, id, u.ID,
+    ).Scan(&n.ID, &n.Text, &n.CreatedAt)
+    if err != nil { // không có, HOẶC có nhưng của người khác: cùng trả 404
+        writeErr(w, http.StatusNotFound, "Không tìm thấy")
+        return
+    }
+    writeJSON(w, http.StatusOK, n)
+}
+
+func (a *App) deleteNote(w http.ResponseWriter, r *http.Request, u User) {
+    id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+    tag, err := a.db.Exec(r.Context(), `DELETE FROM notes WHERE id = $1 AND user_id = $2`, id, u.ID)
+    if err != nil {
+        a.internal(w, r, err)
+        return
+    }
+    if tag.RowsAffected() == 0 {
+        writeErr(w, http.StatusNotFound, "Không tìm thấy")
+        return
+    }
+    w.WriteHeader(http.StatusNoContent)
+}
+</pre>
+<p><b>Chạy</b> ở terminal 1:</p>
+<pre lang="sh">
+DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go run .
+</pre>
+<p><b>Thử</b> ở terminal 2. <code>-c lan.txt</code> bảo curl lưu cookie nhận được vào file <code>lan.txt</code>, <code>-b lan.txt</code> gửi cookie trong file đó, giống trình duyệt tự gửi cookie. Lan và Bình mỗi người một file cookie, như hai trình duyệt khác nhau:</p>
+<pre lang="out">
+$ J='Content-Type: application/json'
+$ curl -i -c lan.txt -X POST localhost:8080/register -H "$J" -d '{"email":"Lan@Gmail.com","password":"matkhau123"}'
+HTTP/1.1 201 Created
+Content-Type: application/json; charset=utf-8
+Set-Cookie: __Host-session=UmAVXJRXz1CRP5G4iTERSuZStn7VR3FXA8Dr-LSroKQ; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax
+Content-Length: 33
+
+{"id":1,"email":"lan@gmail.com"}
+$ curl -X POST localhost:8080/register -H "$J" -d '{"email":"lan@gmail.com","password":"khac12345"}'
+{"error":"Email đã được dùng"}
+$ curl -b lan.txt localhost:8080/me
+{"id":1,"email":"lan@gmail.com"}
+$ curl -b lan.txt -X POST localhost:8080/notes -H "$J" -d '{"text":"Ghi chú của Lan"}'
+{"id":1,"text":"Ghi chú của Lan","createdAt":"2026-11-03T16:01:54.108283+07:00"}
+$ curl -c binh.txt -X POST localhost:8080/register -H "$J" -d '{"email":"binh@gmail.com","password":"matkhau456"}'
+{"id":3,"email":"binh@gmail.com"}
+$ curl -b binh.txt localhost:8080/notes/1
+{"error":"Không tìm thấy"}
+$ curl -o /dev/null -w '%{http_code}\n' -b binh.txt -X DELETE localhost:8080/notes/1
+404
+$ curl -b lan.txt localhost:8080/notes
+[{"id":1,"text":"Ghi chú của Lan","createdAt":"2026-11-03T16:01:54.108283+07:00"}]
+$ curl localhost:8080/me
+{"error":"Vui lòng đăng nhập"}
+</pre>
+<p>Thử dò mật khẩu và đăng xuất:</p>
+<pre lang="out">
+$ curl -X POST localhost:8080/login -H "$J" -d '{"email":"lan@gmail.com","password":"sai"}'
+{"error":"Email hoặc mật khẩu không đúng"}
+$ curl -X POST localhost:8080/login -H "$J" -d '{"email":"khongco@gmail.com","password":"sai"}'
+{"error":"Email hoặc mật khẩu không đúng"}
+$ # sai thêm 4 lần nữa với lan@gmail.com: 401 401 401 401
+$ curl -i -X POST localhost:8080/login -H "$J" -d '{"email":"lan@gmail.com","password":"matkhau123"}'
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json; charset=utf-8
+Retry-After: 900
+
+{"error":"Thử sai quá nhiều lần, vui lòng thử lại sau 15 phút"}
+$ curl -o /dev/null -w '%{http_code}\n' -b lan.txt -X POST localhost:8080/logout
+204
+$ curl -b lan.txt localhost:8080/me
+{"error":"Vui lòng đăng nhập"}
+</pre>
+<p>Xem trong database: mật khẩu chỉ còn chuỗi băm bcrypt (có cost <code>$12$</code> và muối bên trong), phiên chỉ lưu bản băm của token. Phiên của Lan đã bị xoá khi đăng xuất, chỉ còn phiên của Bình:</p>
+<pre lang="out">
+postgres=# SELECT email, left(password_hash, 29) AS password_hash FROM app_users;
+     email      |         password_hash
+----------------+-------------------------------
+ lan@gmail.com  | $2a$12$0stP5yFKz3JJPEhqMDcwj.
+ binh@gmail.com | $2a$12$Lq0URjVYwjWDUf0HUG3.kO
+(2 rows)
+
+postgres=# SELECT encode(token_hash, 'hex') AS token_hash, user_id FROM sessions;
+                            token_hash                            | user_id
+------------------------------------------------------------------+---------
+ ae8be4f3cca03aec4152c53ba3cb5d586c313be25b0817a639dfe295bab149bf |       3
+(1 row)
+</pre>
+<p><b>Giải thích từng điểm:</b></p>
+<ul>
+<li>Email <code>Lan@Gmail.com</code> được lưu thành <code>lan@gmail.com</code>, nên lần đăng ký thứ hai (chữ thường) bị coi là trùng.</li>
+<li>Bình có id 3 chứ không phải 2: lần đăng ký trùng email đã lấy mất số 2 rồi mới bị UNIQUE từ chối. Bộ đếm tự tăng không quay lại, id có "lỗ" là bình thường.</li>
+<li>Bình đọc và xoá ghi chú 1 của Lan đều nhận <code>404</code>, như thể ghi chú không tồn tại. Đó là nhờ <code>AND user_id = $2</code> trong câu SQL.</li>
+<li>Sai email hay sai mật khẩu đều ra cùng một câu, nên không dò được email nào đã có tài khoản.</li>
+<li>Sau 5 lần sai, kể cả nhập đúng mật khẩu cũng bị <code>429</code>: kẻ dò mật khẩu không biết lần nào là đúng. Bộ đếm nằm trong bộ nhớ nên tắt server là mất, và mỗi bản server đếm riêng (xem bài 17).</li>
+<li>Lệnh đăng xuất không dùng <code>-c</code> nên file <code>lan.txt</code> vẫn giữ token cũ. Gửi lại token đó vẫn bị 401: phiên đã bị xoá ở phía server, đây là ưu điểm của session so với JWT.</li>
+<li>Cookie có <code>Secure</code> mà vẫn chạy được trên <code>http://localhost</code> vì trình duyệt và curl coi localhost là an toàn. Lên production phải là HTTPS.</li>
 </ul>
 </details>
 </details>

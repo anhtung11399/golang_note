@@ -24,9 +24,16 @@
 
 <h2>Redis</h2>
 <p>Redis là một kho key-value chạy trong RAM, mỗi lệnh thường mất dưới 1ms. Ngoài làm cache, nó còn được dùng cho: phiên đăng nhập, đếm giới hạn tần suất, khoá phân tán, hàng đợi đơn giản, bảng xếp hạng.</p>
+<p>Chạy Redis trên máy (chọn một cách):</p>
 <pre lang="sh">
+# Docker
 docker run -d --name redis -p 6379:6379 redis:7
-docker exec -it redis redis-cli
+docker exec -it redis redis-cli     # mở cửa sổ gõ lệnh Redis
+
+# Hoặc Homebrew
+brew install redis
+brew services start redis
+redis-cli
 </pre>
 <pre lang="text" file="redis-cli">
 SET user:42:name "Lan" EX 60     # lưu, hết hạn sau 60 giây
@@ -35,6 +42,7 @@ TTL user:42:name                  # còn bao nhiêu giây
 INCR rl:login:1.2.3.4             # tăng bộ đếm (nguyên tử), trả về giá trị mới
 DEL user:42:name
 </pre>
+<p>Phần sau mũi tên trong <code>redis-cli</code> là chú thích để bạn đọc, đừng gõ. Trong Go dùng thư viện <code>go-redis</code> (cài: <code>go get github.com/redis/go-redis/v9</code>). Trích đoạn các lệnh tương ứng:</p>
 <pre lang="go">
 import "github.com/redis/go-redis/v9"
 
@@ -84,6 +92,92 @@ func (s *Service) ClassSummary(ctx context.Context, classID int64) (Summary, err
     return sum, nil
 }
 </pre>
+<p><b>Chạy thử.</b> Chương trình hoàn chỉnh dưới giả lập một truy vấn database mất 300ms và đo thời gian khi có / không có cache:</p>
+<pre lang="sh">
+mkdir cache-demo && cd cache-demo
+go mod init cache-demo
+go get github.com/redis/go-redis/v9
+</pre>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "os"
+    "time"
+
+    "github.com/redis/go-redis/v9"
+)
+
+type Summary struct {
+    ClassID   int64   `json:"classId"`
+    Students  int     `json:"students"`
+    AvgScore  float64 `json:"avgScore"`
+}
+
+// Giả lập truy vấn tổng hợp nặng trên database: mất 300ms
+func computeSummary(ctx context.Context, classID int64) (Summary, error) {
+    time.Sleep(300 * time.Millisecond)
+    return Summary{ClassID: classID, Students: 4, AvgScore: 6.4}, nil
+}
+
+// Cache-aside: thử cache, không có thì tính rồi ghi vào cache
+func classSummary(ctx context.Context, rdb *redis.Client, classID int64) (Summary, string, error) {
+    key := fmt.Sprintf("class:%d:summary:v1", classID)
+
+    b, err := rdb.Get(ctx, key).Bytes()
+    if err == nil {
+        var sum Summary
+        if json.Unmarshal(b, &sum) == nil {
+            return sum, "hit", nil // có trong cache
+        }
+    } else if !errors.Is(err, redis.Nil) { // redis.Nil = khoá không tồn tại, không phải lỗi thật
+        fmt.Println("  (redis lỗi, đọc thẳng database:", err, ")")
+    }
+
+    sum, err := computeSummary(ctx, classID) // miss: hỏi database
+    if err != nil {
+        return Summary{}, "", err
+    }
+    if b, err := json.Marshal(sum); err == nil {
+        rdb.Set(ctx, key, b, 5*time.Minute) // ghi cache, hết hạn sau 5 phút
+    }
+    return sum, "miss", nil
+}
+
+func main() {
+    ctx := context.Background()
+    rdb := redis.NewClient(&redis.Options{Addr: os.Getenv("REDIS_ADDR")})
+    defer rdb.Close()
+    rdb.Del(ctx, "class:42:summary:v1") // bắt đầu sạch
+
+    for i := 1; i <= 3; i++ {
+        start := time.Now()
+        sum, kind, _ := classSummary(ctx, rdb, 42)
+        fmt.Printf("lần %d: %s, %+v, mất %v\n", i, kind, sum, time.Since(start).Round(time.Millisecond))
+    }
+
+    rdb.Del(ctx, "class:42:summary:v1") // dữ liệu đổi (có bài nộp mới): xoá cache
+    start := time.Now()
+    _, kind, _ := classSummary(ctx, rdb, 42)
+    fmt.Printf("sau khi xoá cache: %s, mất %v\n", kind, time.Since(start).Round(time.Millisecond))
+
+    ttl := rdb.TTL(ctx, "class:42:summary:v1").Val()
+    fmt.Println("cache còn sống:", ttl.Round(time.Second))
+}
+</pre>
+<pre lang="out">
+$ REDIS_ADDR=localhost:6379 go run .
+lần 1: miss, {ClassID:42 Students:4 AvgScore:6.4}, mất 305ms
+lần 2: hit, {ClassID:42 Students:4 AvgScore:6.4}, mất 1ms
+lần 3: hit, {ClassID:42 Students:4 AvgScore:6.4}, mất 0s
+sau khi xoá cache: miss, mất 304ms
+cache còn sống: 5m0s
+</pre>
+<p>Lần đầu phải hỏi database (300ms), hai lần sau lấy từ Redis (dưới 1ms, in ra <code>0s</code> vì làm tròn). Xoá cache thì lần sau lại phải hỏi database. Xem tận mắt dữ liệu trong Redis: mở <code>redis-cli</code> và gõ <code>GET class:42:summary:v1</code>, sẽ thấy chuỗi JSON.</p>
 <aside class="prod"><p>Cache phải là thứ <b>có cũng được, mất cũng được</b>. Redis sập thì hệ thống chậm đi, không được chết theo. Và luôn có <b>TTL</b>: dù bạn quên xoá cache ở đâu đó, dữ liệu sai cũng chỉ tồn tại tối đa bằng TTL.</p></aside>
 <p>Hậu tố <code>:v1</code> trong khoá: khi đổi cấu trúc <code>Summary</code>, tăng lên <code>v2</code>, bản code mới không đọc nhầm dữ liệu cache dạng cũ.</p>
 
@@ -103,6 +197,65 @@ func (s *Service) Submit(ctx context.Context, sub Submission) error {
 <h2>Cache stampede: hàng nghìn request cùng tính lại</h2>
 <p>Trang chủ được cache 60 giây, 2.000 request mỗi giây. Đúng lúc cache hết hạn, 2.000 request cùng thấy "miss" và cùng chạy truy vấn nặng. Database quá tải, chậm lại, nhiều request hơn bị miss... Đây gọi là <i>cache stampede</i> (hay thundering herd).</p>
 <p>Cách chặn trong một tiến trình: <code>singleflight</code>. Các lời gọi cùng khoá đang chạy thì chờ và dùng chung kết quả của lời gọi đầu tiên.</p>
+<p>Chạy thử để thấy hiệu quả (không cần Redis, cần <code>go get golang.org/x/sync</code>):</p>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "fmt"
+    "sync"
+    "sync/atomic"
+    "time"
+
+    "golang.org/x/sync/singleflight"
+)
+
+var dbCalls atomic.Int64 // đếm số lần thật sự hỏi database
+
+func loadHomeFeed() (string, error) {
+    dbCalls.Add(1)
+    time.Sleep(200 * time.Millisecond) // truy vấn nặng
+    return "bảng tin trang chủ", nil
+}
+
+func main() {
+    var group singleflight.Group
+    var wg sync.WaitGroup
+
+    // 1.000 request cùng lúc, đúng lúc cache vừa hết hạn
+    for range 1000 {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            // Cùng khoá "home-feed": chỉ MỘT goroutine chạy loadHomeFeed, số còn lại chờ và nhận chung kết quả
+            v, err, _ := group.Do("home-feed", func() (any, error) {
+                return loadHomeFeed()
+            })
+            _ = v.(string) // Do trả về any, đổi lại thành string
+            _ = err
+        }()
+    }
+    wg.Wait()
+    fmt.Println("1000 request, số lần hỏi database:", dbCalls.Load())
+
+    // So sánh: không có singleflight
+    dbCalls.Store(0)
+    for range 1000 {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            loadHomeFeed()
+        }()
+    }
+    wg.Wait()
+    fmt.Println("không có singleflight, số lần hỏi database:", dbCalls.Load())
+}
+</pre>
+<pre lang="out">
+1000 request, số lần hỏi database: 1
+không có singleflight, số lần hỏi database: 1000
+</pre>
+<p>Cách dùng trong service thật (trích đoạn):</p>
 <pre lang="go">
 import "golang.org/x/sync/singleflight"
 
@@ -141,6 +294,7 @@ if !lim.Allow() {
     return
 }
 </pre>
+<p><code>rate.NewLimiter(5, 10)</code>: hình dung một cái xô chứa tối đa 10 vé, mỗi giây được bỏ thêm 5 vé. Mỗi request lấy một vé, hết vé thì bị từ chối. Nhờ vậy cho phép bùng lên một chút (10 request liền) nhưng về lâu dài không quá 5 request mỗi giây.</p>
 <h3>Dùng chung nhiều server: đếm trong Redis</h3>
 <pre lang="go">
 // Cửa sổ cố định: tối đa 5 lần đăng nhập sai mỗi 15 phút cho mỗi email
@@ -156,6 +310,76 @@ func (s *Service) allowLogin(ctx context.Context, email string) (bool, error) {
     return n <= 5, nil
 }
 </pre>
+<p>Chạy thử cả hai cách (cần Redis, cài thêm <code>go get golang.org/x/time</code>):</p>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "time"
+
+    "github.com/redis/go-redis/v9"
+    "golang.org/x/time/rate"
+)
+
+// Cửa sổ cố định trong Redis: tối đa 5 lần đăng nhập mỗi 15 phút cho mỗi email
+func allowLogin(ctx context.Context, rdb *redis.Client, email string) (bool, error) {
+    key := "rl:login:" + email
+    n, err := rdb.Incr(ctx, key).Result() // tăng 1, trả về giá trị mới. Nguyên tử: không ai chen vào được
+    if err != nil {
+        return true, err
+    }
+    if n == 1 {
+        rdb.Expire(ctx, key, 15*time.Minute) // lần đầu trong cửa sổ: đặt hạn
+    }
+    return n <= 5, nil
+}
+
+func main() {
+    // 1. Token bucket trong một tiến trình: thêm 5 vé mỗi giây, dồn tối đa 10 vé
+    lim := rate.NewLimiter(5, 10)
+    allowed := 0
+    for range 15 { // 15 request dồn dập trong cùng một lúc
+        if lim.Allow() {
+            allowed++
+        }
+    }
+    fmt.Println("token bucket: 15 request dồn dập, cho qua", allowed)
+    time.Sleep(time.Second) // chờ 1 giây: thêm 5 vé
+    allowed = 0
+    for range 15 {
+        if lim.Allow() {
+            allowed++
+        }
+    }
+    fmt.Println("token bucket: sau 1 giây, cho qua thêm", allowed)
+
+    // 2. Đếm trong Redis: dùng chung cho mọi bản server
+    ctx := context.Background()
+    rdb := redis.NewClient(&redis.Options{Addr: os.Getenv("REDIS_ADDR")})
+    defer rdb.Close()
+    rdb.Del(ctx, "rl:login:lan@gmail.com")
+    for i := 1; i <= 7; i++ {
+        ok, _ := allowLogin(ctx, rdb, "lan@gmail.com")
+        fmt.Printf("đăng nhập lần %d: cho phép = %v\n", i, ok)
+    }
+}
+</pre>
+<pre lang="out">
+$ REDIS_ADDR=localhost:6379 go run .
+token bucket: 15 request dồn dập, cho qua 10
+token bucket: sau 1 giây, cho qua thêm 5
+đăng nhập lần 1: cho phép = true
+đăng nhập lần 2: cho phép = true
+đăng nhập lần 3: cho phép = true
+đăng nhập lần 4: cho phép = true
+đăng nhập lần 5: cho phép = true
+đăng nhập lần 6: cho phép = false
+đăng nhập lần 7: cho phép = false
+</pre>
+<p>Token bucket nằm trong bộ nhớ một tiến trình: chạy 3 bản server thì mỗi bản đếm riêng, người dùng được gấp 3. Bộ đếm Redis thì mọi bản server cùng nhìn một con số. Chạy lại chương trình trong vòng 15 phút: dòng <code>rdb.Del</code> ở đầu xoá bộ đếm nên lại được 5 lần. Bỏ dòng đó đi thì từ lần chạy thứ hai mọi lần đều bị chặn.</p>
 <aside class="warn"><p>Đoạn trên có điểm yếu nhỏ: nếu server chết giữa <code>INCR</code> và <code>EXPIRE</code>, khoá không bao giờ hết hạn và người đó bị khoá mãi. Cách chắc chắn là gộp hai lệnh vào một <b>script Lua</b> hoặc một <code>MULTI/EXEC</code> pipeline để Redis chạy nguyên khối. Đây chính là loại lỗi "hai bước rời nhau" bạn đã gặp ở database.</p></aside>
 <aside class="real"><p>Các dịch vụ lớn trả về header cho client biết giới hạn: GitHub API dùng <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code>. Có một bản nháp chuẩn IETF cho header <code>RateLimit</code> đang được nhiều nơi áp dụng.</p></aside>
 
@@ -178,27 +402,64 @@ w.Header().Set("Cache-Control", "private, no-store")
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Cache có singleflight và TTL lệch ngẫu nhiên</summary>
-<p>Viết hàm generic <code>GetOrLoad[T any](ctx, rdb, group, key, ttl, load func(ctx) (T, error)) (T, error)</code>: thử Redis, miss thì dùng singleflight gọi <code>load</code>, ghi vào Redis với TTL cộng thêm ngẫu nhiên tối đa 10%. Redis lỗi thì vẫn trả được kết quả từ <code>load</code>.</p>
+<p>Gộp ba ý trong bài thành một hàm dùng lại được: <code>GetOrLoad[T any](ctx, rdb, group, key, ttl, load) (T, error)</code>.</p>
+<ul>
+<li>thử đọc từ Redis trước.</li>
+<li>miss thì dùng singleflight gọi <code>load</code>: 100 request cùng lúc chỉ gọi <code>load</code> một lần.</li>
+<li>ghi kết quả vào Redis với TTL cộng thêm một khoảng ngẫu nhiên tối đa 10%, để các khoá không cùng hết hạn một lúc.</li>
+<li>Redis lỗi thì vẫn trả được kết quả từ <code>load</code>.</li>
+</ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Hàm generic (bài 06) vì mỗi chỗ dùng cache một kiểu dữ liệu khác: <code>Feed</code>, <code>Summary</code>... <code>load</code> có kiểu <code>func(context.Context) (T, error)</code>.</li>
+<li>Bước đọc giống <code>classSummary</code> ở trên: <code>rdb.Get(ctx, key).Bytes()</code> rồi <code>json.Unmarshal</code> vào một biến kiểu <code>T</code>.</li>
+<li><code>g.Do(key, func() (any, error) {...})</code> trả về <code>any</code>, đổi lại thành <code>T</code> bằng <code>v.(T)</code>.</li>
+<li>Số ngẫu nhiên: <code>rand.Int64N(n)</code> của package <code>math/rand/v2</code> cho số từ 0 đến n-1. <code>time.Duration</code> bản chất là số nano giây (<code>int64</code>), nên đổi qua lại được.</li>
+<li>Viết <code>main</code> kiểm tra: 100 goroutine cùng gọi, đếm số lần <code>load</code> chạy. Rồi thử với một Redis không tồn tại (<code>Addr: "localhost:1"</code>).</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go">
+<pre lang="sh">
+mkdir getorload && cd getorload
+go mod init getorload
+go get github.com/redis/go-redis/v9 golang.org/x/sync
+</pre>
+<pre lang="go" file="cache.go" check="no">
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "math/rand/v2"
+    "time"
+
+    "github.com/redis/go-redis/v9"
+    "golang.org/x/sync/singleflight"
+)
+
+// GetOrLoad: thử Redis. Miss thì chỉ MỘT goroutine gọi load (singleflight),
+// ghi kết quả vào Redis với TTL lệch ngẫu nhiên tối đa 10%. Redis lỗi vẫn trả được kết quả.
 func GetOrLoad[T any](ctx context.Context, rdb *redis.Client, g *singleflight.Group,
     key string, ttl time.Duration, load func(context.Context) (T, error)) (T, error) {
 
     var zero T
+
+    // 1. Thử cache. Lỗi gì (không có khoá, Redis sập, JSON hỏng) cũng bỏ qua, đi tiếp bước 2
     if b, err := rdb.Get(ctx, key).Bytes(); err == nil {
         var v T
         if json.Unmarshal(b, &v) == nil {
             return v, nil
         }
     }
+
+    // 2. Miss: các goroutine cùng khoá chờ chung một lần load
     v, err, _ := g.Do(key, func() (any, error) {
         val, err := load(ctx)
         if err != nil {
             return nil, err
         }
         if b, err := json.Marshal(val); err == nil {
-            jitter := time.Duration(rand.Int64N(int64(ttl / 10))) // math/rand/v2
-            rdb.Set(ctx, key, b, ttl+jitter)
+            jitter := time.Duration(rand.Int64N(int64(ttl / 10))) // 0 đến 10% của ttl
+            rdb.Set(ctx, key, b, ttl+jitter)                      // lỗi ghi cache: bỏ qua
         }
         return val, nil
     })
@@ -208,6 +469,74 @@ func GetOrLoad[T any](ctx context.Context, rdb *redis.Client, g *singleflight.Gr
     return v.(T), nil
 }
 </pre>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "sync"
+    "sync/atomic"
+    "time"
+
+    "github.com/redis/go-redis/v9"
+    "golang.org/x/sync/singleflight"
+)
+
+type Feed struct {
+    Items []string `json:"items"`
+}
+
+func main() {
+    ctx := context.Background()
+    rdb := redis.NewClient(&redis.Options{Addr: os.Getenv("REDIS_ADDR")})
+    defer rdb.Close()
+    rdb.Del(ctx, "home-feed:v1")
+    var g singleflight.Group
+
+    var loads atomic.Int64
+    load := func(ctx context.Context) (Feed, error) { // giả lập database chậm
+        loads.Add(1)
+        time.Sleep(200 * time.Millisecond)
+        return Feed{Items: []string{"Bài Toán mới", "Lịch họp phụ huynh"}}, nil
+    }
+
+    // 1. 100 request cùng lúc khi cache trống
+    var wg sync.WaitGroup
+    for range 100 {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            if _, err := GetOrLoad(ctx, rdb, &g, "home-feed:v1", time.Minute, load); err != nil {
+                fmt.Println("lỗi:", err)
+            }
+        }()
+    }
+    wg.Wait()
+    fmt.Println("100 request đồng thời, số lần load:", loads.Load())
+
+    // 2. Request sau: lấy từ Redis, không load nữa
+    feed, _ := GetOrLoad(ctx, rdb, &g, "home-feed:v1", time.Minute, load)
+    fmt.Println("request sau:", feed.Items, "| số lần load:", loads.Load())
+    fmt.Println("TTL trong Redis:", rdb.TTL(ctx, "home-feed:v1").Val().Round(time.Second), "(từ 60 đến 66 giây)")
+
+    // 3. Redis sập: vẫn trả được kết quả, chỉ chậm hơn
+    dead := redis.NewClient(&redis.Options{Addr: "localhost:1", MaxRetries: -1})
+    feed, err := GetOrLoad(ctx, dead, &g, "home-feed:v1", time.Minute, load)
+    fmt.Println("Redis sập:", feed.Items, err)
+}
+</pre>
+<pre lang="out">
+$ REDIS_ADDR=localhost:6379 go run .
+100 request đồng thời, số lần load: 1
+request sau: [Bài Toán mới Lịch họp phụ huynh] | số lần load: 1
+TTL trong Redis: 1m3s (từ 60 đến 66 giây)
+redis: 2026/11/03 15:59:48 pool.go:770: redis: connection pool: failed to dial after 5 attempts: dial tcp [::1]:1: connect: connection refused
+redis: 2026/11/03 15:59:48 pool.go:770: redis: connection pool: failed to dial after 5 attempts: dial tcp [::1]:1: connect: connection refused
+Redis sập: [Bài Toán mới Lịch họp phụ huynh] <nil>
+</pre>
+<p><b>Giải thích:</b> hai dòng <code>redis: ... connection refused</code> là thư viện go-redis tự ghi log khi không kết nối được (một lần lúc đọc, một lần lúc ghi). Dù vậy, dòng cuối vẫn có dữ liệu và lỗi là <code>&lt;nil&gt;</code>: cache sập, người dùng vẫn được phục vụ, chỉ chậm hơn. TTL mỗi lần chạy một khác, trong khoảng 60 đến 66 giây.</p>
 <p>Lưu ý: hàm <code>load</code> chạy với <code>ctx</code> của request đầu tiên. Nếu request đó bị huỷ, các request đang chờ cũng nhận lỗi theo. Ở hệ thống thật người ta dùng <code>context.WithoutCancel(ctx)</code> (Go 1.21+) kèm timeout riêng cho việc tải chung.</p>
 </details>
 </details>

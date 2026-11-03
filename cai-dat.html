@@ -44,8 +44,12 @@
 <aside class="tip"><p>Chưa muốn cài? Mở <a href="https://go.dev/play/" target="_blank" rel="noopener">go.dev/play</a> và dán code của các bài 02 đến 07 vào chạy thử. Từ bài 08 trở đi bạn sẽ cần máy thật.</p></aside>
 
 <h2 id="chuong-trinh-dau-tien"><a href="#chuong-trinh-dau-tien" class="anchor" aria-hidden="true">#</a>Chương trình đầu tiên</h2>
-<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">mkdir</span> hello &amp;&amp; <span class="k">cd</span> hello
-<span class="k">go</span> mod init example.com/hello   <span class="c"># tạo go.mod, giống npm init</span></code></pre></div>
+<p>Mở terminal và làm đúng ba bước sau.</p>
+<p><b>Bước 1.</b> Tạo thư mục dự án và file <code>go.mod</code>:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">mkdir</span> hello        <span class="c"># tạo thư mục tên hello</span>
+<span class="k">cd</span> hello           <span class="c"># đi vào thư mục đó. Mọi lệnh go bên dưới đều chạy TRONG thư mục này</span>
+<span class="k">go</span> mod init example.com/hello   <span class="c"># tạo file go.mod, giống npm init tạo package.json</span></code></pre></div>
+<p><b>Bước 2.</b> Trong thư mục <code>hello</code>, tạo file <code>main.go</code> và dán nội dung sau:</p>
 <div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
 <span class="k">import</span> (
@@ -60,17 +64,49 @@
     }
     fmt.<span class="f">Printf</span>(<span class="s">&quot;Xin chào, %s!\n&quot;</span>, name)
 }</code></pre></div>
-<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> run .            <span class="c"># biên dịch tạm và chạy: Xin chào, bạn!</span>
-<span class="k">go</span> run . Tùng       <span class="c"># Xin chào, Tùng!</span>
-<span class="k">go</span> build -o hello . <span class="c"># tạo file chạy tên hello</span>
-./hello Lan</code></pre></div>
-<p>Giải thích từng dòng:</p>
-<ul>
-<li><code>package main</code>: file này thuộc package tên <code>main</code>. Package <code>main</code> là đặc biệt: nó tạo ra chương trình chạy được, và phải có hàm <code>main()</code> làm điểm bắt đầu.</li>
-<li><code>import</code>: dùng package khác. <code>fmt</code> (định dạng và in chuỗi) và <code>os</code> (làm việc với hệ điều hành) là thư viện chuẩn, có sẵn.</li>
-<li><code>name := "bạn"</code>: khai báo biến và gán giá trị, kiểu được suy ra là <code>string</code> (bài 02).</li>
-<li><code>fmt.Printf</code>: giống <code>console.log</code> có định dạng. <code>%s</code> là chỗ chèn chuỗi.</li>
-</ul>
+<p><b>Bước 3.</b> Chạy:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> run .</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>Xin chào, bạn!</pre></div>
+<p>Dấu chấm trong <code>go run .</code> nghĩa là "chạy package ở thư mục hiện tại". Bạn phải đang đứng trong thư mục <code>hello</code> thì lệnh mới tìm thấy <code>main.go</code>.</p>
+
+<h3>Giải thích từng dòng</h3>
+<table>
+<tr><th>Dòng</th><th>Ý nghĩa</th><th>Tương đương JS / TS</th></tr>
+<tr><td><code>package main</code></td><td>File này thuộc package tên <code>main</code>. Đây là package đặc biệt: Go biết đây là chương trình chạy được, không phải thư viện.</td><td>Không có. Gần giống một file có <code>"bin"</code> trong package.json</td></tr>
+<tr><td><code>import ( "fmt" "os" )</code></td><td>Dùng hai package có sẵn: <code>fmt</code> để in chữ, <code>os</code> để làm việc với hệ điều hành.</td><td><code>import fs from 'node:fs'</code></td></tr>
+<tr><td><code>func main() {</code></td><td>Hàm <code>main</code> là điểm bắt đầu. Chạy chương trình là Go gọi hàm này. Hàm chạy xong thì chương trình kết thúc.</td><td>Code ở cấp cao nhất của file <code>index.js</code></td></tr>
+<tr><td><code>name := "bạn"</code></td><td>Tạo biến <code>name</code>, gán giá trị <code>"bạn"</code>. Go tự hiểu kiểu là <code>string</code>.</td><td><code>let name = "bạn"</code></td></tr>
+<tr><td><code>if len(os.Args) &gt; 1 {</code></td><td><code>os.Args</code> là danh sách những chữ bạn gõ khi chạy chương trình (xem hình dưới). <code>len</code> cho biết danh sách có mấy phần tử.</td><td><code>if (process.argv.length &gt; 2)</code></td></tr>
+<tr><td><code>name = os.Args[1]</code></td><td>Lấy chữ đầu tiên người dùng gõ sau tên chương trình, gán vào <code>name</code>. Dùng <code>=</code> vì biến đã có rồi.</td><td><code>name = process.argv[2]</code></td></tr>
+<tr><td><code>fmt.Printf("Xin chào, %s!\n", name)</code></td><td>In ra màn hình. <code>%s</code> là chỗ trống, được thay bằng giá trị của <code>name</code>. <code>\n</code> là xuống dòng.</td><td><code>console.log(`Xin chào, ${name}!`)</code></td></tr>
+</table>
+
+<h3>os.Args: chữ bạn gõ sau lệnh chạy</h3>
+<p>Khi bạn gõ <code>go run . Lan 3</code>, Go đưa vào chương trình một danh sách chuỗi:</p>
+<figure class="dg"><svg viewBox="0 0 657.2800000000001 86" style="min-width:600px;max-width:657.2800000000001px" role="img" aria-label="Phần tử 0 luôn là đường dẫn file chạy. Chữ bạn gõ thêm bắt đầu từ phần tử 1"><g class="nd ext"><rect x="10" y="10" width="187.28000000000003" height="66" rx="10"/><text x="103.64000000000001" y="40" class="tt" text-anchor="middle">os.Args[0]</text><text x="103.64000000000001" y="58" class="ts" text-anchor="middle">&quot;/tmp/go-build.../hello&quot;</text></g><line x1="199.28000000000003" y1="43" x2="263.28000000000003" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd go"><rect x="267.28000000000003" y="10" width="116" height="66" rx="10"/><text x="325.28000000000003" y="40" class="tt" text-anchor="middle">os.Args[1]</text><text x="325.28000000000003" y="58" class="ts" text-anchor="middle">&quot;Lan&quot;</text></g><line x1="385.28000000000003" y1="43" x2="449.28000000000003" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd go"><rect x="453.28000000000003" y="10" width="194.00000000000003" height="66" rx="10"/><text x="550.2800000000001" y="40" class="tt" text-anchor="middle">os.Args[2]</text><text x="550.2800000000001" y="58" class="ts" text-anchor="middle">&quot;3&quot; (chuỗi, chưa phải số)</text></g></svg><figcaption>Phần tử 0 luôn là đường dẫn file chạy. Chữ bạn gõ thêm bắt đầu từ phần tử 1</figcaption></figure>
+<p>Vì vậy cùng một chương trình, gõ khác nhau thì in khác nhau:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">go run .</span>
+Xin chào, bạn!
+<span class="t-p">$</span> <span class="t-c">go run . Tùng</span>
+Xin chào, Tùng!</pre></div>
+<p>Dòng có dấu <code>$</code> ở đầu là lệnh bạn gõ (không gõ dấu <code>$</code>), dòng bên dưới là chương trình in ra.</p>
+<aside class="warn"><p><b>Go Playground không truyền được tham số.</b> Trên go.dev/play không có chỗ gõ <code>Lan 3</code>, nên <code>os.Args</code> chỉ có phần tử 0. Chương trình nào đọc <code>os.Args</code> phải chạy bằng terminal trên máy.</p></aside>
+
+<h3>Tạo file chạy</h3>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">go</span> build -o hello .   <span class="c"># biên dịch ra file tên hello trong thư mục hiện tại</span>
+./hello Lan           <span class="c"># chạy file đó, không cần lệnh go nữa</span></code></pre></div>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre>Xin chào, Lan!</pre></div>
+
+<h2 id="cach-doc-va-chay-code-trong-cac-bai"><a href="#cach-doc-va-chay-code-trong-cac-bai" class="anchor" aria-hidden="true">#</a>Cách đọc và chạy code trong các bài</h2>
+<p>Các bài sau có nhiều khối code. Nhìn tiêu đề của khối để biết làm gì với nó:</p>
+<table>
+<tr><th>Tiêu đề khối</th><th>Ý nghĩa</th><th>Làm gì</th></tr>
+<tr><td><b>Go</b> hoặc <b>main.go</b>, dòng đầu là <code>package main</code></td><td>Chương trình đầy đủ</td><td>Bấm "Sao chép", dán đè toàn bộ <code>main.go</code>, chạy <code>go run .</code>. Hoặc dán vào go.dev/play rồi bấm Run.</td></tr>
+<tr><td><b>Go · trích đoạn</b></td><td>Một phần của chương trình lớn hơn, để minh hoạ</td><td>Đọc để hiểu. Muốn chạy thì đặt vào bên trong <code>func main()</code> của chương trình đầy đủ.</td></tr>
+<tr><td><b>Kết quả khi chạy</b> (viền đứt)</td><td>Chữ mà chương trình ngay phía trên in ra</td><td>Chạy xong, so với khối này. Giống hệt nghĩa là đúng.</td></tr>
+<tr><td><b>Terminal</b></td><td>Lệnh gõ trong terminal</td><td>Gõ từng dòng. Phần sau dấu <code>#</code> là chú thích, không cần gõ.</td></tr>
+</table>
+<aside class="tip"><p>Mỗi bài tập có thể làm trong một thư mục riêng: <code>mkdir bai01 &amp;&amp; cd bai01 &amp;&amp; go mod init bai01</code>, rồi tạo <code>main.go</code>. Trong một thư mục chỉ được có <b>một</b> hàm <code>main</code>, nên đừng để hai file có <code>func main</code> cạnh nhau.</p></aside>
 
 <h2 id="code-go-duoc-chay-nhu-the-nao"><a href="#code-go-duoc-chay-nhu-the-nao" class="anchor" aria-hidden="true">#</a>Code Go được chạy như thế nào</h2>
 <p>JavaScript được trình duyệt hoặc Node đọc và chạy (có JIT). Go thì khác: trình biên dịch dịch toàn bộ code thành <b>mã máy</b> cho một hệ điều hành và loại CPU cụ thể, đóng gói luôn thư viện và runtime (bộ lập lịch goroutine, bộ thu gom rác) vào <b>một file duy nhất</b>.</p>
@@ -131,32 +167,85 @@ require github.com/jackc/pgx/v5 v5.7.1</code></pre></div>
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Lời chào có tham số</summary>
-<p>Sửa chương trình để nhận hai tham số: tên và số lần chào. <code>go run . Lan 3</code> in ra 3 dòng "Xin chào, Lan!". Gợi ý: <code>strconv.Atoi</code> đổi chuỗi thành số và trả về lỗi nếu chuỗi không phải số.</p>
+<p>Sửa chương trình để nhận <b>hai</b> tham số: tên và số lần chào. Khi gõ lệnh dưới đây trong terminal, chương trình in 3 dòng:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">go run . Lan 3</span>
+Xin chào, Lan!
+Xin chào, Lan!
+Xin chào, Lan!</pre></div>
+<p>Nếu người dùng gõ thiếu tham số hoặc số lần không phải số, in ra hướng dẫn thay vì bị lỗi.</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Theo hình <code>os.Args</code> ở trên: tên nằm ở <code>os.Args[1]</code>, số lần nằm ở <code>os.Args[2]</code>. Muốn có cả hai thì <code>len(os.Args)</code> phải ít nhất là 3.</li>
+<li><code>os.Args[2]</code> là chuỗi <code>"3"</code>, chưa dùng để đếm được. Đổi sang số bằng <code>strconv.Atoi("3")</code>. Hàm này trả về <b>hai</b> giá trị: con số, và một lỗi (<code>nil</code> nếu không có lỗi). Giống <code>Number("3")</code> của JS, nhưng thay vì ra <code>NaN</code> thì Go báo lỗi.</li>
+<li>Lặp <code>n</code> lần bằng <code>for i := 0; i &lt; n; i++ { ... }</code>, giống vòng <code>for</code> của JS nhưng không có ngoặc tròn.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
 <div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
 <span class="k">import</span> (
     <span class="s">&quot;fmt&quot;</span>
     <span class="s">&quot;os&quot;</span>
-    <span class="s">&quot;strconv&quot;</span>
+    <span class="s">&quot;strconv&quot;</span> <span class="c">// đổi chuỗi sang số</span>
 )
 
 <span class="k">func</span> <span class="f">main</span>() {
+    <span class="c">// Cần tên chương trình + 2 chữ người dùng gõ = 3 phần tử</span>
     <span class="k">if</span> <span class="b">len</span>(os.Args) &lt; <span class="n">3</span> {
-        fmt.<span class="f">Println</span>(<span class="s">&quot;Cách dùng: hello &lt;tên&gt; &lt;số lần&gt;&quot;</span>)
-        os.<span class="f">Exit</span>(<span class="n">1</span>)
+        fmt.<span class="f">Println</span>(<span class="s">&quot;Cách dùng: go run . &lt;tên&gt; &lt;số lần&gt;&quot;</span>)
+        fmt.<span class="f">Println</span>(<span class="s">&quot;Ví dụ:     go run . Lan 3&quot;</span>)
+        os.<span class="f">Exit</span>(<span class="n">1</span>) <span class="c">// dừng chương trình, mã 1 nghĩa là có lỗi</span>
     }
-    name := os.Args[<span class="n">1</span>]
-    n, err := strconv.<span class="f">Atoi</span>(os.Args[<span class="n">2</span>])
+
+    name := os.Args[<span class="n">1</span>] <span class="c">// &quot;Lan&quot;</span>
+
+    <span class="c">// Atoi trả về 2 giá trị: số và lỗi</span>
+    n, err := strconv.<span class="f">Atoi</span>(os.Args[<span class="n">2</span>]) <span class="c">// &quot;3&quot; -&gt; 3</span>
     <span class="k">if</span> err != <span class="b">nil</span> || n &lt; <span class="n">1</span> {
-        fmt.<span class="f">Println</span>(<span class="s">&quot;Số lần phải là số nguyên dương&quot;</span>)
+        <span class="c">// err khác nil: chuỗi không phải số, ví dụ &quot;ba&quot;</span>
+        fmt.<span class="f">Println</span>(<span class="s">&quot;Số lần phải là số nguyên dương, ví dụ 3&quot;</span>)
         os.<span class="f">Exit</span>(<span class="n">1</span>)
     }
+
+    <span class="c">// i chạy 0, 1, 2: lặp đúng n = 3 lần</span>
     <span class="k">for</span> i := <span class="n">0</span>; i &lt; n; i++ {
         fmt.<span class="f">Printf</span>(<span class="s">&quot;Xin chào, %s!\n&quot;</span>, name)
     }
 }</code></pre></div>
-<p>Để ý cách Go trả lỗi: <code>strconv.Atoi</code> trả về hai giá trị, số và lỗi. Bạn sẽ thấy mẫu <code>x, err := ...</code> rồi <code>if err != nil</code> ở khắp nơi (bài 07).</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">go run . Lan 3</span>
+Xin chào, Lan!
+Xin chào, Lan!
+Xin chào, Lan!</pre></div>
+<p><b>Chạy thử các trường hợp sai</b>, để thấy chương trình tự bảo vệ:</p>
+<div class="term sim" role="img" aria-label="Terminal — kết quả minh hoạ"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả minh hoạ</span><b class="term-sim">Mô phỏng</b></div><pre><span class="t-p">$</span> <span class="t-c">go run .</span>
+Cách dùng: go run . &lt;tên&gt; &lt;số lần&gt;
+Ví dụ:     go run . Lan 3
+exit status 1
+<span class="t-p">$</span> <span class="t-c">go run . Lan ba</span>
+Số lần phải là số nguyên dương, ví dụ 3
+exit status 1</pre></div>
+<aside class="warn"><p>Nếu bạn chỉ bấm Run (trên Go Playground hoặc nút Run của VS Code) hay gõ <code>go run .</code> mà không có <code>Lan 3</code>, chương trình sẽ in "Cách dùng" chứ không in 3 lần. Đó là đúng: không có tham số thì nó không biết chào ai. Dòng <code>exit status 1</code> là lệnh <code>go run</code> báo chương trình đã dừng bằng <code>os.Exit(1)</code>.</p></aside>
+<p><b>Giải thích</b></p>
+<ul>
+<li><code>n, err := strconv.Atoi(...)</code>: một hàm Go trả về nhiều giá trị cùng lúc, gán vào nhiều biến bằng dấu phẩy. Giống destructuring <code>const [n, err] = atoi(...)</code> trong JS.</li>
+<li><code>if err != nil</code>: <code>nil</code> giống <code>null</code>. Lỗi khác <code>nil</code> nghĩa là có lỗi. Bạn sẽ gặp hai dòng này ở khắp mọi nơi trong code Go (bài 07 nói kỹ).</li>
+<li><code>os.Exit(1)</code>: kết thúc chương trình ngay. Số 0 là thành công, khác 0 là lỗi. Các công cụ như CI dựa vào số này để biết lệnh chạy được hay không.</li>
+</ul>
+<p><b>Muốn thử trên Go Playground</b> (không có tham số): thay hai dòng đọc <code>os.Args</code> bằng giá trị gõ sẵn:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+    name := <span class="s">&quot;Lan&quot;</span> <span class="c">// thay cho os.Args[1]</span>
+    n := <span class="n">3</span>        <span class="c">// thay cho os.Args[2] đã đổi sang số</span>
+
+    <span class="k">for</span> i := <span class="n">0</span>; i &lt; n; i++ {
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;Xin chào, %s!\n&quot;</span>, name)
+    }
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>Xin chào, Lan!
+Xin chào, Lan!
+Xin chào, Lan!</pre></div>
 </details>
 </details>
 <details class="ex"><summary>Build cho ba hệ điều hành</summary>
@@ -173,7 +262,7 @@ GOOS=windows GOARCH=amd64 <span class="k">go</span> build -o dist/hello.exe .
   <div class="done-box"><button class="done-btn" type="button" data-slug="cai-dat">Đánh dấu đã học xong bài này</button></div>
   <nav class="pn"><a class="prev" href="lo-trinh.html"><small>Bài trước</small>Backend là gì: góc nhìn cho dân Frontend</a><a class="next" href="bien-kieu.html"><small>Bài tiếp theo</small>Biến, kiểu dữ liệu và zero value</a></nav>
 </article></main>
-  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#cai-dat">Cài đặt</a><a href="#chuong-trinh-dau-tien">Chương trình đầu tiên</a><a href="#code-go-duoc-chay-nhu-the-nao">Code Go được chạy như thế nào</a><a href="#bo-lenh-go-doi-chieu-voi-npm">Bộ lệnh go: đối chiếu với npm</a><a href="#trinh-bien-dich-nghiem-khac">Trình biên dịch nghiêm khắc</a><a href="#doc-tai-lieu-va-ma-nguon">Đọc tài liệu và mã nguồn</a><a href="#bai-tap">Bài tập</a></nav>
+  <nav class="toc" aria-label="Trong bài này"><div class="toc-h">Trong bài này</div><a href="#cai-dat">Cài đặt</a><a href="#chuong-trinh-dau-tien">Chương trình đầu tiên</a><a href="#cach-doc-va-chay-code-trong-cac-bai">Cách đọc và chạy code trong các bài</a><a href="#code-go-duoc-chay-nhu-the-nao">Code Go được chạy như thế nào</a><a href="#bo-lenh-go-doi-chieu-voi-npm">Bộ lệnh go: đối chiếu với npm</a><a href="#trinh-bien-dich-nghiem-khac">Trình biên dịch nghiêm khắc</a><a href="#doc-tai-lieu-va-ma-nguon">Đọc tài liệu và mã nguồn</a><a href="#bai-tap">Bài tập</a></nav>
 </div>
 </body>
 </html>

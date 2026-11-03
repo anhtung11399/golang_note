@@ -54,7 +54,7 @@
 <tr><td><b>bcrypt</b></td><td>Có. Rất phổ biến, đơn giản. Chỉ dùng 72 byte đầu của mật khẩu</td></tr>
 <tr><td>scrypt, PBKDF2</td><td>Chấp nhận được (PBKDF2 khi cần chuẩn FIPS)</td></tr>
 </table>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;golang.org/x/crypto/bcrypt&quot;</span>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;golang.org/x/crypto/bcrypt&quot;</span>
 
 <span class="k">func</span> <span class="f">HashPassword</span>(pw <span class="t">string</span>) (<span class="t">string</span>, <span class="t">error</span>) {
     <span class="k">if</span> <span class="b">len</span>(pw) &lt; <span class="n">8</span> || <span class="b">len</span>(pw) &gt; <span class="n">72</span> { <span class="c">// bcrypt chỉ nhận tối đa 72 byte</span>
@@ -74,7 +74,7 @@
 <h2 id="phien-dang-nhap-session"><a href="#phien-dang-nhap-session" class="anchor" aria-hidden="true">#</a>Phiên đăng nhập (session)</h2>
 <p>Sau khi xác thực xong, server cần "nhớ" người dùng cho các request sau. Cách truyền thống và vẫn rất tốt cho web: <b>session token ngẫu nhiên</b> trong cookie.</p>
 <figure class="dg"><svg viewBox="0 0 502.4 554" style="min-width:502.4px;max-width:502.4px" role="img" aria-label="Session: token ngẫu nhiên trong cookie, server lưu bản băm của token"><line x1="81.2" y1="66" x2="81.2" y2="544" class="lf"/><g class="nd fe"><rect x="20" y="10" width="122.4" height="54" rx="10"/><text x="81.2" y="42" class="tt" text-anchor="middle">Trình duyệt</text></g><line x1="251.2" y1="66" x2="251.2" y2="544" class="lf"/><g class="nd go"><rect x="190" y="10" width="122.4" height="54" rx="10"/><text x="251.2" y="42" class="tt" text-anchor="middle">API</text></g><line x1="421.2" y1="66" x2="421.2" y2="544" class="lf"/><g class="nd db"><rect x="360" y="10" width="122.4" height="54" rx="10"/><text x="421.2" y="42" class="tt" text-anchor="middle">Database</text></g><line x1="81.2" y1="106" x2="247.2" y2="106" class="ln" marker-end="url(#ar)"/><text x="166.2" y="83" class="tl" text-anchor="middle">POST /login (email,</text><text x="166.2" y="99" class="tl" text-anchor="middle">mật khẩu)</text><line x1="251.2" y1="148" x2="417.2" y2="148" class="ln" marker-end="url(#ar)"/><text x="336.2" y="141" class="tl" text-anchor="middle">kiểm tra mật khẩu</text><rect x="86.31999999999996" y="178" width="329.76000000000005" height="28" rx="6" class="nt"/><text x="251.2" y="196" class="tn" text-anchor="middle">tạo token 32 byte ngẫu nhiên (crypto/rand)</text><line x1="251.2" y1="248" x2="417.2" y2="248" class="ln" marker-end="url(#ar)"/><text x="336.2" y="225" class="tl" text-anchor="middle">lưu sha256(token),</text><text x="336.2" y="241" class="tl" text-anchor="middle">user_id, hạn</text><line x1="251.2" y1="306" x2="85.2" y2="306" class="ln ds" marker-end="url(#ar)"/><text x="166.2" y="251" class="tl" text-anchor="middle">Set-Cookie:</text><text x="166.2" y="267" class="tl" text-anchor="middle">session=token;</text><text x="166.2" y="283" class="tl" text-anchor="middle">HttpOnly; Secure;</text><text x="166.2" y="299" class="tl" text-anchor="middle">SameSite=Lax</text><line x1="10" y1="354" x2="492.4" y2="354" class="dv"/><rect x="190.79999999999998" y="342" width="120.80000000000001" height="22" rx="11" class="dvb"/><text x="251.2" y="358" class="ts" text-anchor="middle">các request sau</text><line x1="81.2" y1="402" x2="247.2" y2="402" class="ln" marker-end="url(#ar)"/><text x="166.2" y="379" class="tl" text-anchor="middle">GET /me (trình duyệt</text><text x="166.2" y="395" class="tl" text-anchor="middle">tự gửi cookie)</text><line x1="251.2" y1="460" x2="417.2" y2="460" class="ln" marker-end="url(#ar)"/><text x="336.2" y="437" class="tl" text-anchor="middle">tìm sha256(token) còn</text><text x="336.2" y="453" class="tl" text-anchor="middle">hạn</text><line x1="251.2" y1="502" x2="85.2" y2="502" class="ln ds" marker-end="url(#ar)"/><text x="166.2" y="495" class="tl" text-anchor="middle">200 {user}</text></svg><figcaption>Session: token ngẫu nhiên trong cookie, server lưu bản băm của token</figcaption></figure>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">NewSessionToken</span>() (token <span class="t">string</span>, hash []<span class="t">byte</span>, err <span class="t">error</span>) {
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">NewSessionToken</span>() (token <span class="t">string</span>, hash []<span class="t">byte</span>, err <span class="t">error</span>) {
     b := <span class="b">make</span>([]<span class="t">byte</span>, <span class="n">32</span>)
     <span class="k">if</span> _, err := rand.<span class="f">Read</span>(b); err != <span class="b">nil</span> { <span class="c">// crypto/rand, KHÔNG phải math/rand</span>
         <span class="k">return</span> <span class="s">&quot;&quot;</span>, <span class="b">nil</span>, err
@@ -104,7 +104,7 @@
 <aside class="fe"><p>Lưu token trong <code>localStorage</code> rất tiện ở frontend, nhưng bất kỳ đoạn script nào chạy được trên trang (một thư viện bị chiếm quyền, một lỗi XSS) đều đọc được nó. Cookie <code>HttpOnly</code> thì JavaScript không đọc được. Với ứng dụng web cùng tên miền với API, cookie là lựa chọn an toàn hơn.</p></aside>
 
 <h3>Middleware xác thực</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> ctxUserKey <span class="k">struct</span>{}
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> ctxUserKey <span class="k">struct</span>{}
 
 <span class="k">func</span> (a *Auth) <span class="f">Middleware</span>(next http.Handler) http.Handler {
     <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +146,7 @@
 
 <h2 id="phan-quyen-kiem-o-moi-noi"><a href="#phan-quyen-kiem-o-moi-noi" class="anchor" aria-hidden="true">#</a>Phân quyền: kiểm ở mọi nơi</h2>
 <h3>Theo vai trò (RBAC)</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">RequireRole</span>(role <span class="t">string</span>, next http.HandlerFunc) http.HandlerFunc {
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">RequireRole</span>(role <span class="t">string</span>, next http.HandlerFunc) http.HandlerFunc {
     <span class="k">return</span> <span class="f">RequireUser</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
         <span class="k">if</span> <span class="f">UserFrom</span>(r.<span class="f">Context</span>()).Role != role {
             <span class="f">WriteJSON</span>(w, http.StatusForbidden, <span class="f">errBody</span>(<span class="s">&quot;FORBIDDEN&quot;</span>, <span class="s">&quot;Bạn không có quyền&quot;</span>))
@@ -159,12 +159,12 @@
 mux.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /v1/classes&quot;</span>, <span class="f">RequireRole</span>(<span class="s">&quot;teacher&quot;</span>, h.createClass))</code></pre></div>
 <h3>Theo quyền sở hữu: nơi lỗ hổng hay nằm</h3>
 <p>Vai trò "giáo viên" cho phép sửa lớp, nhưng chỉ <b>lớp của mình</b>. Kiểm tra này không làm ở middleware được vì phụ thuộc dữ liệu. Cách an toàn nhất: <b>đưa người dùng hiện tại vào mọi câu truy vấn</b>.</p>
-<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Kiểm vai trò rồi tin id trong URL: giáo viên A sửa được lớp của giáo viên B</span>
+<div class="code bad"><div class="code-h"><span>Go · trích đoạn</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Kiểm vai trò rồi tin id trong URL: giáo viên A sửa được lớp của giáo viên B</span>
 <span class="k">func</span> (h *Handler) <span class="f">updateClass</span>(w http.ResponseWriter, r *http.Request) {
     id := <span class="f">pathID</span>(r)
     h.db.<span class="f">Exec</span>(ctx, <span class="s">`UPDATE classes SET name = $1 WHERE id = $2`</span>, name, id)
 }</code></pre></div>
-<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *Handler) <span class="f">updateClass</span>(w http.ResponseWriter, r *http.Request) {
+<div class="code good"><div class="code-h"><span>Go · trích đoạn</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> (h *Handler) <span class="f">updateClass</span>(w http.ResponseWriter, r *http.Request) {
     me := <span class="f">UserFrom</span>(r.<span class="f">Context</span>())
     tag, err := h.db.<span class="f">Exec</span>(ctx,
         <span class="s">`UPDATE classes SET name = $1 WHERE id = $2 AND teacher_id = $3`</span>, name, <span class="f">pathID</span>(r), me.ID)
@@ -186,16 +186,482 @@ mux.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /v1/classes&quo
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Đăng ký, đăng nhập, đăng xuất</summary>
-<p>Thêm vào API ghi chú: bảng <code>users</code>, <code>sessions(token_hash, user_id, expires_at)</code>. Endpoint <code>POST /register</code>, <code>POST /login</code> (5 lần sai / 15 phút / email thì 429), <code>POST /logout</code>, <code>GET /me</code>. Ghi chú thuộc về người tạo, mọi endpoint ghi chú chỉ thấy ghi chú của mình.</p>
-<details class="sol"><summary>Danh sách kiểm tra</summary>
+<p>Viết API ghi chú có tài khoản, lưu trong Postgres:</p>
 <ul>
-<li>Email chuẩn hoá chữ thường, UNIQUE trong database, trùng trả 409.</li>
-<li>Mật khẩu băm bcrypt / argon2id, không bao giờ trả ra JSON hay ghi log.</li>
-<li>Sai email và sai mật khẩu cùng một thông báo, cùng status 401.</li>
-<li>Token 32 byte từ <code>crypto/rand</code>, database lưu SHA-256 của token.</li>
-<li>Cookie <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>.</li>
-<li>Đăng xuất xoá dòng session, gọi <code>/me</code> bằng cookie cũ phải nhận 401.</li>
-<li>Test: người B gọi <code>GET/PATCH/DELETE /notes/{id của A}</code> nhận 404.</li>
+<li><code>POST /register</code>, <code>POST /login</code>, <code>POST /logout</code>, <code>GET /me</code>.</li>
+<li>Đăng nhập sai 5 lần trong 15 phút cho cùng một email thì trả <code>429</code>.</li>
+<li><code>GET /notes</code>, <code>POST /notes</code>, <code>GET /notes/{id}</code>, <code>DELETE /notes/{id}</code>: mỗi người chỉ thấy và xoá được ghi chú của mình.</li>
+</ul>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Ba bảng: <code>app_users</code> (email UNIQUE, password_hash), <code>sessions</code> (token_hash, user_id, expires_at), <code>notes</code> (user_id, text). Đặt tên <code>app_users</code> để không đụng bảng <code>users</code> của bài 14 nếu dùng chung database.</li>
+<li>Đăng ký: chuẩn hoá email về chữ thường, kiểm độ dài mật khẩu, băm bằng bcrypt, <code>INSERT</code>. Trùng email thì Postgres trả lỗi <code>23505</code>, đổi thành <code>409</code> (bài 15). Đăng ký xong tạo phiên luôn.</li>
+<li>Đăng nhập: tìm theo email, so mật khẩu bằng <code>bcrypt.CompareHashAndPassword</code>. Không có email và sai mật khẩu trả <b>cùng</b> một câu.</li>
+<li>Phiên: token 32 byte từ <code>crypto/rand</code>, đặt vào cookie, database chỉ lưu SHA-256 của token. Middleware đọc cookie, tìm phiên còn hạn, đưa <code>User</code> vào ctx (bài 10).</li>
+<li>Ghi chú: mọi câu SQL có <code>AND user_id = $n</code> với <code>$n</code> là người đang đăng nhập.</li>
+<li>Giới hạn đăng nhập sai: một map <code>email -&gt; danh sách thời điểm sai</code> có mutex (bài 09) là đủ để làm bài. Nhiều bản server thì dùng Redis như bài 17.</li>
+</ol>
+<details class="sol"><summary>Xem lời giải</summary>
+<p><b>Chuẩn bị:</b> dùng Postgres của bài 14, dán lược đồ này vào <code>psql</code>:</p>
+<div class="code"><div class="code-h"><span>schema.sql</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">CREATE</span> <span class="k">TABLE</span> app_users (
+    id            <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    email         <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">UNIQUE</span>,
+    password_hash <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span>,
+    created_at    <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>()
+);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> sessions (
+    token_hash  bytea <span class="k">PRIMARY</span> <span class="k">KEY</span>,                 <span class="c">-- sha256 của token, không lưu token thật</span>
+    user_id     <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> app_users(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    expires_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span>
+);
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> notes (
+    id          <span class="t">bigint</span> GENERATED ALWAYS <span class="k">AS</span> IDENTITY <span class="k">PRIMARY</span> <span class="k">KEY</span>,
+    user_id     <span class="t">bigint</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">REFERENCES</span> app_users(id) <span class="k">ON</span> <span class="k">DELETE</span> <span class="k">CASCADE</span>,
+    <span class="t">text</span>        <span class="t">text</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">CHECK</span> (char_length(<span class="t">text</span>) <span class="k">BETWEEN</span> <span class="n">1</span> <span class="k">AND</span> <span class="n">500</span>),
+    created_at  <span class="t">timestamptz</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">now</span>()
+);
+<span class="k">CREATE</span> <span class="k">INDEX</span> notes_user_idx <span class="k">ON</span> notes (user_id, id);</code></pre></div>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">mkdir</span> authnotes &amp;&amp; <span class="k">cd</span> authnotes
+<span class="k">go</span> mod init authnotes
+<span class="k">go</span> get github.com/jackc/pgx/v5 golang.org/x/crypto</code></pre></div>
+<p>Ba file Go, cùng thư mục, cùng <code>package main</code>:</p>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;log&quot;</span>
+    <span class="s">&quot;log/slog&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;os&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/jackc/pgx/v5/pgxpool&quot;</span>
+)
+
+<span class="k">type</span> App <span class="k">struct</span> {
+    db      *pgxpool.Pool
+    limiter *loginLimiter
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    ctx := context.<span class="f">Background</span>()
+    db, err := pgxpool.<span class="f">New</span>(ctx, os.<span class="f">Getenv</span>(<span class="s">&quot;DATABASE_URL&quot;</span>))
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        log.<span class="f">Fatal</span>(err)
+    }
+    <span class="k">defer</span> db.<span class="f">Close</span>()
+    <span class="k">if</span> err := db.<span class="f">Ping</span>(ctx); err != <span class="b">nil</span> {
+        log.<span class="f">Fatal</span>(<span class="s">&quot;không kết nối được database: &quot;</span>, err)
+    }
+
+    a := &amp;App{db: db, limiter: &amp;loginLimiter{fails: <span class="k">map</span>[<span class="t">string</span>][]time.Time{}}}
+
+    mux := http.<span class="f">NewServeMux</span>()
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /register&quot;</span>, a.register)
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /login&quot;</span>, a.login)
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /logout&quot;</span>, a.logout)
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /me&quot;</span>, <span class="f">requireUser</span>(a.me))
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /notes&quot;</span>, <span class="f">requireUser</span>(a.listNotes))
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;POST /notes&quot;</span>, <span class="f">requireUser</span>(a.createNote))
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;GET /notes/{id}&quot;</span>, <span class="f">requireUser</span>(a.getNote))
+    mux.<span class="f">HandleFunc</span>(<span class="s">&quot;DELETE /notes/{id}&quot;</span>, <span class="f">requireUser</span>(a.deleteNote))
+
+    srv := &amp;http.Server{Addr: <span class="s">&quot;:8080&quot;</span>, Handler: a.<span class="f">authMiddleware</span>(mux), ReadHeaderTimeout: <span class="n">5</span> * time.Second}
+    log.<span class="f">Println</span>(<span class="s">&quot;http://localhost:8080&quot;</span>)
+    log.<span class="f">Fatal</span>(srv.<span class="f">ListenAndServe</span>())
+}
+
+<span class="k">func</span> <span class="f">decode</span>(w http.ResponseWriter, r *http.Request, dst <span class="t">any</span>) <span class="t">bool</span> {
+    r.Body = http.<span class="f">MaxBytesReader</span>(w, r.Body, <span class="n">1</span>&lt;&lt;<span class="n">16</span>)
+    <span class="k">if</span> err := json.<span class="f">NewDecoder</span>(r.Body).<span class="f">Decode</span>(dst); err != <span class="b">nil</span> {
+        <span class="f">writeErr</span>(w, http.StatusBadRequest, <span class="s">&quot;JSON không hợp lệ&quot;</span>)
+        <span class="k">return</span> <span class="b">false</span>
+    }
+    <span class="k">return</span> <span class="b">true</span>
+}
+
+<span class="k">func</span> <span class="f">writeJSON</span>(w http.ResponseWriter, status <span class="t">int</span>, v <span class="t">any</span>) {
+    w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Content-Type&quot;</span>, <span class="s">&quot;application/json; charset=utf-8&quot;</span>)
+    w.<span class="f">WriteHeader</span>(status)
+    json.<span class="f">NewEncoder</span>(w).<span class="f">Encode</span>(v)
+}
+
+<span class="k">func</span> <span class="f">writeErr</span>(w http.ResponseWriter, status <span class="t">int</span>, msg <span class="t">string</span>) {
+    <span class="f">writeJSON</span>(w, status, <span class="k">map</span>[<span class="t">string</span>]<span class="t">string</span>{<span class="s">&quot;error&quot;</span>: msg})
+}
+
+<span class="c">// Lỗi không lường trước: ghi log đầy đủ, client chỉ thấy câu chung chung</span>
+<span class="k">func</span> (a *App) <span class="f">internal</span>(w http.ResponseWriter, r *http.Request, err <span class="t">error</span>) {
+    slog.<span class="f">Error</span>(<span class="s">&quot;lỗi&quot;</span>, <span class="s">&quot;err&quot;</span>, err, <span class="s">&quot;path&quot;</span>, r.URL.Path)
+    <span class="f">writeErr</span>(w, http.StatusInternalServerError, <span class="s">&quot;Có lỗi xảy ra, vui lòng thử lại&quot;</span>)
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>auth.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;context&quot;</span>
+    <span class="s">&quot;crypto/rand&quot;</span>
+    <span class="s">&quot;crypto/sha256&quot;</span>
+    <span class="s">&quot;encoding/base64&quot;</span>
+    <span class="s">&quot;errors&quot;</span>
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+    <span class="s">&quot;sync&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+
+    <span class="s">&quot;github.com/jackc/pgx/v5&quot;</span>
+    <span class="s">&quot;github.com/jackc/pgx/v5/pgconn&quot;</span>
+    <span class="s">&quot;golang.org/x/crypto/bcrypt&quot;</span>
+)
+
+<span class="k">const</span> (
+    cookieName = <span class="s">&quot;__Host-session&quot;</span>
+    sessionTTL = <span class="n">30</span> * <span class="n">24</span> * time.Hour
+)
+
+<span class="k">type</span> User <span class="k">struct</span> {
+    ID    <span class="t">int64</span>  <span class="s">`json:&quot;id&quot;`</span>
+    Email <span class="t">string</span> <span class="s">`json:&quot;email&quot;`</span>
+}
+
+<span class="k">type</span> ctxUserKey <span class="k">struct</span>{}
+
+<span class="k">func</span> <span class="f">userFrom</span>(ctx context.Context) (User, <span class="t">bool</span>) {
+    u, ok := ctx.<span class="f">Value</span>(ctxUserKey{}).(User)
+    <span class="k">return</span> u, ok
+}
+
+<span class="k">func</span> <span class="f">hashToken</span>(token <span class="t">string</span>) []<span class="t">byte</span> {
+    h := sha256.<span class="f">Sum256</span>([]<span class="t">byte</span>(token))
+    <span class="k">return</span> h[:]
+}
+
+<span class="c">// newSession tạo token ngẫu nhiên, lưu BẢN BĂM vào database, trả token thật để đặt vào cookie</span>
+<span class="k">func</span> (a *App) <span class="f">newSession</span>(ctx context.Context, userID <span class="t">int64</span>) (<span class="t">string</span>, <span class="t">error</span>) {
+    b := <span class="b">make</span>([]<span class="t">byte</span>, <span class="n">32</span>)
+    <span class="k">if</span> _, err := rand.<span class="f">Read</span>(b); err != <span class="b">nil</span> { <span class="c">// crypto/rand: không đoán được</span>
+        <span class="k">return</span> <span class="s">&quot;&quot;</span>, err
+    }
+    token := base64.RawURLEncoding.<span class="f">EncodeToString</span>(b)
+    _, err := a.db.<span class="f">Exec</span>(ctx,
+        <span class="s">`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)`</span>,
+        <span class="f">hashToken</span>(token), userID, time.<span class="f">Now</span>().<span class="f">Add</span>(sessionTTL))
+    <span class="k">return</span> token, err
+}
+
+<span class="k">func</span> <span class="f">setSessionCookie</span>(w http.ResponseWriter, token <span class="t">string</span>, maxAge <span class="t">int</span>) {
+    http.<span class="f">SetCookie</span>(w, &amp;http.Cookie{
+        Name:     cookieName,
+        Value:    token,
+        Path:     <span class="s">&quot;/&quot;</span>,
+        MaxAge:   maxAge, <span class="c">// số âm: xoá cookie</span>
+        HttpOnly: <span class="b">true</span>,
+        Secure:   <span class="b">true</span>, <span class="c">// trình duyệt và curl coi localhost là &quot;an toàn&quot; nên vẫn chạy được khi thử trên máy</span>
+        SameSite: http.SameSiteLaxMode,
+    })
+}
+
+<span class="c">// authMiddleware: có cookie hợp lệ thì đưa User vào ctx. Không có thì vẫn cho đi tiếp</span>
+<span class="k">func</span> (a *App) <span class="f">authMiddleware</span>(next http.Handler) http.Handler {
+    <span class="k">return</span> http.<span class="f">HandlerFunc</span>(<span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        <span class="k">if</span> c, err := r.<span class="f">Cookie</span>(cookieName); err == <span class="b">nil</span> {
+            <span class="k">var</span> u User
+            err := a.db.<span class="f">QueryRow</span>(r.<span class="f">Context</span>(), <span class="s">`
+                SELECT u.id, u.email FROM sessions s JOIN app_users u ON u.id = s.user_id
+                WHERE s.token_hash = $1 AND s.expires_at &gt; now()`</span>, <span class="f">hashToken</span>(c.Value)).<span class="f">Scan</span>(&amp;u.ID, &amp;u.Email)
+            <span class="k">if</span> err == <span class="b">nil</span> {
+                r = r.<span class="f">WithContext</span>(context.<span class="f">WithValue</span>(r.<span class="f">Context</span>(), ctxUserKey{}, u))
+            }
+        }
+        next.<span class="f">ServeHTTP</span>(w, r)
+    })
+}
+
+<span class="c">// requireUser: route nào cần đăng nhập thì bọc bằng hàm này</span>
+<span class="k">func</span> <span class="f">requireUser</span>(next <span class="k">func</span>(http.ResponseWriter, *http.Request, User)) http.HandlerFunc {
+    <span class="k">return</span> <span class="k">func</span>(w http.ResponseWriter, r *http.Request) {
+        u, ok := <span class="f">userFrom</span>(r.<span class="f">Context</span>())
+        <span class="k">if</span> !ok {
+            <span class="f">writeErr</span>(w, http.StatusUnauthorized, <span class="s">&quot;Vui lòng đăng nhập&quot;</span>)
+            <span class="k">return</span>
+        }
+        <span class="f">next</span>(w, r, u)
+    }
+}
+
+<span class="c">// loginLimiter: tối đa 5 lần đăng nhập SAI trong 15 phút cho mỗi email.</span>
+<span class="c">// Lưu trong bộ nhớ cho gọn. Chạy nhiều bản server thì chuyển sang Redis (bài 17)</span>
+<span class="k">type</span> loginLimiter <span class="k">struct</span> {
+    mu    sync.Mutex
+    fails <span class="k">map</span>[<span class="t">string</span>][]time.Time
+}
+
+<span class="k">func</span> (l *loginLimiter) <span class="f">blocked</span>(email <span class="t">string</span>) <span class="t">bool</span> {
+    l.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> l.mu.<span class="f">Unlock</span>()
+    recent := l.fails[email][:<span class="n">0</span>]
+    <span class="k">for</span> _, t := <span class="k">range</span> l.fails[email] {
+        <span class="k">if</span> time.<span class="f">Since</span>(t) &lt; <span class="n">15</span>*time.Minute {
+            recent = <span class="b">append</span>(recent, t)
+        }
+    }
+    l.fails[email] = recent
+    <span class="k">return</span> <span class="b">len</span>(recent) &gt;= <span class="n">5</span>
+}
+
+<span class="k">func</span> (l *loginLimiter) <span class="f">fail</span>(email <span class="t">string</span>) {
+    l.mu.<span class="f">Lock</span>()
+    <span class="k">defer</span> l.mu.<span class="f">Unlock</span>()
+    l.fails[email] = <span class="b">append</span>(l.fails[email], time.<span class="f">Now</span>())
+}
+
+<span class="k">type</span> credentials <span class="k">struct</span> {
+    Email    <span class="t">string</span> <span class="s">`json:&quot;email&quot;`</span>
+    Password <span class="t">string</span> <span class="s">`json:&quot;password&quot;`</span>
+}
+
+<span class="k">func</span> (c *credentials) <span class="f">normalize</span>() {
+    c.Email = strings.<span class="f">ToLower</span>(strings.<span class="f">TrimSpace</span>(c.Email))
+}
+
+<span class="k">func</span> (a *App) <span class="f">register</span>(w http.ResponseWriter, r *http.Request) {
+    <span class="k">var</span> in credentials
+    <span class="k">if</span> !<span class="f">decode</span>(w, r, &amp;in) {
+        <span class="k">return</span>
+    }
+    in.<span class="f">normalize</span>()
+    <span class="k">if</span> !strings.<span class="f">Contains</span>(in.Email, <span class="s">&quot;@&quot;</span>) || <span class="b">len</span>(in.Email) &gt; <span class="n">254</span> {
+        <span class="f">writeErr</span>(w, http.StatusBadRequest, <span class="s">&quot;Email không hợp lệ&quot;</span>)
+        <span class="k">return</span>
+    }
+    <span class="k">if</span> <span class="b">len</span>(in.Password) &lt; <span class="n">8</span> || <span class="b">len</span>(in.Password) &gt; <span class="n">72</span> { <span class="c">// bcrypt chỉ dùng 72 byte đầu</span>
+        <span class="f">writeErr</span>(w, http.StatusBadRequest, <span class="s">&quot;Mật khẩu từ 8 đến 72 ký tự&quot;</span>)
+        <span class="k">return</span>
+    }
+    hash, err := bcrypt.<span class="f">GenerateFromPassword</span>([]<span class="t">byte</span>(in.Password), <span class="n">12</span>)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        a.<span class="f">internal</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    <span class="k">var</span> u User
+    err = a.db.<span class="f">QueryRow</span>(r.<span class="f">Context</span>(),
+        <span class="s">`INSERT INTO app_users (email, password_hash) VALUES ($1, $2) RETURNING id, email`</span>,
+        in.Email, <span class="t">string</span>(hash)).<span class="f">Scan</span>(&amp;u.ID, &amp;u.Email)
+    <span class="k">var</span> pgErr *pgconn.PgError
+    <span class="k">if</span> errors.<span class="f">As</span>(err, &amp;pgErr) &amp;&amp; pgErr.Code == <span class="s">&quot;23505&quot;</span> { <span class="c">// UNIQUE(email): không SELECT kiểm tra trước</span>
+        <span class="f">writeErr</span>(w, http.StatusConflict, <span class="s">&quot;Email đã được dùng&quot;</span>)
+        <span class="k">return</span>
+    }
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        a.<span class="f">internal</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    a.<span class="f">startSession</span>(w, r, u, http.StatusCreated)
+}
+
+<span class="k">func</span> (a *App) <span class="f">login</span>(w http.ResponseWriter, r *http.Request) {
+    <span class="k">var</span> in credentials
+    <span class="k">if</span> !<span class="f">decode</span>(w, r, &amp;in) {
+        <span class="k">return</span>
+    }
+    in.<span class="f">normalize</span>()
+    <span class="k">if</span> a.limiter.<span class="f">blocked</span>(in.Email) {
+        w.<span class="f">Header</span>().<span class="f">Set</span>(<span class="s">&quot;Retry-After&quot;</span>, <span class="s">&quot;900&quot;</span>)
+        <span class="f">writeErr</span>(w, http.StatusTooManyRequests, <span class="s">&quot;Thử sai quá nhiều lần, vui lòng thử lại sau 15 phút&quot;</span>)
+        <span class="k">return</span>
+    }
+    <span class="k">var</span> u User
+    <span class="k">var</span> hash <span class="t">string</span>
+    err := a.db.<span class="f">QueryRow</span>(r.<span class="f">Context</span>(),
+        <span class="s">`SELECT id, email, password_hash FROM app_users WHERE email = $1`</span>, in.Email).<span class="f">Scan</span>(&amp;u.ID, &amp;u.Email, &amp;hash)
+    <span class="k">if</span> err != <span class="b">nil</span> &amp;&amp; !errors.<span class="f">Is</span>(err, pgx.ErrNoRows) {
+        a.<span class="f">internal</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    <span class="c">// Sai email hay sai mật khẩu: CÙNG một câu trả lời, để không dò được email nào đã đăng ký</span>
+    <span class="k">if</span> err != <span class="b">nil</span> || bcrypt.<span class="f">CompareHashAndPassword</span>([]<span class="t">byte</span>(hash), []<span class="t">byte</span>(in.Password)) != <span class="b">nil</span> {
+        a.limiter.<span class="f">fail</span>(in.Email)
+        <span class="f">writeErr</span>(w, http.StatusUnauthorized, <span class="s">&quot;Email hoặc mật khẩu không đúng&quot;</span>)
+        <span class="k">return</span>
+    }
+    a.<span class="f">startSession</span>(w, r, u, http.StatusOK)
+}
+
+<span class="k">func</span> (a *App) <span class="f">startSession</span>(w http.ResponseWriter, r *http.Request, u User, status <span class="t">int</span>) {
+    token, err := a.<span class="f">newSession</span>(r.<span class="f">Context</span>(), u.ID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        a.<span class="f">internal</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    <span class="f">setSessionCookie</span>(w, token, <span class="t">int</span>(sessionTTL.<span class="f">Seconds</span>()))
+    <span class="f">writeJSON</span>(w, status, u)
+}
+
+<span class="k">func</span> (a *App) <span class="f">logout</span>(w http.ResponseWriter, r *http.Request) {
+    <span class="k">if</span> c, err := r.<span class="f">Cookie</span>(cookieName); err == <span class="b">nil</span> {
+        a.db.<span class="f">Exec</span>(r.<span class="f">Context</span>(), <span class="s">`DELETE FROM sessions WHERE token_hash = $1`</span>, <span class="f">hashToken</span>(c.Value))
+    }
+    <span class="f">setSessionCookie</span>(w, <span class="s">&quot;&quot;</span>, -<span class="n">1</span>)
+    w.<span class="f">WriteHeader</span>(http.StatusNoContent)
+}
+
+<span class="k">func</span> (a *App) <span class="f">me</span>(w http.ResponseWriter, r *http.Request, u User) {
+    <span class="f">writeJSON</span>(w, http.StatusOK, u)
+}</code></pre></div>
+<div class="code"><div class="code-h"><span>notes.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;net/http&quot;</span>
+    <span class="s">&quot;strconv&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+    <span class="s">&quot;time&quot;</span>
+    <span class="s">&quot;unicode/utf8&quot;</span>
+)
+
+<span class="k">type</span> Note <span class="k">struct</span> {
+    ID        <span class="t">int64</span>     <span class="s">`json:&quot;id&quot;`</span>
+    Text      <span class="t">string</span>    <span class="s">`json:&quot;text&quot;`</span>
+    CreatedAt time.Time <span class="s">`json:&quot;createdAt&quot;`</span>
+}
+
+<span class="c">// Mọi câu SQL đều có &quot;user_id = người đang đăng nhập&quot;: không ai đọc được ghi chú của người khác</span>
+
+<span class="k">func</span> (a *App) <span class="f">listNotes</span>(w http.ResponseWriter, r *http.Request, u User) {
+    rows, err := a.db.<span class="f">Query</span>(r.<span class="f">Context</span>(),
+        <span class="s">`SELECT id, text, created_at FROM notes WHERE user_id = $1 ORDER BY id`</span>, u.ID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        a.<span class="f">internal</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    <span class="k">defer</span> rows.<span class="f">Close</span>()
+    out := []Note{}
+    <span class="k">for</span> rows.<span class="f">Next</span>() {
+        <span class="k">var</span> n Note
+        <span class="k">if</span> err := rows.<span class="f">Scan</span>(&amp;n.ID, &amp;n.Text, &amp;n.CreatedAt); err != <span class="b">nil</span> {
+            a.<span class="f">internal</span>(w, r, err)
+            <span class="k">return</span>
+        }
+        out = <span class="b">append</span>(out, n)
+    }
+    <span class="f">writeJSON</span>(w, http.StatusOK, out)
+}
+
+<span class="k">func</span> (a *App) <span class="f">createNote</span>(w http.ResponseWriter, r *http.Request, u User) {
+    <span class="k">var</span> in <span class="k">struct</span> {
+        Text <span class="t">string</span> <span class="s">`json:&quot;text&quot;`</span>
+    }
+    <span class="k">if</span> !<span class="f">decode</span>(w, r, &amp;in) {
+        <span class="k">return</span>
+    }
+    in.Text = strings.<span class="f">TrimSpace</span>(in.Text)
+    <span class="k">if</span> n := utf8.<span class="f">RuneCountInString</span>(in.Text); n == <span class="n">0</span> || n &gt; <span class="n">500</span> {
+        <span class="f">writeErr</span>(w, http.StatusBadRequest, <span class="s">&quot;Nội dung từ 1 đến 500 ký tự&quot;</span>)
+        <span class="k">return</span>
+    }
+    n := Note{Text: in.Text}
+    err := a.db.<span class="f">QueryRow</span>(r.<span class="f">Context</span>(),
+        <span class="s">`INSERT INTO notes (user_id, text) VALUES ($1, $2) RETURNING id, created_at`</span>, u.ID, in.Text,
+    ).<span class="f">Scan</span>(&amp;n.ID, &amp;n.CreatedAt)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        a.<span class="f">internal</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    <span class="f">writeJSON</span>(w, http.StatusCreated, n)
+}
+
+<span class="k">func</span> (a *App) <span class="f">getNote</span>(w http.ResponseWriter, r *http.Request, u User) {
+    id, _ := strconv.<span class="f">ParseInt</span>(r.<span class="f">PathValue</span>(<span class="s">&quot;id&quot;</span>), <span class="n">10</span>, <span class="n">64</span>)
+    <span class="k">var</span> n Note
+    err := a.db.<span class="f">QueryRow</span>(r.<span class="f">Context</span>(),
+        <span class="s">`SELECT id, text, created_at FROM notes WHERE id = $1 AND user_id = $2`</span>, id, u.ID,
+    ).<span class="f">Scan</span>(&amp;n.ID, &amp;n.Text, &amp;n.CreatedAt)
+    <span class="k">if</span> err != <span class="b">nil</span> { <span class="c">// không có, HOẶC có nhưng của người khác: cùng trả 404</span>
+        <span class="f">writeErr</span>(w, http.StatusNotFound, <span class="s">&quot;Không tìm thấy&quot;</span>)
+        <span class="k">return</span>
+    }
+    <span class="f">writeJSON</span>(w, http.StatusOK, n)
+}
+
+<span class="k">func</span> (a *App) <span class="f">deleteNote</span>(w http.ResponseWriter, r *http.Request, u User) {
+    id, _ := strconv.<span class="f">ParseInt</span>(r.<span class="f">PathValue</span>(<span class="s">&quot;id&quot;</span>), <span class="n">10</span>, <span class="n">64</span>)
+    tag, err := a.db.<span class="f">Exec</span>(r.<span class="f">Context</span>(), <span class="s">`DELETE FROM notes WHERE id = $1 AND user_id = $2`</span>, id, u.ID)
+    <span class="k">if</span> err != <span class="b">nil</span> {
+        a.<span class="f">internal</span>(w, r, err)
+        <span class="k">return</span>
+    }
+    <span class="k">if</span> tag.<span class="f">RowsAffected</span>() == <span class="n">0</span> {
+        <span class="f">writeErr</span>(w, http.StatusNotFound, <span class="s">&quot;Không tìm thấy&quot;</span>)
+        <span class="k">return</span>
+    }
+    w.<span class="f">WriteHeader</span>(http.StatusNoContent)
+}</code></pre></div>
+<p><b>Chạy</b> ở terminal 1:</p>
+<div class="code"><div class="code-h"><span>Terminal</span><button class="copy" type="button">Sao chép</button></div><pre><code>DATABASE_URL=<span class="s">'postgres://postgres:dev@localhost:5432/postgres'</span> <span class="k">go</span> run .</code></pre></div>
+<p><b>Thử</b> ở terminal 2. <code>-c lan.txt</code> bảo curl lưu cookie nhận được vào file <code>lan.txt</code>, <code>-b lan.txt</code> gửi cookie trong file đó, giống trình duyệt tự gửi cookie. Lan và Bình mỗi người một file cookie, như hai trình duyệt khác nhau:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">J='Content-Type: application/json'</span>
+<span class="t-p">$</span> <span class="t-c">curl -i -c lan.txt -X POST localhost:8080/register -H &quot;$J&quot; -d '{&quot;email&quot;:&quot;Lan@Gmail.com&quot;,&quot;password&quot;:&quot;matkhau123&quot;}'</span>
+HTTP/1.1 201 Created
+Content-Type: application/json; charset=utf-8
+Set-Cookie: __Host-session=UmAVXJRXz1CRP5G4iTERSuZStn7VR3FXA8Dr-LSroKQ; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax
+Content-Length: 33
+
+{&quot;id&quot;:1,&quot;email&quot;:&quot;lan@gmail.com&quot;}
+<span class="t-p">$</span> <span class="t-c">curl -X POST localhost:8080/register -H &quot;$J&quot; -d '{&quot;email&quot;:&quot;lan@gmail.com&quot;,&quot;password&quot;:&quot;khac12345&quot;}'</span>
+{&quot;error&quot;:&quot;Email đã được dùng&quot;}
+<span class="t-p">$</span> <span class="t-c">curl -b lan.txt localhost:8080/me</span>
+{&quot;id&quot;:1,&quot;email&quot;:&quot;lan@gmail.com&quot;}
+<span class="t-p">$</span> <span class="t-c">curl -b lan.txt -X POST localhost:8080/notes -H &quot;$J&quot; -d '{&quot;text&quot;:&quot;Ghi chú của Lan&quot;}'</span>
+{&quot;id&quot;:1,&quot;text&quot;:&quot;Ghi chú của Lan&quot;,&quot;createdAt&quot;:&quot;2026-11-03T16:01:54.108283+07:00&quot;}
+<span class="t-p">$</span> <span class="t-c">curl -c binh.txt -X POST localhost:8080/register -H &quot;$J&quot; -d '{&quot;email&quot;:&quot;binh@gmail.com&quot;,&quot;password&quot;:&quot;matkhau456&quot;}'</span>
+{&quot;id&quot;:3,&quot;email&quot;:&quot;binh@gmail.com&quot;}
+<span class="t-p">$</span> <span class="t-c">curl -b binh.txt localhost:8080/notes/1</span>
+{&quot;error&quot;:&quot;Không tìm thấy&quot;}
+<span class="t-p">$</span> <span class="t-c">curl -o /dev/null -w '%{http_code}\n' -b binh.txt -X DELETE localhost:8080/notes/1</span>
+404
+<span class="t-p">$</span> <span class="t-c">curl -b lan.txt localhost:8080/notes</span>
+[{&quot;id&quot;:1,&quot;text&quot;:&quot;Ghi chú của Lan&quot;,&quot;createdAt&quot;:&quot;2026-11-03T16:01:54.108283+07:00&quot;}]
+<span class="t-p">$</span> <span class="t-c">curl localhost:8080/me</span>
+{&quot;error&quot;:&quot;Vui lòng đăng nhập&quot;}</pre></div>
+<p>Thử dò mật khẩu và đăng xuất:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">$</span> <span class="t-c">curl -X POST localhost:8080/login -H &quot;$J&quot; -d '{&quot;email&quot;:&quot;lan@gmail.com&quot;,&quot;password&quot;:&quot;sai&quot;}'</span>
+{&quot;error&quot;:&quot;Email hoặc mật khẩu không đúng&quot;}
+<span class="t-p">$</span> <span class="t-c">curl -X POST localhost:8080/login -H &quot;$J&quot; -d '{&quot;email&quot;:&quot;khongco@gmail.com&quot;,&quot;password&quot;:&quot;sai&quot;}'</span>
+{&quot;error&quot;:&quot;Email hoặc mật khẩu không đúng&quot;}
+<span class="t-p">$</span> <span class="t-c"># sai thêm 4 lần nữa với lan@gmail.com: 401 401 401 401</span>
+<span class="t-p">$</span> <span class="t-c">curl -i -X POST localhost:8080/login -H &quot;$J&quot; -d '{&quot;email&quot;:&quot;lan@gmail.com&quot;,&quot;password&quot;:&quot;matkhau123&quot;}'</span>
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json; charset=utf-8
+Retry-After: 900
+
+{&quot;error&quot;:&quot;Thử sai quá nhiều lần, vui lòng thử lại sau 15 phút&quot;}
+<span class="t-p">$</span> <span class="t-c">curl -o /dev/null -w '%{http_code}\n' -b lan.txt -X POST localhost:8080/logout</span>
+204
+<span class="t-p">$</span> <span class="t-c">curl -b lan.txt localhost:8080/me</span>
+{&quot;error&quot;:&quot;Vui lòng đăng nhập&quot;}</pre></div>
+<p>Xem trong database: mật khẩu chỉ còn chuỗi băm bcrypt (có cost <code>$12$</code> và muối bên trong), phiên chỉ lưu bản băm của token. Phiên của Lan đã bị xoá khi đăng xuất, chỉ còn phiên của Bình:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre><span class="t-p">postgres=#</span> <span class="t-c">SELECT email, left(password_hash, 29) AS password_hash FROM app_users;</span>
+     email      |         password_hash
+----------------+-------------------------------
+ lan@gmail.com  | $2a$12$0stP5yFKz3JJPEhqMDcwj.
+ binh@gmail.com | $2a$12$Lq0URjVYwjWDUf0HUG3.kO
+(2 rows)
+
+<span class="t-p">postgres=#</span> <span class="t-c">SELECT encode(token_hash, 'hex') AS token_hash, user_id FROM sessions;</span>
+                            token_hash                            | user_id
+------------------------------------------------------------------+---------
+ ae8be4f3cca03aec4152c53ba3cb5d586c313be25b0817a639dfe295bab149bf |       3
+(1 row)</pre></div>
+<p><b>Giải thích từng điểm:</b></p>
+<ul>
+<li>Email <code>Lan@Gmail.com</code> được lưu thành <code>lan@gmail.com</code>, nên lần đăng ký thứ hai (chữ thường) bị coi là trùng.</li>
+<li>Bình có id 3 chứ không phải 2: lần đăng ký trùng email đã lấy mất số 2 rồi mới bị UNIQUE từ chối. Bộ đếm tự tăng không quay lại, id có "lỗ" là bình thường.</li>
+<li>Bình đọc và xoá ghi chú 1 của Lan đều nhận <code>404</code>, như thể ghi chú không tồn tại. Đó là nhờ <code>AND user_id = $2</code> trong câu SQL.</li>
+<li>Sai email hay sai mật khẩu đều ra cùng một câu, nên không dò được email nào đã có tài khoản.</li>
+<li>Sau 5 lần sai, kể cả nhập đúng mật khẩu cũng bị <code>429</code>: kẻ dò mật khẩu không biết lần nào là đúng. Bộ đếm nằm trong bộ nhớ nên tắt server là mất, và mỗi bản server đếm riêng (xem bài 17).</li>
+<li>Lệnh đăng xuất không dùng <code>-c</code> nên file <code>lan.txt</code> vẫn giữ token cũ. Gửi lại token đó vẫn bị 401: phiên đã bị xoá ở phía server, đây là ưu điểm của session so với JWT.</li>
+<li>Cookie có <code>Secure</code> mà vẫn chạy được trên <code>http://localhost</code> vì trình duyệt và curl coi localhost là an toàn. Lên production phải là HTTPS.</li>
 </ul>
 </details>
 </details>

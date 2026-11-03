@@ -1,21 +1,36 @@
 <h2>Struct: gom dữ liệu thành một kiểu</h2>
 <p>Go không có class. Thay vào đó là <b>struct</b> (dữ liệu) cộng <b>method</b> (hàm gắn với kiểu). Struct giống <code>interface</code> / <code>type</code> của TypeScript, nhưng là kiểu thật lúc chạy.</p>
 <pre lang="go">
+package main
+
+import "fmt"
+
+// Khai báo một KIỂU mới tên Student. Mỗi dòng: tên trường, rồi kiểu của trường
 type Student struct {
     ID       int64
     FullName string
     ClassID  int64
-    Scores   []float64
-    JoinedAt time.Time
+    Scores   []float64 // slice điểm
 }
 
-// Tạo giá trị
-s := Student{ID: 1, FullName: "Trần An", ClassID: 5}
-s.Scores = append(s.Scores, 9.5)
-fmt.Println(s.FullName)
+func main() {
+    // Tạo một giá trị kiểu Student. Trường không ghi (Scores) nhận zero value: nil
+    s := Student{ID: 1, FullName: "Trần An", ClassID: 5}
 
-var empty Student      // mọi trường là zero value: 0, "", nil, thời điểm 0
+    s.Scores = append(s.Scores, 9.5) // đọc / ghi trường bằng dấu chấm, giống JS
+    fmt.Println(s.FullName, s.Scores)
+    fmt.Printf("%+v\n", s) // %+v in kèm tên trường
+
+    var empty Student // mọi trường là zero value
+    fmt.Printf("%+v\n", empty)
+}
 </pre>
+<pre lang="out">
+Trần An [9.5]
+{ID:1 FullName:Trần An ClassID:5 Scores:[9.5]}
+{ID:0 FullName: ClassID:0 Scores:[]}
+</pre>
+<p>Khác object JS: struct có <b>đúng</b> các trường đã khai báo. Viết <code>s.Phone = "..."</code> là lỗi biên dịch vì <code>Student</code> không có trường <code>Phone</code>. Và không có trường nào là <code>undefined</code>: trường không gán có zero value.</p>
 <table>
 <tr><th>TypeScript</th><th>Go</th></tr>
 <tr><td><code>interface Student { id: number; fullName: string }</code></td><td><code>type Student struct { ID int64; FullName string }</code></td></tr>
@@ -27,25 +42,66 @@ var empty Student      // mọi trường là zero value: 0, "", nil, thời đi
 <h3>Struct tag: nói cho JSON và database biết tên trường</h3>
 <p>Phần trong dấu backtick sau mỗi trường là <i>tag</i>, được các thư viện đọc để biết cách đổi sang JSON, tên cột database, quy tắc validate...</p>
 <pre lang="go">
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "time"
+)
+
 type StudentDTO struct {
-    ID       int64     `json:"id"`
+    ID       int64     `json:"id"`              // trong JSON tên là "id"
     FullName string    `json:"fullName"`
-    Email    string    `json:"email,omitempty"` // rỗng thì bỏ khỏi JSON
+    Email    string    `json:"email,omitempty"` // rỗng thì bỏ hẳn khỏi JSON
     Password string    `json:"-"`               // không bao giờ xuất ra JSON
-    JoinedAt time.Time `json:"joinedAt"`        // tự thành chuỗi RFC 3339
+    JoinedAt time.Time `json:"joinedAt"`        // tự thành chuỗi ngày giờ chuẩn
+    note     string    // viết thường: package json không thấy trường này
+}
+
+func main() {
+    s := StudentDTO{
+        ID:       1,
+        FullName: "Trần An",
+        Password: "bí mật",
+        JoinedAt: time.Date(2026, 9, 5, 8, 0, 0, 0, time.UTC),
+        note:     "ghi chú nội bộ",
+    }
+    b, _ := json.Marshal(s) // giống JSON.stringify(s)
+    fmt.Println(string(b))
 }
 </pre>
+<pre lang="out">
+{"id":1,"fullName":"Trần An","joinedAt":"2026-09-05T08:00:00Z"}
+</pre>
+<p>Để ý kết quả: không có <code>email</code> (rỗng + <code>omitempty</code>), không có <code>password</code> (tag <code>"-"</code>), không có <code>note</code> (viết thường).</p>
 <aside class="warn"><p><code>encoding/json</code> chỉ đọc / ghi được trường <b>viết hoa</b>. Trường <code>fullName string</code> (viết thường) sẽ bị bỏ qua hoàn toàn mà không báo lỗi. Đây là lỗi số một của người mới: "sao API trả về <code>{}</code>?".</p></aside>
 
 <h2>Con trỏ: địa chỉ của một giá trị</h2>
 <p>Trong JavaScript, object luôn được truyền theo tham chiếu. Trong Go, <b>mọi thứ đều được truyền bằng cách sao chép</b>, kể cả struct. Muốn hàm sửa được giá trị gốc, bạn truyền <b>địa chỉ</b> của nó: một con trỏ.</p>
-<pre lang="go">
-x := 10
-p := &x        // &: lấy địa chỉ. p có kiểu *int ("con trỏ tới int")
-fmt.Println(*p) // *: đọc giá trị tại địa chỉ → 10
-*p = 20         // ghi qua con trỏ
-fmt.Println(x)  // 20
+<p>Hình dung bộ nhớ như dãy ô tủ, mỗi ô có số. Biến <code>x</code> nằm trong một ô. Con trỏ là tờ giấy ghi <b>số ô</b> đó. Ai có tờ giấy thì mở được đúng ô ấy để xem hoặc sửa.</p>
+<pre lang="go" check="no">
+package main
+
+import "fmt"
+
+func main() {
+    x := 10
+    p := &x // &x = "địa chỉ của x". p có kiểu *int, đọc là "con trỏ tới int"
+
+    fmt.Println(p)  // in ra địa chỉ (mỗi máy mỗi khác)
+    fmt.Println(*p) // *p = "giá trị tại địa chỉ p" = giá trị của x
+
+    *p = 20         // ghi vào ô mà p trỏ tới, tức là sửa x
+    fmt.Println(x)
+}
 </pre>
+<pre lang="out" sim="1">
+0xc000012345
+10
+20
+</pre>
+<p>Dòng đầu là một địa chỉ bộ nhớ, máy bạn sẽ ra số khác. Nhớ hai ký hiệu: <code>&amp;</code> = lấy địa chỉ, <code>*</code> = đi tới địa chỉ đó. Còn <code>*int</code> trong kiểu nghĩa là "con trỏ tới int".</p>
 <figure class="dg">
 <svg viewBox="0 0 660 240" style="min-width:540px;max-width:660px" role="img" aria-label="Truyền giá trị và truyền con trỏ">
   <text x="20" y="24" class="tl" style="font-weight:700">Truyền giá trị: rename(s)</text>
@@ -72,44 +128,104 @@ fmt.Println(x)  // 20
 <figcaption>Struct được sao chép khi truyền vào hàm. Con trỏ cho hàm sửa được bản gốc</figcaption>
 </figure>
 <pre lang="go">
-func renameCopy(s Student)   { s.FullName = "Bình" } // sửa bản sao, vô ích
-func renamePtr(s *Student)   { s.FullName = "Bình" } // Go tự hiểu s.FullName = (*s).FullName
+package main
 
-s := Student{FullName: "An"}
-renameCopy(s)
-fmt.Println(s.FullName) // An
-renamePtr(&s)
-fmt.Println(s.FullName) // Bình
+import "fmt"
+
+type Student struct {
+    FullName string
+}
+
+// Nhận Student: hàm nhận một BẢN SAO, sửa bản sao không ảnh hưởng bản gốc
+func renameCopy(s Student) {
+    s.FullName = "Bình"
+}
+
+// Nhận *Student: hàm nhận địa chỉ, sửa được bản gốc.
+// Viết s.FullName là đủ, Go tự hiểu là (*s).FullName
+func renamePtr(s *Student) {
+    s.FullName = "Bình"
+}
+
+func main() {
+    s := Student{FullName: "An"}
+
+    renameCopy(s)
+    fmt.Println("sau renameCopy:", s.FullName)
+
+    renamePtr(&s) // truyền địa chỉ của s
+    fmt.Println("sau renamePtr: ", s.FullName)
+}
 </pre>
+<pre lang="out">
+sau renameCopy: An
+sau renamePtr:  Bình
+</pre>
+<p>Trong JS, <code>function rename(s) { s.fullName = "Bình" }</code> luôn sửa được object gốc. Go thì phải chọn: muốn hàm sửa được bản gốc thì nhận con trỏ.</p>
 <aside class="fe"><p>Slice, map và channel chứa sẵn một con trỏ bên trong, nên truyền chúng vào hàm thì hàm sửa được <b>nội dung</b> (giống truyền mảng trong JS). Nhưng <code>append</code> trong hàm thì có thể không phản ánh ra ngoài (bài 04), nên hàm thêm phần tử thường trả về slice mới.</p></aside>
 <aside class="tip"><p>Go không có phép toán trên con trỏ (<code>p++</code> như C), và bạn không phải tự giải phóng bộ nhớ. Hàm trả về con trỏ tới biến cục bộ là hoàn toàn an toàn: trình biên dịch tự quyết định đặt biến đó lên heap (gọi là <i>escape analysis</i>).</p></aside>
 
 <h3>nil pointer: lỗi runtime hay gặp nhất</h3>
-<pre lang="go" mark="bad">
-var u *Student          // nil
-fmt.Println(u.FullName) // panic: runtime error: invalid memory address or nil pointer dereference
+<pre lang="go" mark="bad" check="no">
+package main
+
+import "fmt"
+
+type Student struct{ FullName string }
+
+func main() {
+    var u *Student          // con trỏ chưa trỏ vào đâu: nil
+    fmt.Println(u == nil)   // true
+    fmt.Println(u.FullName) // đi tới địa chỉ nil: chương trình dừng
+}
 </pre>
+<pre lang="out">
+true
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x2 addr=0x0 pc=0x102ce3594]
+
+goroutine 1 [running]:
+main.main()
+	/Users/ban/nil/main.go:10 +0x54
+exit status 2
+</pre>
+<p>Đọc báo lỗi panic từ trên xuống: dòng đầu nói lỗi gì, phần <code>goroutine 1</code> chỉ ra lỗi xảy ra ở hàm nào, dòng nào (<code>main.go:10</code>, tức dòng <code>fmt.Println(u.FullName)</code>).</p>
+<p>Giống lỗi <code>Cannot read properties of null</code> của JS, nhưng ở backend nó làm hỏng cả request (server Go tự bắt panic cho từng request nên không sập cả server, bài 11).</p>
 <p>Hàm trả về con trỏ thì phải nói rõ khi nào trả <code>nil</code>, và người gọi phải kiểm tra. Mẫu chuẩn: hàm "tìm" trả về <code>(*T, error)</code>, nếu không tìm thấy thì trả lỗi riêng thay vì <code>nil, nil</code>.</p>
 
 <h2>Method: hàm gắn với kiểu</h2>
+<p>Method là hàm có thêm một phần <b>receiver</b> đặt giữa <code>func</code> và tên hàm. Receiver giống <code>this</code> trong class JS, nhưng bạn tự đặt tên cho nó (thường là chữ cái đầu của kiểu).</p>
 <pre lang="go">
-type Rect struct{ W, H float64 }
+package main
 
-// receiver (r Rect) đứng trước tên hàm
+import "fmt"
+
+type Rect struct{ W, H float64 } // struct một dòng: hai trường W và H cùng kiểu float64
+
+// (r Rect) là receiver: method Area gắn với kiểu Rect, bên trong gọi r như "this"
 func (r Rect) Area() float64 {
     return r.W * r.H
 }
 
-// pointer receiver: method sửa được giá trị gốc
+// (r *Rect): pointer receiver, nên method sửa được giá trị gốc
 func (r *Rect) Scale(k float64) {
     r.W *= k
     r.H *= k
 }
 
-r := Rect{W: 2, H: 3}
-r.Scale(2)          // Go tự lấy &r khi gọi
-fmt.Println(r.Area()) // 24
+func main() {
+    r := Rect{W: 2, H: 3}
+    fmt.Println(r.Area()) // gọi method bằng dấu chấm, giống JS
+
+    r.Scale(2) // Go tự đổi thành (&r).Scale(2) vì Scale cần con trỏ
+    fmt.Println(r, r.Area())
+}
 </pre>
+<pre lang="out">
+6
+{4 6} 24
+</pre>
+<p>So với TS: <code>class Rect { area() { return this.w * this.h } }</code>. Trong Go, dữ liệu (struct) và hành vi (method) viết tách nhau, nhưng gọi thì giống hệt: <code>r.Area()</code>.</p>
 <h3>Value receiver hay pointer receiver?</h3>
 <table>
 <tr><th>Dùng pointer receiver <code>(r *T)</code> khi</th><th>Dùng value receiver <code>(r T)</code> khi</th></tr>
@@ -120,65 +236,137 @@ fmt.Println(r.Area()) // 24
 <p>Quy tắc thực tế: <b>một kiểu dùng một loại receiver cho mọi method</b>. Với các kiểu "dịch vụ" ở backend (UserService, Repository, Handler) luôn dùng pointer receiver.</p>
 
 <h2>Hàm khởi tạo New...</h2>
+<p>Go không có <code>constructor</code>. Thay vào đó là một hàm thường, tên bắt đầu bằng <code>New</code>, tạo giá trị với mặc định hợp lý và trả về con trỏ:</p>
 <pre lang="go">
+package main
+
+import (
+    "fmt"
+    "time"
+)
+
 type Server struct {
     addr    string
     timeout time.Duration
-    db      *pgxpool.Pool
 }
 
-func NewServer(addr string, db *pgxpool.Pool) *Server {
-    return &Server{
+// Giống constructor(addr) { this.addr = addr; this.timeout = 10_000 }
+func NewServer(addr string) *Server {
+    return &Server{ // &Student{...}: tạo giá trị rồi lấy địa chỉ luôn
         addr:    addr,
         timeout: 10 * time.Second, // giá trị mặc định
-        db:      db,
     }
 }
+
+func main() {
+    srv := NewServer(":8080")
+    fmt.Println(srv.addr, srv.timeout)
+}
 </pre>
-<p>Hàm <code>NewX</code> là quy ước, không phải cú pháp đặc biệt. Bạn sẽ dùng nó để ghép các thành phần của server lại ở bài 13 (dependency injection).</p>
+<pre lang="out">
+:8080 10s
+</pre>
+<p>Hàm <code>NewX</code> là quy ước, không phải cú pháp đặc biệt. Ở bài 13, <code>NewServer</code> sẽ nhận thêm kết nối database, logger... để ghép các thành phần của server lại (dependency injection).</p>
 
 <h2>Dùng con trỏ để biết "có gửi hay không"</h2>
 <p>Quay lại bài toán ở bài 02: API cập nhật một phần (PATCH). Client chỉ gửi trường nào muốn đổi.</p>
 <pre lang="go">
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+)
+
 type UpdateStudentReq struct {
-    FullName *string  `json:"fullName"`
+    FullName *string  `json:"fullName"` // con trỏ: nil = client không gửi trường này
     Score    *float64 `json:"score"`
 }
 
-// {"score": 0}  → FullName == nil, Score trỏ tới 0  → chỉ cập nhật điểm thành 0
-// {}            → cả hai nil                        → không đổi gì
+func main() {
+    bodies := []string{`{"score": 0}`, `{}`, `{"fullName": "Bình", "score": 9}`}
 
-if req.Score != nil {
-    student.Score = *req.Score
+    for _, body := range bodies {
+        var req UpdateStudentReq
+        json.Unmarshal([]byte(body), &req) // giống JSON.parse, ghi kết quả vào req
+
+        fmt.Print(body, " -> ")
+        if req.FullName != nil {
+            fmt.Print("đổi tên thành ", *req.FullName, ". ")
+        }
+        if req.Score != nil {
+            fmt.Print("đổi điểm thành ", *req.Score, ". ")
+        }
+        if req.FullName == nil && req.Score == nil {
+            fmt.Print("không đổi gì.")
+        }
+        fmt.Println()
+    }
 }
 </pre>
+<pre lang="out">
+{"score": 0} -> đổi điểm thành 0. 
+{} -> không đổi gì.
+{"fullName": "Bình", "score": 9} -> đổi tên thành Bình. đổi điểm thành 9. 
+</pre>
+<p>Nếu <code>Score</code> là <code>float64</code> thường, hai body đầu đều cho <code>Score = 0</code> và bạn sẽ lỡ tay xoá điểm của học sinh. <code>json.Unmarshal</code> nhận <code>&amp;req</code> (con trỏ) chính vì nó cần ghi vào <code>req</code> của bạn.</p>
 <aside class="real"><p>Thư viện của Google cho nhiều API (ví dụ <code>google.golang.org/api</code>) và AWS SDK for Go dùng đúng cách này: trường tuỳ chọn là con trỏ, kèm các hàm trợ giúp kiểu <code>aws.String("x")</code> để lấy con trỏ từ một giá trị.</p></aside>
 
 <h2>Struct lồng nhau và struct ẩn danh</h2>
 <pre lang="go">
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+)
+
 type Address struct{ City, Street string }
 
 type School struct {
     Name    string
-    Address Address // lồng một struct
+    Address Address // trường có kiểu là một struct khác
 }
 
-sc := School{Name: "THPT A", Address: Address{City: "Huế"}}
-fmt.Println(sc.Address.City)
+func main() {
+    sc := School{Name: "THPT A", Address: Address{City: "Huế"}}
+    fmt.Println(sc.Address.City)
 
-// struct ẩn danh: dùng một lần, rất tiện để trả JSON nhanh hoặc viết test
-resp := struct {
-    OK    bool `json:"ok"`
-    Count int  `json:"count"`
-}{OK: true, Count: 3}
+    // struct ẩn danh: khai báo kiểu và tạo giá trị cùng lúc, dùng một lần.
+    // Rất tiện để trả JSON nhanh hoặc viết test
+    resp := struct {
+        OK    bool `json:"ok"`
+        Count int  `json:"count"`
+    }{OK: true, Count: 3}
+
+    b, _ := json.Marshal(resp)
+    fmt.Println(string(b))
+}
+</pre>
+<pre lang="out">
+Huế
+{"ok":true,"count":3}
 </pre>
 
 <h2>So sánh struct</h2>
 <p>Struct mà mọi trường đều so sánh được thì dùng được <code>==</code> và làm khoá của map. Struct có slice hoặc map bên trong thì không.</p>
 <pre lang="go">
+package main
+
+import "fmt"
+
 type Point struct{ X, Y int }
-fmt.Println(Point{1, 2} == Point{1, 2}) // true: so theo giá trị, khác JS so tham chiếu
-visited := map[Point]bool{{0, 0}: true}
+
+func main() {
+    fmt.Println(Point{1, 2} == Point{1, 2}) // so từng trường. Trong JS {x:1} === {x:1} là false
+
+    visited := map[Point]bool{{0, 0}: true} // struct làm khoá của map
+    fmt.Println(visited[Point{0, 0}], visited[Point{5, 5}])
+}
+</pre>
+<pre lang="out">
+true
+true false
 </pre>
 
 <quiz q="<code>users := []User{{Name: &quot;An&quot;}}; for _, u := range users { u.Name = &quot;Bình&quot; }</code>. Sau vòng lặp, <code>users[0].Name</code> là gì?">
@@ -197,9 +385,35 @@ visited := map[Point]bool{{0, 0}: true}
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Giỏ hàng</summary>
-<p>Tạo <code>Cart</code> chứa danh sách <code>Item{ProductID int64; Price int64; Qty int}</code>. Viết method <code>Add(item Item)</code> (sản phẩm đã có thì cộng dồn số lượng), <code>Remove(productID int64)</code>, <code>Total() int64</code>. Chọn đúng loại receiver.</p>
+<p>Tạo kiểu <code>Cart</code> (giỏ hàng) chứa danh sách <code>Item</code>, mỗi item có mã sản phẩm, giá, số lượng. Viết ba method:</p>
+<ul>
+<li><code>Add(item Item)</code>: thêm vào giỏ. Sản phẩm đã có trong giỏ thì cộng dồn số lượng, không thêm dòng mới.</li>
+<li><code>Remove(productID int64)</code>: bỏ sản phẩm khỏi giỏ.</li>
+<li><code>Total() int64</code>: tổng tiền.</li>
+</ul>
+<p>Thử: thêm 2 cuốn vở giá 10.000đ, thêm 1 bút giá 5.000đ, thêm 1 cuốn vở nữa, in tổng. Bỏ bút, in tổng. Kết quả mong muốn:</p>
+<pre lang="out">
+số dòng: 2
+tổng: 35000
+sau khi bỏ bút: 30000
+</pre>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Khai báo <code>type Item struct { ProductID int64; Price int64; Qty int }</code> và <code>type Cart struct { Items []Item }</code>.</li>
+<li><code>Add</code> và <code>Remove</code> phải sửa giỏ hàng, nên dùng pointer receiver: <code>func (c *Cart) Add(it Item)</code>.</li>
+<li>Trong <code>Add</code>, duyệt <code>c.Items</code> bằng chỉ số (<code>for i := range c.Items</code>). Gặp cùng <code>ProductID</code> thì <code>c.Items[i].Qty += it.Qty</code> rồi <code>return</code>. Không gặp thì <code>append</code>. Đừng sửa qua biến của <code>for _, x := range</code>: đó là bản sao (xem câu hỏi ở trên).</li>
+<li><code>Remove</code>: dùng <code>slices.DeleteFunc(c.Items, func(it Item) bool { ... })</code>, giống <code>items.filter(...)</code> nhưng giữ lại phần tử mà hàm trả về <code>false</code>.</li>
+<li><code>Total</code>: cộng <code>Price * Qty</code>. <code>Qty</code> là <code>int</code>, <code>Price</code> là <code>int64</code>, nên phải đổi kiểu: <code>int64(it.Qty)</code>.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go">
+<pre lang="go" file="main.go">
+package main
+
+import (
+    "fmt"
+    "slices"
+)
+
 type Item struct {
     ProductID int64
     Price     int64 // đồng
@@ -226,12 +440,31 @@ func (c *Cart) Remove(id int64) {
 
 func (c *Cart) Total() int64 {
     var t int64
-    for _, it := range c.Items {
+    for _, it := range c.Items { // chỉ đọc nên dùng bản sao cũng được
         t += it.Price * int64(it.Qty)
     }
     return t
 }
+
+func main() {
+    cart := &Cart{} // giỏ rỗng. &: lấy con trỏ, vì các method dùng *Cart
+
+    cart.Add(Item{ProductID: 1, Price: 10_000, Qty: 2}) // 2 cuốn vở
+    cart.Add(Item{ProductID: 2, Price: 5_000, Qty: 1})  // 1 bút
+    cart.Add(Item{ProductID: 1, Price: 10_000, Qty: 1}) // thêm 1 vở: cộng dồn thành 3
+
+    fmt.Println("số dòng:", len(cart.Items))
+    fmt.Println("tổng:", cart.Total())
+
+    cart.Remove(2)
+    fmt.Println("sau khi bỏ bút:", cart.Total())
+}
 </pre>
-<p><code>Total</code> không sửa gì, nhưng vẫn dùng pointer receiver để cả kiểu dùng một loại receiver. Nhắc lại bài 00: khi làm thật, <code>Price</code> phải lấy từ database lúc thanh toán, không tin giá trong giỏ hàng client gửi lên.</p>
+<pre lang="out">
+số dòng: 2
+tổng: 35000
+sau khi bỏ bút: 30000
+</pre>
+<p><b>Giải thích:</b> 3 vở × 10.000 + 1 bút × 5.000 = 35.000. "số dòng: 2" chứng tỏ lần thêm vở thứ hai được cộng dồn chứ không thêm dòng mới. <code>Total</code> không sửa gì, nhưng vẫn dùng pointer receiver để cả kiểu dùng một loại receiver. Nhắc lại bài 00: khi làm thật, <code>Price</code> phải lấy từ database lúc thanh toán, không tin giá trong giỏ hàng client gửi lên.</p>
 </details>
 </details>

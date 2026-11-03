@@ -36,18 +36,51 @@
     <div class="goals"><b>Học xong bài này bạn sẽ:</b><ul><li>Hiểu slice = (con trỏ, len, cap)</li><li>Tránh lỗi chia sẻ mảng nền khi append</li><li>Dùng map an toàn (nil map, thứ tự duyệt)</li></ul></div>
   </header>
   <div class="prose"><h2 id="array-do-dai-co-dinh-it-khi-dung-truc-tiep"><a href="#array-do-dai-co-dinh-it-khi-dung-truc-tiep" class="anchor" aria-hidden="true">#</a>Array: độ dài cố định, ít khi dùng trực tiếp</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> days [<span class="n">7</span>]<span class="t">string</span>           <span class="c">// mảng 7 chuỗi, độ dài là một phần của kiểu</span>
-scores := [<span class="n">3</span>]<span class="t">int</span>{<span class="n">8</span>, <span class="n">9</span>, <span class="n">10</span>}
-fmt.<span class="f">Println</span>(<span class="b">len</span>(scores))     <span class="c">// 3</span></code></pre></div>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">var</span> days [<span class="n">7</span>]<span class="t">string</span>         <span class="c">// mảng 7 chuỗi, mỗi phần tử ban đầu là &quot;&quot;</span>
+    scores := [<span class="n">3</span>]<span class="t">int</span>{<span class="n">8</span>, <span class="n">9</span>, <span class="n">10</span>} <span class="c">// [3] = đúng 3 phần tử, không thêm bớt được</span>
+
+    days[<span class="n">0</span>] = <span class="s">&quot;Thứ Hai&quot;</span>
+    fmt.<span class="f">Println</span>(<span class="b">len</span>(days), days[<span class="n">0</span>])
+    fmt.<span class="f">Println</span>(<span class="b">len</span>(scores), scores)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>7 Thứ Hai
+3 [8 9 10]</pre></div>
 <p><code>[3]int</code> và <code>[4]int</code> là hai kiểu khác nhau. Gán mảng cho biến khác là <b>sao chép toàn bộ</b>. Vì cứng nhắc như vậy, code hằng ngày gần như chỉ dùng <b>slice</b>.</p>
 
 <h2 id="slice-mang-ban-se-dung-hang-ngay"><a href="#slice-mang-ban-se-dung-hang-ngay" class="anchor" aria-hidden="true">#</a>Slice: "mảng" bạn sẽ dùng hằng ngày</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>names := []<span class="t">string</span>{<span class="s">&quot;An&quot;</span>, <span class="s">&quot;Bình&quot;</span>}   <span class="c">// không ghi độ dài trong [] → slice</span>
-names = <span class="b">append</span>(names, <span class="s">&quot;Chi&quot;</span>)      <span class="c">// thêm phần tử: PHẢI gán lại kết quả</span>
-fmt.<span class="f">Println</span>(<span class="b">len</span>(names))           <span class="c">// 3</span>
+<p>Slice giống mảng của JavaScript: thêm bớt được, độ dài thay đổi. Cách viết khác array đúng một chỗ: <b>không ghi số</b> trong <code>[]</code>.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-nums := <span class="b">make</span>([]<span class="t">int</span>, <span class="n">0</span>, <span class="n">100</span>)       <span class="c">// slice rỗng, chuẩn bị sẵn chỗ cho 100 phần tử</span>
-sub := names[<span class="n">1</span>:<span class="n">3</span>]                 <span class="c">// cắt: phần tử 1 và 2 → [&quot;Bình&quot;, &quot;Chi&quot;]</span></code></pre></div>
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;slices&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    names := []<span class="t">string</span>{<span class="s">&quot;An&quot;</span>, <span class="s">&quot;Bình&quot;</span>} <span class="c">// [] trống = slice. Đọc là &quot;slice các string&quot;</span>
+    names = <span class="b">append</span>(names, <span class="s">&quot;Chi&quot;</span>)    <span class="c">// thêm vào cuối. PHẢI gán lại: names = append(...)</span>
+    fmt.<span class="f">Println</span>(names, <span class="b">len</span>(names))
+
+    fmt.<span class="f">Println</span>(names[<span class="n">0</span>])   <span class="c">// lấy phần tử đầu, giống JS</span>
+    sub := names[<span class="n">1</span>:<span class="n">3</span>]       <span class="c">// cắt từ vị trí 1 đến TRƯỚC vị trí 3, giống names.slice(1, 3)</span>
+    fmt.<span class="f">Println</span>(sub)
+
+    fmt.<span class="f">Println</span>(slices.<span class="f">Contains</span>(names, <span class="s">&quot;Chi&quot;</span>)) <span class="c">// giống names.includes(&quot;Chi&quot;)</span>
+
+    nums := <span class="b">make</span>([]<span class="t">int</span>, <span class="n">0</span>, <span class="n">100</span>) <span class="c">// make(kiểu, len, cap): rỗng, nhưng giữ sẵn chỗ cho 100 phần tử</span>
+    fmt.<span class="f">Println</span>(<span class="b">len</span>(nums), <span class="b">cap</span>(nums))
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>[An Bình Chi] 3
+An
+[Bình Chi]
+true
+0 100</pre></div>
+<p><code>len</code> là số phần tử đang có, <code>cap</code> (capacity) là sức chứa: còn bao nhiêu chỗ trước khi Go phải xin bộ nhớ mới. Phần tiếp theo giải thích vì sao điều này quan trọng.</p>
 <table>
 <tr><th>JavaScript</th><th>Go</th></tr>
 <tr><td><code>const a = []</code></td><td><code>var a []int</code> (nil, dùng được ngay) hoặc <code>a := []int{}</code></td></tr>
@@ -91,89 +124,208 @@ sub := names[<span class="n">1</span>:<span class="n">3</span>]                 
 </figure>
 
 <h3>Cạm bẫy 1: hai slice dùng chung bộ nhớ</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>a := []<span class="t">string</span>{<span class="s">&quot;A&quot;</span>, <span class="s">&quot;B&quot;</span>, <span class="s">&quot;C&quot;</span>, <span class="s">&quot;D&quot;</span>, <span class="s">&quot;E&quot;</span>}
-s := a[<span class="n">1</span>:<span class="n">3</span>]       <span class="c">// [&quot;B&quot;, &quot;C&quot;]</span>
-s[<span class="n">0</span>] = <span class="s">&quot;X&quot;</span>
-fmt.<span class="f">Println</span>(a)    <span class="c">// [A X C D E]  ← a cũng bị sửa!</span></code></pre></div>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+    a := []<span class="t">string</span>{<span class="s">&quot;A&quot;</span>, <span class="s">&quot;B&quot;</span>, <span class="s">&quot;C&quot;</span>, <span class="s">&quot;D&quot;</span>, <span class="s">&quot;E&quot;</span>}
+    s := a[<span class="n">1</span>:<span class="n">3</span>] <span class="c">// [&quot;B&quot;, &quot;C&quot;], nhưng KHÔNG sao chép: s nhìn vào chính mảng của a</span>
+    s[<span class="n">0</span>] = <span class="s">&quot;X&quot;</span>  <span class="c">// s[0] chính là a[1]</span>
+    fmt.<span class="f">Println</span>(s)
+    fmt.<span class="f">Println</span>(a) <span class="c">// a cũng bị sửa!</span>
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>[X C]
+[A X C D E]</pre></div>
+<p>Trong JS, <code>a.slice(1, 3)</code> tạo mảng mới nên sửa nó không ảnh hưởng <code>a</code>. Trong Go, <code>a[1:3]</code> chỉ là cửa sổ nhìn vào cùng một vùng nhớ.</p>
 
 <h3>Cạm bẫy 2: append ghi đè dữ liệu của slice khác</h3>
 <p>Khi còn chỗ trong <code>cap</code>, <code>append</code> ghi thẳng vào mảng nền. Khi hết chỗ, nó cấp mảng mới lớn hơn (thường gấp đôi khi slice còn nhỏ), sao chép sang và trả về slice trỏ vào mảng mới. Vì vậy bạn không đoán được kết quả của append có dùng chung bộ nhớ với slice cũ hay không.</p>
-<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code>a := []<span class="t">string</span>{<span class="s">&quot;A&quot;</span>, <span class="s">&quot;B&quot;</span>, <span class="s">&quot;C&quot;</span>, <span class="s">&quot;D&quot;</span>, <span class="s">&quot;E&quot;</span>}
-s := a[<span class="n">1</span>:<span class="n">3</span>]               <span class="c">// len 2, cap 4</span>
-s = <span class="b">append</span>(s, <span class="s">&quot;Z&quot;</span>)        <span class="c">// còn chỗ → ghi vào a[3]</span>
-fmt.<span class="f">Println</span>(a)            <span class="c">// [A B C Z E]  ← &quot;D&quot; bị ghi đè âm thầm</span></code></pre></div>
-<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code>s := slices.<span class="f">Clone</span>(a[<span class="n">1</span>:<span class="n">3</span>]) <span class="c">// sao chép ra mảng riêng</span>
-s = <span class="b">append</span>(s, <span class="s">&quot;Z&quot;</span>)        <span class="c">// a không bị ảnh hưởng</span></code></pre></div>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;slices&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="c">// SAI: append vào một slice cắt ra từ slice khác</span>
+    a := []<span class="t">string</span>{<span class="s">&quot;A&quot;</span>, <span class="s">&quot;B&quot;</span>, <span class="s">&quot;C&quot;</span>, <span class="s">&quot;D&quot;</span>, <span class="s">&quot;E&quot;</span>}
+    s := a[<span class="n">1</span>:<span class="n">3</span>]                   <span class="c">// len 2, cap 4 (từ vị trí 1 tới hết mảng a còn 4 chỗ)</span>
+    fmt.<span class="f">Println</span>(<span class="b">len</span>(s), <span class="b">cap</span>(s))
+    s = <span class="b">append</span>(s, <span class="s">&quot;Z&quot;</span>)            <span class="c">// còn chỗ trong cap -&gt; ghi thẳng vào a[3]</span>
+    fmt.<span class="f">Println</span>(a)                <span class="c">// &quot;D&quot; bị ghi đè âm thầm</span>
+
+    <span class="c">// ĐÚNG: sao chép ra mảng riêng trước khi append</span>
+    b := []<span class="t">string</span>{<span class="s">&quot;A&quot;</span>, <span class="s">&quot;B&quot;</span>, <span class="s">&quot;C&quot;</span>, <span class="s">&quot;D&quot;</span>, <span class="s">&quot;E&quot;</span>}
+    t := slices.<span class="f">Clone</span>(b[<span class="n">1</span>:<span class="n">3</span>])     <span class="c">// t có vùng nhớ riêng, giống [...arr] trong JS</span>
+    t = <span class="b">append</span>(t, <span class="s">&quot;Z&quot;</span>)
+    fmt.<span class="f">Println</span>(b)                <span class="c">// b không bị ảnh hưởng</span>
+    fmt.<span class="f">Println</span>(t)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>2 4
+[A B C Z E]
+[A B C D E]
+[B C Z]</pre></div>
 <aside class="warn"><p>Luôn viết <code>s = append(s, x)</code>. Quên gán lại thì phần tử mới có thể "biến mất" vì nó nằm trong mảng mới mà biến <code>s</code> không trỏ tới. Trình biên dịch sẽ báo lỗi nếu bạn gọi <code>append</code> mà bỏ kết quả.</p></aside>
 
 <h3>Chuẩn bị sẵn sức chứa</h3>
 <p>Khi biết trước số phần tử (ví dụ đổi 1.000 dòng database thành 1.000 DTO), cấp sẵn <code>cap</code> để tránh cấp phát và sao chép nhiều lần:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>out := <span class="b">make</span>([]UserDTO, <span class="n">0</span>, <span class="b">len</span>(users))
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code>out := <span class="b">make</span>([]UserDTO, <span class="n">0</span>, <span class="b">len</span>(users)) <span class="c">// len 0, cap = số người dùng</span>
 <span class="k">for</span> _, u := <span class="k">range</span> users {
-    out = <span class="b">append</span>(out, <span class="f">toDTO</span>(u))
+    out = <span class="b">append</span>(out, <span class="f">toDTO</span>(u))       <span class="c">// không lần nào phải xin thêm bộ nhớ</span>
 }</code></pre></div>
+<p>Đây là trích đoạn: <code>users</code>, <code>UserDTO</code>, <code>toDTO</code> là những thứ có trong dự án thật (bài 12). Chỉ cần nhớ mẫu: biết trước số lượng thì <code>make([]T, 0, n)</code>.</p>
 
 <h3>nil slice và slice rỗng trong JSON</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> a []<span class="t">int</span>        <span class="c">// nil</span>
-b := []<span class="t">int</span>{}       <span class="c">// rỗng, không nil</span>
-<span class="c">// len, append, range đều chạy bình thường với cả hai.</span>
-<span class="c">// Nhưng khi đổi sang JSON:</span>
-json.<span class="f">Marshal</span>(a)    <span class="c">// null</span>
-json.<span class="f">Marshal</span>(b)    <span class="c">// []</span></code></pre></div>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;encoding/json&quot;</span>
+    <span class="s">&quot;fmt&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">var</span> a []<span class="t">int</span>  <span class="c">// khai báo mà không tạo: a là nil</span>
+    b := []<span class="t">int</span>{} <span class="c">// tạo slice rỗng: không nil</span>
+
+    fmt.<span class="f">Println</span>(<span class="b">len</span>(a), <span class="b">len</span>(b)) <span class="c">// len, append, range chạy bình thường với cả hai</span>
+
+    ja, _ := json.<span class="f">Marshal</span>(a) <span class="c">// Marshal: đổi giá trị Go sang JSON, giống JSON.stringify</span>
+    jb, _ := json.<span class="f">Marshal</span>(b)
+    fmt.<span class="f">Println</span>(<span class="t">string</span>(ja)) <span class="c">// Marshal trả về []byte, đổi sang string để in</span>
+    fmt.<span class="f">Println</span>(<span class="t">string</span>(jb))
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>0 0
+null
+[]</pre></div>
 <aside class="fe"><p>Đây là lý do frontend đôi khi nhận <code>"items": null</code> thay vì <code>[]</code> và vỡ ở dòng <code>items.map(...)</code>. Backend Go nên khởi tạo slice rỗng cho các trường danh sách trong response. Bây giờ bạn biết lỗi đó đến từ đâu.</p></aside>
 
 <h2 id="map-giong-object-map-trong-javascript"><a href="#map-giong-object-map-trong-javascript" class="anchor" aria-hidden="true">#</a>Map: giống object / Map trong JavaScript</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>ages := <span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>{
-    <span class="s">&quot;An&quot;</span>:   <span class="n">20</span>,
-    <span class="s">&quot;Bình&quot;</span>: <span class="n">22</span>,
-}
-ages[<span class="s">&quot;Chi&quot;</span>] = <span class="n">19</span>          <span class="c">// thêm hoặc sửa</span>
-<span class="b">delete</span>(ages, <span class="s">&quot;An&quot;</span>)        <span class="c">// xoá</span>
-fmt.<span class="f">Println</span>(<span class="b">len</span>(ages))    <span class="c">// 2</span>
+<p><code>map[string]int</code> đọc là "map có khoá kiểu string, giá trị kiểu int". Trong TS là <code>Record&lt;string, number&gt;</code>. Khác object JS: mọi khoá cùng một kiểu, mọi giá trị cùng một kiểu.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-age := ages[<span class="s">&quot;Không có&quot;</span>]   <span class="c">// trả về zero value: 0, không lỗi</span>
-age, ok := ages[<span class="s">&quot;Bình&quot;</span>]   <span class="c">// &quot;comma ok&quot;: ok = true nếu khoá có tồn tại</span>
-<span class="k">if</span> !ok {
-    fmt.<span class="f">Println</span>(<span class="s">&quot;không có&quot;</span>)
-}
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
 
-counts := <span class="b">make</span>(<span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>) <span class="c">// map rỗng, ghi được ngay</span>
-counts[<span class="s">&quot;go&quot;</span>]++                 <span class="c">// khoá chưa có thì bắt đầu từ 0</span></code></pre></div>
+<span class="k">func</span> <span class="f">main</span>() {
+    ages := <span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>{
+        <span class="s">&quot;An&quot;</span>:   <span class="n">20</span>,
+        <span class="s">&quot;Bình&quot;</span>: <span class="n">22</span>, <span class="c">// dấu phẩy cuối là BẮT BUỘC khi xuống dòng</span>
+    }
+    ages[<span class="s">&quot;Chi&quot;</span>] = <span class="n">19</span>   <span class="c">// thêm (khoá chưa có) hoặc sửa (khoá đã có)</span>
+    <span class="b">delete</span>(ages, <span class="s">&quot;An&quot;</span>) <span class="c">// xoá, giống delete obj.An</span>
+    fmt.<span class="f">Println</span>(<span class="b">len</span>(ages))
+
+    <span class="c">// Khoá không có: trả về zero value (0), KHÔNG lỗi, KHÔNG undefined</span>
+    fmt.<span class="f">Println</span>(ages[<span class="s">&quot;Không có&quot;</span>])
+
+    <span class="c">// &quot;comma ok&quot;: nhận thêm biến thứ hai cho biết khoá có tồn tại không</span>
+    age, ok := ages[<span class="s">&quot;Bình&quot;</span>]
+    fmt.<span class="f">Println</span>(age, ok)
+    age, ok = ages[<span class="s">&quot;Dũng&quot;</span>]
+    fmt.<span class="f">Println</span>(age, ok) <span class="c">// 0 vì không có, ok = false</span>
+
+    counts := <span class="b">make</span>(<span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>) <span class="c">// map rỗng, ghi được ngay</span>
+    counts[<span class="s">&quot;go&quot;</span>]++                 <span class="c">// khoá chưa có thì bắt đầu từ 0, rồi tăng lên 1</span>
+    counts[<span class="s">&quot;go&quot;</span>]++
+    fmt.<span class="f">Println</span>(counts)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>2
+0
+22 true
+0 false
+map[go:2]</pre></div>
+<p>Vì khoá không có cũng trả về <code>0</code>, nên <code>ages["Dũng"] == 0</code> không cho biết Dũng 0 tuổi hay không có Dũng. Khi cần phân biệt, luôn dùng dạng <code>v, ok := m[k]</code>.</p>
 
 <h3>Ba điều phải nhớ về map</h3>
 <ol>
 <li><b>Ghi vào nil map gây panic.</b> <code>var m map[string]int; m["a"] = 1</code> làm chương trình dừng. Luôn tạo bằng <code>make</code> hoặc <code>map[...]...{}</code>.</li>
 <li><b>Thứ tự duyệt là ngẫu nhiên</b>, và Go cố tình làm ngẫu nhiên khác nhau mỗi lần chạy để bạn không vô tình phụ thuộc vào nó. Cần thứ tự thì lấy danh sách khoá ra rồi sắp xếp:
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>keys := slices.<span class="f">Sorted</span>(maps.<span class="f">Keys</span>(ages)) <span class="c">// Go 1.23+, import &quot;maps&quot;, &quot;slices&quot;</span>
-<span class="k">for</span> _, k := <span class="k">range</span> keys {
-    fmt.<span class="f">Println</span>(k, ages[k])
-}</code></pre></div></li>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;maps&quot;</span>
+    <span class="s">&quot;slices&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    ages := <span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>{<span class="s">&quot;Chi&quot;</span>: <span class="n">19</span>, <span class="s">&quot;An&quot;</span>: <span class="n">20</span>, <span class="s">&quot;Bình&quot;</span>: <span class="n">22</span>}
+
+    <span class="c">// maps.Keys lấy các khoá, slices.Sorted sắp xếp chúng (Go 1.23+)</span>
+    keys := slices.<span class="f">Sorted</span>(maps.<span class="f">Keys</span>(ages))
+    <span class="k">for</span> _, k := <span class="k">range</span> keys {
+        fmt.<span class="f">Println</span>(k, ages[k])
+    }
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>An 20
+Bình 22
+Chi 19</pre></div></li>
 <li><b>Map không an toàn khi nhiều goroutine cùng ghi.</b> Runtime phát hiện được và dừng chương trình với lỗi <code>fatal error: concurrent map writes</code>. Trong HTTP server (mỗi request một goroutine), một map dùng chung phải được bảo vệ bằng mutex (bài 09).</li>
 </ol>
 
 <h3>Set: dùng map với giá trị rỗng</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>seen := <span class="k">map</span>[<span class="t">string</span>]<span class="k">struct</span>{}{}   <span class="c">// struct{} không tốn bộ nhớ</span>
-seen[<span class="s">&quot;lan@gmail.com&quot;</span>] = <span class="k">struct</span>{}{}
-<span class="k">if</span> _, ok := seen[email]; ok {
-    fmt.<span class="f">Println</span>(<span class="s">&quot;trùng&quot;</span>)
+<p>Go không có kiểu <code>Set</code> như JS. Người ta dùng map mà chỉ quan tâm khoá:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+    emails := []<span class="t">string</span>{<span class="s">&quot;lan@gmail.com&quot;</span>, <span class="s">&quot;an@gmail.com&quot;</span>, <span class="s">&quot;lan@gmail.com&quot;</span>}
+
+    <span class="c">// struct{} là kiểu &quot;rỗng&quot;, không tốn byte nào. struct{}{} là giá trị của kiểu đó</span>
+    seen := <span class="k">map</span>[<span class="t">string</span>]<span class="k">struct</span>{}{}
+    <span class="k">for</span> _, email := <span class="k">range</span> emails {
+        <span class="k">if</span> _, ok := seen[email]; ok { <span class="c">// đã gặp rồi</span>
+            fmt.<span class="f">Println</span>(<span class="s">&quot;trùng:&quot;</span>, email)
+            <span class="k">continue</span> <span class="c">// bỏ qua phần còn lại, sang vòng tiếp</span>
+        }
+        seen[email] = <span class="k">struct</span>{}{} <span class="c">// ghi nhận đã gặp</span>
+    }
+    fmt.<span class="f">Println</span>(<span class="s">&quot;số email khác nhau:&quot;</span>, <span class="b">len</span>(seen))
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>trùng: lan@gmail.com
+số email khác nhau: 2</pre></div>
+<p>Dùng <code>map[string]bool</code> cũng được và dễ đọc hơn (<code>if seen[email]</code>). <code>struct{}</code> chỉ tiết kiệm bộ nhớ khi map rất lớn.</p>
 
 <aside class="real"><p>Map trong bộ nhớ là cache đơn giản nhất. Nhưng khi chạy 3 bản server sau load balancer, mỗi bản có map riêng: người dùng gọi lần một vào máy A, lần hai vào máy B và không thấy dữ liệu cũ. Đây là lý do các hệ thống thật dùng Redis cho cache dùng chung (bài 17).</p></aside>
 
 <h2 id="gom-nhom-mau-ban-se-viet-rat-nhieu"><a href="#gom-nhom-mau-ban-se-viet-rat-nhieu" class="anchor" aria-hidden="true">#</a>Gom nhóm: mẫu bạn sẽ viết rất nhiều</h2>
 <p>Ví dụ có danh sách bài nộp, cần gom theo học sinh để tính số bài đã nộp:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Submission <span class="k">struct</span> {
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="c">// Một bài nộp: của học sinh nào, bao nhiêu điểm</span>
+<span class="k">type</span> Submission <span class="k">struct</span> {
     StudentID <span class="t">int64</span>
     Score     <span class="t">float64</span>
 }
 
+<span class="c">// Đếm số bài nộp của mỗi học sinh. Trả về map: mã học sinh -&gt; số bài</span>
 <span class="k">func</span> <span class="f">countByStudent</span>(subs []Submission) <span class="k">map</span>[<span class="t">int64</span>]<span class="t">int</span> {
-    out := <span class="b">make</span>(<span class="k">map</span>[<span class="t">int64</span>]<span class="t">int</span>, <span class="b">len</span>(subs))
+    out := <span class="b">make</span>(<span class="k">map</span>[<span class="t">int64</span>]<span class="t">int</span>)
     <span class="k">for</span> _, s := <span class="k">range</span> subs {
-        out[s.StudentID]++
+        out[s.StudentID]++ <span class="c">// lần đầu gặp học sinh: 0 -&gt; 1, lần sau tăng tiếp</span>
     }
     <span class="k">return</span> out
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    subs := []Submission{
+        {StudentID: <span class="n">1</span>, Score: <span class="n">8</span>},
+        {StudentID: <span class="n">2</span>, Score: <span class="n">7</span>},
+        {StudentID: <span class="n">1</span>, Score: <span class="n">9</span>},
+    }
+    counts := <span class="f">countByStudent</span>(subs)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;học sinh 1:&quot;</span>, counts[<span class="n">1</span>], <span class="s">&quot;bài&quot;</span>)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;học sinh 2:&quot;</span>, counts[<span class="n">2</span>], <span class="s">&quot;bài&quot;</span>)
+    fmt.<span class="f">Println</span>(<span class="s">&quot;học sinh 3:&quot;</span>, counts[<span class="n">3</span>], <span class="s">&quot;bài&quot;</span>) <span class="c">// không có: zero value 0</span>
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>học sinh 1: 2 bài
+học sinh 2: 1 bài
+học sinh 3: 0 bài</pre></div>
+<p>Trong JS bạn sẽ viết <code>subs.reduce((acc, s) =&gt; { acc[s.studentId] = (acc[s.studentId] ?? 0) + 1; return acc }, {})</code>. Go viết bằng vòng for, và không cần <code>?? 0</code> vì khoá chưa có đã là 0.</p>
 <p>Ở bài 16, bạn sẽ dùng chính mẫu này để sửa lỗi N+1 truy vấn: lấy hết dữ liệu liên quan trong một câu SQL rồi gom bằng map trong Go.</p>
 
 <div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> <code>a := []int{1, 2, 3, 4}; b := a[:2]; b = append(b, 99)</code>. Giá trị của <code>a</code> là gì?</p><div class="qo"><button type="button" class="opt">[1 2 3 4]</button><button type="button" class="opt" data-ok>[1 2 99 4]</button><button type="button" class="opt">[1 2 99 3 4]</button></div><p class="why" hidden>b có len 2 nhưng cap 4, còn chỗ trong mảng nền chung nên append ghi thẳng vào a[2].</p></div>
@@ -182,45 +334,108 @@ seen[<span class="s">&quot;lan@gmail.com&quot;</span>] = <span class="k">struct<
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Đếm từ xuất hiện nhiều nhất</summary>
-<p>Viết <code>topWords(text string, n int) []string</code> trả về <code>n</code> từ xuất hiện nhiều nhất (không phân biệt hoa thường). Gợi ý: <code>strings.Fields</code>, <code>strings.ToLower</code>, map đếm, rồi <code>slices.SortFunc</code>.</p>
+<p>Viết <code>topWords(text string, n int) []string</code> trả về <code>n</code> từ xuất hiện nhiều nhất trong <code>text</code>, không phân biệt hoa thường. Với đoạn văn <code>"Go nhanh. go gọn, GO dễ học và dễ đọc"</code> và <code>n = 2</code>, kết quả là:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>[go dễ]</pre></div>
+<p>(<code>go</code> xuất hiện 3 lần, <code>dễ</code> 2 lần. Để đơn giản, coi dấu câu dính vào từ: <code>nhanh.</code> là một từ.)</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Đổi cả đoạn về chữ thường: <code>strings.ToLower</code>.</li>
+<li>Tách thành danh sách từ: <code>strings.Fields(text)</code> tách theo khoảng trắng, giống <code>text.split(/\s+/)</code>.</li>
+<li>Đếm mỗi từ bằng <code>map[string]int</code>, giống ví dụ "Gom nhóm" ở trên.</li>
+<li>Map không sắp xếp được. Lấy các từ ra một slice, rồi sắp xếp slice đó theo số lần đếm, nhiều đứng trước.</li>
+<li>Lấy <code>n</code> phần tử đầu: <code>words[:n]</code> (nhớ kiểm tra slice có đủ <code>n</code> phần tử không).</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">topWords</span>(text <span class="t">string</span>, n <span class="t">int</span>) []<span class="t">string</span> {
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;slices&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">topWords</span>(text <span class="t">string</span>, n <span class="t">int</span>) []<span class="t">string</span> {
+    <span class="c">// Bước 1-3: đếm từng từ</span>
     counts := <span class="k">map</span>[<span class="t">string</span>]<span class="t">int</span>{}
     <span class="k">for</span> _, w := <span class="k">range</span> strings.<span class="f">Fields</span>(strings.<span class="f">ToLower</span>(text)) {
         counts[w]++
     }
+
+    <span class="c">// Bước 4: lấy các từ ra slice</span>
     words := <span class="b">make</span>([]<span class="t">string</span>, <span class="n">0</span>, <span class="b">len</span>(counts))
-    <span class="k">for</span> w := <span class="k">range</span> counts {
+    <span class="k">for</span> w := <span class="k">range</span> counts { <span class="c">// range trên map, chỉ lấy khoá</span>
         words = <span class="b">append</span>(words, w)
     }
+
+    <span class="c">// Sắp xếp. Hàm so sánh trả về số âm nếu a đứng trước b, số dương nếu a đứng sau,</span>
+    <span class="c">// giống hệt hàm truyền vào arr.sort((a, b) =&gt; ...) của JS</span>
     slices.<span class="f">SortFunc</span>(words, <span class="k">func</span>(a, b <span class="t">string</span>) <span class="t">int</span> {
         <span class="k">if</span> counts[a] != counts[b] {
-            <span class="k">return</span> counts[b] - counts[a] <span class="c">// nhiều hơn đứng trước</span>
+            <span class="k">return</span> counts[b] - counts[a] <span class="c">// a đếm nhiều hơn -&gt; kết quả âm -&gt; a đứng trước</span>
         }
-        <span class="k">return</span> strings.<span class="f">Compare</span>(a, b)     <span class="c">// bằng nhau thì theo chữ cái, kết quả luôn ổn định</span>
+        <span class="k">return</span> strings.<span class="f">Compare</span>(a, b) <span class="c">// bằng nhau thì xếp theo chữ cái</span>
     })
+
+    <span class="c">// Bước 5: lấy n từ đầu</span>
     <span class="k">if</span> <span class="b">len</span>(words) &gt; n {
         words = words[:n]
     }
     <span class="k">return</span> words
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    text := <span class="s">&quot;Go nhanh. go gọn, GO dễ học và dễ đọc&quot;</span>
+    fmt.<span class="f">Println</span>(<span class="f">topWords</span>(text, <span class="n">2</span>))
+    fmt.<span class="f">Println</span>(<span class="f">topWords</span>(text, <span class="n">100</span>)) <span class="c">// n lớn hơn số từ: trả về tất cả, không lỗi</span>
 }</code></pre></div>
-<p>Để ý dòng so sánh phụ theo chữ cái: vì map duyệt ngẫu nhiên, nếu không có nó thì các từ cùng số lần xuất hiện sẽ đổi chỗ giữa các lần chạy, làm test lúc đúng lúc sai.</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>[go dễ]
+[go dễ gọn, học nhanh. và đọc]</pre></div>
+<p><b>Giải thích:</b> để ý dòng so sánh phụ theo chữ cái. Map duyệt theo thứ tự ngẫu nhiên, nên nếu không có dòng đó, các từ cùng xuất hiện 1 lần (<code>gọn,</code>, <code>học</code>...) sẽ đổi chỗ giữa các lần chạy, làm test lúc đúng lúc sai. Thử xoá dòng đó và chạy vài lần để thấy.</p>
 </details>
 </details>
 <details class="ex"><summary>Phân trang trên slice</summary>
-<p>Viết <code>page[T any](items []T, page, size int) []T</code> trả về phần tử của trang <code>page</code> (bắt đầu từ 1). Không được panic khi trang vượt quá dữ liệu hoặc tham số âm. (Chữ <code>[T any]</code> là generics, bài 06 sẽ giải thích. Tạm hiểu là "hàm dùng được cho slice kiểu bất kỳ".)</p>
+<p>Danh sách có 7 học sinh, mỗi trang hiện 3 em. Viết hàm <code>pageOf(items []string, page, size int) []string</code> trả về các phần tử của trang <code>page</code> (trang đầu là 1). Không được làm chương trình dừng (panic) khi trang vượt quá dữ liệu hoặc tham số âm. Kết quả mong muốn:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>trang 1: [An Bình Chi]
+trang 2: [Dũng Em Giang]
+trang 3: [Hà]
+trang 4: []
+trang 0: []</pre></div>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Trang <code>page</code> bắt đầu ở vị trí <code>start = (page - 1) * size</code>. Trang 2, mỗi trang 3: bắt đầu ở vị trí 3.</li>
+<li>Kết thúc ở <code>start + size</code>, nhưng không được vượt quá <code>len(items)</code>. Hàm <code>min(a, b)</code> có sẵn từ Go 1.21.</li>
+<li>Trước khi cắt, kiểm tra: <code>page</code> hoặc <code>size</code> nhỏ hơn 1, hay <code>start</code> đã vượt quá dữ liệu, thì trả về slice rỗng.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> page[T <span class="t">any</span>](items []T, page, size <span class="t">int</span>) []T {
-    <span class="k">if</span> page &lt; <span class="n">1</span> || size &lt; <span class="n">1</span> {
-        <span class="k">return</span> []T{}
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">func</span> <span class="f">pageOf</span>(items []<span class="t">string</span>, page, size <span class="t">int</span>) []<span class="t">string</span> {
+    <span class="k">if</span> page &lt; <span class="n">1</span> || size &lt; <span class="n">1</span> { <span class="c">// tham số vô nghĩa</span>
+        <span class="k">return</span> []<span class="t">string</span>{}
     }
     start := (page - <span class="n">1</span>) * size
-    <span class="k">if</span> start &gt;= <span class="b">len</span>(items) {
-        <span class="k">return</span> []T{}
+    <span class="k">if</span> start &gt;= <span class="b">len</span>(items) { <span class="c">// trang nằm sau dữ liệu</span>
+        <span class="k">return</span> []<span class="t">string</span>{}
     }
-    end := <span class="b">min</span>(start+size, <span class="b">len</span>(items)) <span class="c">// min có sẵn từ Go 1.21</span>
+    end := <span class="b">min</span>(start+size, <span class="b">len</span>(items)) <span class="c">// trang cuối có thể thiếu phần tử</span>
     <span class="k">return</span> items[start:end]
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    kids := []<span class="t">string</span>{<span class="s">&quot;An&quot;</span>, <span class="s">&quot;Bình&quot;</span>, <span class="s">&quot;Chi&quot;</span>, <span class="s">&quot;Dũng&quot;</span>, <span class="s">&quot;Em&quot;</span>, <span class="s">&quot;Giang&quot;</span>, <span class="s">&quot;Hà&quot;</span>}
+    <span class="k">for</span> _, p := <span class="k">range</span> []<span class="t">int</span>{<span class="n">1</span>, <span class="n">2</span>, <span class="n">3</span>, <span class="n">4</span>, <span class="n">0</span>} {
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;trang %d: %v\n&quot;</span>, p, <span class="f">pageOf</span>(kids, p, <span class="n">3</span>))
+    }
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>trang 1: [An Bình Chi]
+trang 2: [Dũng Em Giang]
+trang 3: [Hà]
+trang 4: []
+trang 0: []</pre></div>
+<p><b>Thử bỏ dòng kiểm tra <code>start &gt;= len(items)</code></b> rồi chạy lại. Chương trình dừng với lỗi <code>panic: runtime error: slice bounds out of range</code>. JavaScript trả <code>undefined</code> hay mảng rỗng khi vượt chỉ số, còn Go thì dừng hẳn. Mọi chỉ số tính từ dữ liệu người dùng gửi lên (như <code>?page=999</code>) đều phải kiểm tra như trên.</p>
+<p><b>Dùng cho mọi kiểu:</b> hàm trên chỉ nhận <code>[]string</code>. Bài 06 dạy generics để viết một lần, dùng cho cả <code>[]int</code>, <code>[]User</code>: <code>func pageOf[T any](items []T, page, size int) []T</code>. Thân hàm giữ nguyên, chỉ đổi <code>string</code> thành <code>T</code>.</p>
 <p>Truy cập ngoài phạm vi slice (<code>items[10]</code> khi len là 5) gây <b>panic</b>, khác với JavaScript trả <code>undefined</code>. Mọi chỉ số tính từ dữ liệu người dùng gửi lên đều phải kiểm tra như trên.</p>
 </details>
 </details>

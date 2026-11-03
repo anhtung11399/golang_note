@@ -127,13 +127,14 @@ DROP TABLE jobs, submissions, assignments, enrollments, classes, sessions, users
 </table>
 
 <h2>Lộ trình làm từng bước</h2>
-<p>Làm theo thứ tự. Mỗi bước có tiêu chí "xong" rõ ràng, commit sau mỗi bước.</p>
+<p>Làm theo thứ tự. Mỗi bước có tiêu chí "xong" rõ ràng, commit sau mỗi bước. Phần lớn code bạn đã có sẵn trong lời giải bài tập của các bài trước, mục "Bắt đầu từ" ở mỗi bước chỉ chỗ để chép sang rồi sửa.</p>
 
 <h3>Bước 1: khung dự án (bài 08, 11, 13)</h3>
 <ul>
 <li><code>go mod init</code>, cấu trúc thư mục, <code>config.Load()</code>, logger slog JSON.</li>
 <li><code>http.Server</code> có timeout, graceful shutdown, middleware RequestID / Logger / Recover / SecurityHeaders.</li>
 <li><code>GET /livez</code>, <code>GET /readyz</code>.</li>
+<li><b>Bắt đầu từ:</b> lời giải bài tập bài 13 (dự án <code>notes-api</code>): đã có đủ cấu trúc thư mục, ba middleware, <code>run()</code> với graceful shutdown. Đổi tên module, bỏ phần ghi chú.</li>
 <li><b>Xong khi:</b> <code>go run ./cmd/api</code> chạy, Ctrl+C tắt sạch, mỗi request có một dòng log JSON.</li>
 </ul>
 
@@ -141,6 +142,7 @@ DROP TABLE jobs, submissions, assignments, enrollments, classes, sessions, users
 <ul>
 <li>Compose với Postgres, migration bằng goose, pool pgx, <code>/readyz</code> ping database.</li>
 <li>Helper test: tạo database / schema riêng cho mỗi test.</li>
+<li><b>Bắt đầu từ:</b> lược đồ bài 14 làm file migration đầu tiên (thêm dòng <code>-- +goose Up</code> / <code>-- +goose Down</code> như ví dụ bài 15), <code>compose.yaml</code> ở lời giải bài 22.</li>
 <li><b>Xong khi:</b> <code>goose up</code> rồi <code>goose down</code> rồi <code>goose up</code> chạy sạch.</li>
 </ul>
 
@@ -175,6 +177,7 @@ func (s *Auth) Login(ctx context.Context, email, password string) (token string,
 }
 </pre>
 <ul>
+<li><b>Bắt đầu từ:</b> <code>auth.go</code> trong lời giải bài 18. Đoạn trích ở trên là cùng logic đó, chỉ tách sang tầng service (bài 13) và thêm một chi tiết: so mật khẩu với một chuỗi băm giả khi không có email, để thời gian trả lời như nhau.</li>
 <li><b>Xong khi:</b> có test cho: đăng ký trùng email (kể cả khác hoa thường), đăng nhập sai không lộ email tồn tại, quá 5 lần bị 429, đăng xuất thì cookie cũ bị 401.</li>
 </ul>
 
@@ -191,6 +194,7 @@ RETURNING class_id;
 <aside class="warn"><p>Câu trên vẫn có khe hở ở mức cô lập Read Committed: hai học sinh vào lớp còn đúng 1 chỗ có thể cùng đếm thấy chỗ trống. Hãy khoá dòng lớp trước trong transaction (<code>SELECT ... FROM classes WHERE join_code = $1 FOR UPDATE</code>), giống cách khoá dòng giáo viên ở bài 16. Viết test 20 goroutine cùng vào lớp sĩ số 5 để chứng minh.</p></aside>
 <ul>
 <li>Mã lớp: 8 ký tự ngẫu nhiên từ <code>crypto/rand</code>, bỏ các ký tự dễ nhầm (0/O, 1/I/L), UNIQUE, trùng thì sinh lại.</li>
+<li><b>Bắt đầu từ:</b> <code>CreateClassWithQuota</code> và test 10 goroutine trong lời giải bài 16. Vào lớp làm y hệt, chỉ đổi dòng bị khoá từ giáo viên sang lớp.</li>
 <li><b>Xong khi:</b> test đồng thời chứng minh không vượt hạn mức 2 lớp và không vượt sĩ số.</li>
 </ul>
 
@@ -220,6 +224,7 @@ ORDER BY u.name, u.id
 LIMIT $3 OFFSET $4;
 </pre>
 <ul>
+<li><b>Bắt đầu từ:</b> <code>AssignmentStore</code> trong lời giải bài 15 (đã kiểm quyền giáo viên trong mọi câu SQL), cách đọc lỗi <code>23505</code> ở bài 15, <code>Validate()</code> ở bài 12.</li>
 <li><b>Xong khi:</b> có bộ test phân quyền: giáo viên B không xem / chấm được bài của lớp giáo viên A, học sinh không thuộc lớp không nộp được, học sinh không xem được bài nộp của bạn khác, học sinh không gọi được endpoint chấm bài.</li>
 </ul>
 
@@ -228,12 +233,14 @@ LIMIT $3 OFFSET $4;
 <li>Giao bài → trong cùng transaction chèn job <code>assignment.created</code>.</li>
 <li><code>cmd/worker</code>: lấy việc bằng <code>SKIP LOCKED</code>, "gửi thông báo" (ghi log), bảng <code>notifications_sent</code> chống gửi trùng, thử lại có backoff, dừng an toàn.</li>
 <li>Việc định kỳ: 19 giờ mỗi ngày (giờ Việt Nam) nhắc học sinh có bài hạn ngày mai chưa nộp. Chạy 2 worker cùng lúc mà mỗi học sinh vẫn chỉ nhận một lời nhắc mỗi ngày.</li>
+<li><b>Bắt đầu từ:</b> lời giải bài 20: bảng <code>jobs</code>, <code>notifications_sent</code>, vòng lặp worker, <code>assign</code> tạo bài và việc trong một transaction. Việc định kỳ: thêm bảng <code>reminders_sent(student_id, day)</code> có khoá chính kép, chèn được mới gửi.</li>
 </ul>
 
 <h3>Bước 7: quan sát và đóng gói (bài 21, 22)</h3>
 <ul>
 <li>Metrics RED ở cổng nội bộ, pprof ở localhost.</li>
 <li>Dockerfile nhiều giai đoạn, Compose chạy cả api + worker + postgres, GitHub Actions: vet, test -race, govulncheck, build.</li>
+<li><b>Bắt đầu từ:</b> middleware metrics trong lời giải bài 21, <code>Dockerfile</code>, <code>compose.yaml</code>, <code>.github/workflows/ci.yml</code> trong lời giải bài 22. Thêm một service <code>worker</code> vào compose, build cùng image nhưng chạy lệnh khác.</li>
 <li><b>Xong khi:</b> clone repo về máy sạch, <code>docker compose up</code> là chạy, CI xanh.</li>
 </ul>
 

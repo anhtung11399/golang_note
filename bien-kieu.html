@@ -53,6 +53,14 @@
     count = <span class="n">11</span>            <span class="c">// gán lại: dùng =, không dùng :=</span>
     fmt.<span class="f">Println</span>(appName, age, city, score, count, a, b)
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>Sổ bài tập 30 Hà Nội 0 11 1 hai</pre></div>
+<p><b>Đọc chương trình trên:</b></p>
+<ul>
+<li><code>var age int = 30</code>: đọc là "tạo biến <code>age</code>, kiểu <code>int</code> (số nguyên), giá trị 30". Trong Go, <b>kiểu viết sau tên biến</b>, ngược với Java / C. TypeScript cũng viết sau: <code>let age: number = 30</code>.</li>
+<li><code>var score float64</code> không gán giá trị, nên <code>score</code> tự có giá trị <code>0</code> (xem "Zero value" bên dưới). In ra thấy số <code>0</code>.</li>
+<li><code>count := 10</code>: cách viết ngắn của <code>var count = 10</code>. Dấu <code>:=</code> = "tạo mới và gán". Dấu <code>=</code> = "gán lại cho biến đã có".</li>
+<li><code>fmt.Println(...)</code> in tất cả giá trị trên một dòng, cách nhau bởi dấu cách, rồi xuống dòng. Giống <code>console.log(a, b, c)</code>.</li>
+</ul>
 <table>
 <tr><th>TypeScript</th><th>Go</th></tr>
 <tr><td><code>let x = 5</code></td><td><code>x := 5</code></td></tr>
@@ -76,12 +84,32 @@
 <aside class="fe"><p>JavaScript chỉ có một kiểu <code>number</code> (số thực 64 bit), nên số nguyên lớn hơn 2<sup>53</sup> bị mất chính xác. Go phân biệt số nguyên và số thực. Đây là lý do nhiều API trả id 64 bit dạng <b>chuỗi</b> trong JSON: Twitter / X từng phải thêm trường <code>id_str</code> vì JavaScript đọc sai id dạng số.</p></aside>
 
 <h3>Không bao giờ dùng float cho tiền</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>fmt.<span class="f">Println</span>(<span class="n">0.1</span> + <span class="n">0.2</span>)          <span class="c">// 0.30000000000000004, giống hệt JavaScript</span></code></pre></div>
-<p>Ngoài thực tế, tiền được lưu bằng <b>số nguyên ở đơn vị nhỏ nhất</b>: đồng với VND, cent với USD. Stripe API nhận <code>amount: 1999</code> nghĩa là 19,99 USD. Trong database dùng <code>bigint</code> hoặc <code>numeric</code>.</p>
-<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> VND <span class="t">int64</span>
+<p>Số thực (<code>float64</code>) được lưu dạng nhị phân nên không biểu diễn chính xác được nhiều số thập phân, giống hệt JavaScript:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-price := <span class="f">VND</span>(<span class="n">49_000</span>)       <span class="c">// dấu _ chỉ để dễ đọc</span>
-total := price * <span class="n">3</span>         <span class="c">// 147000, luôn chính xác</span></code></pre></div>
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+    a := <span class="n">0.1</span>
+    b := <span class="n">0.2</span>
+    fmt.<span class="f">Println</span>(a + b) <span class="c">// mong 0.3 nhưng không phải</span>
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>0.30000000000000004</pre></div>
+<p>Cộng lệch một chút thì với tiền là sai: cộng dồn hàng nghìn đơn hàng sẽ lệch cả đồng. Ngoài thực tế, tiền được lưu bằng <b>số nguyên ở đơn vị nhỏ nhất</b>: đồng với VND, cent với USD. Stripe API nhận <code>amount: 1999</code> nghĩa là 19,99 USD. Trong database dùng <code>bigint</code> hoặc <code>numeric</code>.</p>
+<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="c">// Tạo kiểu mới tên VND, bên trong là số nguyên 64 bit</span>
+<span class="k">type</span> VND <span class="t">int64</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+    price := <span class="f">VND</span>(<span class="n">49_000</span>) <span class="c">// dấu _ chỉ để dễ đọc, Go bỏ qua nó: 49_000 = 49000</span>
+    total := price * <span class="n">3</span>   <span class="c">// số nguyên nhân số nguyên: luôn chính xác</span>
+    fmt.<span class="f">Println</span>(total)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>147000</pre></div>
+<p><code>VND(49_000)</code> là <b>đổi kiểu</b>: biến số 49000 thành giá trị kiểu <code>VND</code>. Phần "Kiểu tự định nghĩa" cuối bài giải thích vì sao nên tạo kiểu riêng như vậy.</p>
 
 <h2 id="zero-value-khong-co-undefined"><a href="#zero-value-khong-co-undefined" class="anchor" aria-hidden="true">#</a>Zero value: không có undefined</h2>
 <p>Trong Go, biến khai báo mà chưa gán <b>luôn</b> có giá trị mặc định gọi là <i>zero value</i>. Không có <code>undefined</code>, không có biến "chưa khởi tạo".</p>
@@ -96,23 +124,56 @@ total := price * <span class="n">3</span>         <span class="c">// 147000, lu�
 <p>Nhà thiết kế Go cố tình làm cho zero value hữu dụng: một <code>sync.Mutex</code> hay <code>bytes.Buffer</code> mới khai báo là dùng được ngay, không cần gọi hàm khởi tạo.</p>
 <aside class="warn"><p>Zero value gây ra một câu hỏi rất thật ở backend: client gửi <code>{"score": 0}</code> hay <b>không gửi</b> <code>score</code>? Với <code>int</code>, cả hai đều thành <code>0</code>. Khi cần phân biệt "không có" và "bằng 0" (ví dụ API cập nhật một phần, PATCH), người ta dùng con trỏ <code>*int</code> (nil = không gửi). Bài 05 và 12 sẽ dùng cách này.</p></aside>
 
+<p>Tự kiểm chứng:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">var</span> n <span class="t">int</span>
+    <span class="k">var</span> s <span class="t">string</span>
+    <span class="k">var</span> ok <span class="t">bool</span>
+    <span class="k">var</span> list []<span class="t">int</span> <span class="c">// slice (giống mảng), bài 04</span>
+
+    fmt.<span class="f">Println</span>(n, ok)            <span class="c">// số 0 và false</span>
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%q\n&quot;</span>, s)         <span class="c">// %q in chuỗi kèm dấu nháy, để thấy chuỗi rỗng</span>
+    fmt.<span class="f">Println</span>(list == <span class="b">nil</span>)      <span class="c">// slice chưa tạo là nil</span>
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>0 false
+&quot;&quot;
+true</pre></div>
+
 <h2 id="hang-so-va-iota"><a href="#hang-so-va-iota" class="anchor" aria-hidden="true">#</a>Hằng số và iota</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">const</span> MaxUploadMB = <span class="n">5</span>
+<p><code>const</code> giống <code>const</code> của JS nhưng chặt hơn: giá trị phải biết được ngay lúc biên dịch (số, chuỗi, bool). Không thể <code>const now = time.Now()</code>.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="k">const</span> MaxUploadMB = <span class="n">5</span>
+
 <span class="k">const</span> (
     PageSize    = <span class="n">20</span>
     MaxPageSize = <span class="n">100</span>
 )
 
-<span class="c">// iota: bộ đếm tự tăng trong một khối const, hay dùng để làm &quot;enum&quot;</span>
+<span class="c">// Role là kiểu mới, bên trong là int</span>
 <span class="k">type</span> Role <span class="t">int</span>
 
+<span class="c">// iota: bộ đếm tự tăng trong một khối const, bắt đầu từ 0</span>
 <span class="k">const</span> (
-    RoleStudent Role = <span class="b">iota</span> <span class="c">// 0</span>
-    RoleParent              <span class="c">// 1</span>
-    RoleTeacher             <span class="c">// 2</span>
-)</code></pre></div>
+    RoleStudent Role = <span class="b">iota</span> <span class="c">// iota = 0</span>
+    RoleParent              <span class="c">// không viết gì: Go lặp lại &quot;Role = iota&quot;, lúc này iota = 1</span>
+    RoleTeacher             <span class="c">// iota = 2</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    fmt.<span class="f">Println</span>(MaxUploadMB, PageSize, MaxPageSize)
+    fmt.<span class="f">Println</span>(RoleStudent, RoleParent, RoleTeacher)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>5 20 100
+0 1 2</pre></div>
 <aside class="tip"><p>Go không có từ khoá <code>enum</code>. Với giá trị sẽ lưu vào database hoặc gửi qua JSON, nhiều đội thích dùng kiểu chuỗi hơn vì đọc log và dữ liệu dễ hiểu, và không bị lệch khi ai đó chèn thêm hằng vào giữa khối iota:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Status <span class="t">string</span>
+<div class="code"><div class="code-h"><span>Go · trích đoạn</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> Status <span class="t">string</span>
 
 <span class="k">const</span> (
     StatusPending Status = <span class="s">&quot;pending&quot;</span>
@@ -120,88 +181,210 @@ total := price * <span class="n">3</span>         <span class="c">// 147000, lu�
 )</code></pre></div></aside>
 
 <h2 id="chuyen-kieu-luon-phai-viet-ro"><a href="#chuyen-kieu-luon-phai-viet-ro" class="anchor" aria-hidden="true">#</a>Chuyển kiểu: luôn phải viết rõ</h2>
-<p>Go không tự đổi kiểu, kể cả giữa <code>int</code> và <code>int64</code>.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">var</span> a <span class="t">int</span> = <span class="n">10</span>
-<span class="k">var</span> b <span class="t">int64</span> = <span class="n">20</span>
-<span class="c">// c := a + b          // lỗi: mismatched types int and int64</span>
-c := <span class="t">int64</span>(a) + b      <span class="c">// phải đổi rõ ràng</span>
+<p>JavaScript tự đổi kiểu (<code>"5" * 2</code> ra <code>10</code>). Go thì không bao giờ tự đổi, kể cả giữa hai loại số <code>int</code> và <code>int64</code>. Muốn đổi, viết <code>KiểuMới(giá_trị)</code>, nhìn giống gọi hàm.</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-f := <span class="t">float64</span>(a) / <span class="n">3</span>    <span class="c">// 3.3333333333333335</span>
-n := <span class="t">int</span>(<span class="n">3.99</span>)         <span class="c">// 3: cắt phần thập phân, không làm tròn</span></code></pre></div>
-<p>Chuỗi và số đổi qua lại bằng package <code>strconv</code>, và việc này có thể lỗi:</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;strconv&quot;</span>
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
 
-n, err := strconv.<span class="f">Atoi</span>(<span class="s">&quot;42&quot;</span>)        <span class="c">// 42, nil</span>
-_, err = strconv.<span class="f">Atoi</span>(<span class="s">&quot;abc&quot;</span>)        <span class="c">// 0, lỗi: invalid syntax</span>
-s := strconv.<span class="f">Itoa</span>(<span class="n">42</span>)               <span class="c">// &quot;42&quot;</span>
-id, err := strconv.<span class="f">ParseInt</span>(<span class="s">&quot;9001&quot;</span>, <span class="n">10</span>, <span class="n">64</span>) <span class="c">// cơ số 10, 64 bit</span></code></pre></div>
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">var</span> a <span class="t">int</span> = <span class="n">10</span>
+    <span class="k">var</span> b <span class="t">int64</span> = <span class="n">20</span>
+
+    <span class="c">// c := a + b       // bỏ dấu // ở đầu dòng này sẽ lỗi: mismatched types int and int64</span>
+    c := <span class="t">int64</span>(a) + b   <span class="c">// đổi a sang int64 rồi mới cộng</span>
+    fmt.<span class="f">Println</span>(c)
+
+    f := <span class="t">float64</span>(a) / <span class="n">3</span> <span class="c">// đổi sang số thực thì phép chia mới có phần thập phân</span>
+    fmt.<span class="f">Println</span>(f)
+
+    fmt.<span class="f">Println</span>(a / <span class="n">3</span>)  <span class="c">// int chia int: bỏ phần dư, giống Math.trunc(10 / 3)</span>
+
+    x := <span class="n">3.99</span>
+    fmt.<span class="f">Println</span>(<span class="t">int</span>(x)) <span class="c">// cắt phần thập phân, KHÔNG làm tròn</span>
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>30
+3.3333333333333335
+3
+3</pre></div>
+<p>Chuỗi và số đổi qua lại bằng package <code>strconv</code> (viết tắt của string convert). Đổi chuỗi sang số có thể thất bại (chuỗi <code>"abc"</code> đâu phải số), nên hàm trả về <b>thêm một giá trị lỗi</b>:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;strconv&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    n, err := strconv.<span class="f">Atoi</span>(<span class="s">&quot;42&quot;</span>) <span class="c">// Atoi = &quot;ASCII to int&quot;: chuỗi -&gt; số</span>
+    fmt.<span class="f">Println</span>(n, err)          <span class="c">// err là nil: không có lỗi</span>
+
+    n, err = strconv.<span class="f">Atoi</span>(<span class="s">&quot;abc&quot;</span>) <span class="c">// dùng = vì n, err đã tạo ở trên</span>
+    fmt.<span class="f">Println</span>(n, err)          <span class="c">// n = 0, err mô tả lỗi</span>
+
+    s := strconv.<span class="f">Itoa</span>(<span class="n">42</span>)        <span class="c">// Itoa = &quot;int to ASCII&quot;: số -&gt; chuỗi</span>
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%q\n&quot;</span>, s)
+
+    id, err := strconv.<span class="f">ParseInt</span>(<span class="s">&quot;9001&quot;</span>, <span class="n">10</span>, <span class="n">64</span>) <span class="c">// cơ số 10, kết quả int64</span>
+    fmt.<span class="f">Println</span>(id, err)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>42 &lt;nil&gt;
+0 strconv.Atoi: parsing &quot;abc&quot;: invalid syntax
+&quot;42&quot;
+9001 &lt;nil&gt;</pre></div>
+<p>Dòng cuối dùng lại <code>:=</code> dù <code>err</code> đã có: được phép vì bên trái có ít nhất một biến <b>mới</b> (<code>id</code>). Go tạo <code>id</code> mới và gán lại cho <code>err</code> cũ.</p>
 <aside class="warn"><p><code>string(65)</code> cho ra <code>"A"</code> (ký tự mã 65), <b>không</b> phải <code>"65"</code>. <code>go vet</code> sẽ cảnh báo chỗ này. Muốn đổi số thành chuỗi số, luôn dùng <code>strconv.Itoa</code> hoặc <code>fmt.Sprint</code>.</p></aside>
 
 <h2 id="chuoi-tieng-viet-byte-va-rune"><a href="#chuoi-tieng-viet-byte-va-rune" class="anchor" aria-hidden="true">#</a>Chuỗi tiếng Việt: byte và rune</h2>
 <p>Đây là chỗ dân Việt hay vấp. Chuỗi Go là một dãy <b>byte</b> mã hoá UTF-8. Chữ có dấu chiếm nhiều byte.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code>s := <span class="s">&quot;Việt&quot;</span>
-fmt.<span class="f">Println</span>(<span class="b">len</span>(s))                    <span class="c">// 6: số byte, không phải số ký tự</span>
-fmt.<span class="f">Println</span>(utf8.<span class="f">RuneCountInString</span>(s)) <span class="c">// 4: số ký tự (cần import &quot;unicode/utf8&quot;)</span>
-fmt.<span class="f">Println</span>(s[<span class="n">1</span>])                      <span class="c">// 105: byte thứ 2 (chữ 'i')</span>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-<span class="k">for</span> i, r := <span class="k">range</span> s {                  <span class="c">// range trên chuỗi đi theo từng rune</span>
-    fmt.<span class="f">Printf</span>(<span class="s">&quot;%d:%c &quot;</span>, i, r)         <span class="c">// 0:V 1:i 2:ệ 5:t</span>
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;unicode/utf8&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">main</span>() {
+    s := <span class="s">&quot;Việt&quot;</span>
+    fmt.<span class="f">Println</span>(<span class="b">len</span>(s))                    <span class="c">// len đếm BYTE</span>
+    fmt.<span class="f">Println</span>(utf8.<span class="f">RuneCountInString</span>(s)) <span class="c">// đếm KÝ TỰ</span>
+    fmt.<span class="f">Println</span>(s[<span class="n">1</span>])                      <span class="c">// s[1] là byte thứ 2, in ra dạng số</span>
+
+    <span class="c">// range trên chuỗi đi theo từng ký tự (rune):</span>
+    <span class="c">// i = vị trí byte bắt đầu của ký tự, r = chính ký tự đó</span>
+    <span class="k">for</span> i, r := <span class="k">range</span> s {
+        fmt.<span class="f">Printf</span>(<span class="s">&quot;%d:%c &quot;</span>, i, r) <span class="c">// %d in số, %c in ký tự</span>
+    }
+    fmt.<span class="f">Println</span>()
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>6
+4
+105
+0:V 1:i 2:ệ 5:t</pre></div>
+<p>Để ý vị trí nhảy từ <code>2</code> lên <code>5</code>: chữ <code>ệ</code> chiếm 3 byte (vị trí 2, 3, 4). <code>105</code> là mã của chữ <code>i</code> trong bảng mã. Trong JS, <code>"Việt".length</code> là 4 vì JS đếm theo đơn vị UTF-16, nên dân frontend hay bất ngờ ở đây.</p>
 <figure class="dg"><svg viewBox="0 0 694 86" style="min-width:600px;max-width:694px" role="img" aria-label="&amp;quot;Việt&amp;quot; trong bộ nhớ: 4 ký tự nhưng 6 byte, chữ ệ chiếm 3 byte"><g class="nd "><rect x="10" y="10" width="116" height="66" rx="10"/><text x="68" y="40" class="tt" text-anchor="middle">V</text><text x="68" y="58" class="ts" text-anchor="middle">byte 0</text></g><line x1="128" y1="43" x2="192" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd "><rect x="196" y="10" width="116" height="66" rx="10"/><text x="254" y="40" class="tt" text-anchor="middle">i</text><text x="254" y="58" class="ts" text-anchor="middle">byte 1</text></g><line x1="314" y1="43" x2="378" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd cache"><rect x="382" y="10" width="116" height="66" rx="10"/><text x="440" y="40" class="tt" text-anchor="middle">ệ</text><text x="440" y="58" class="ts" text-anchor="middle">byte 2, 3, 4</text></g><line x1="500" y1="43" x2="564" y2="43" class="ln" marker-end="url(#ar)"/><g class="nd "><rect x="568" y="10" width="116" height="66" rx="10"/><text x="626" y="40" class="tt" text-anchor="middle">t</text><text x="626" y="58" class="ts" text-anchor="middle">byte 5</text></g></svg><figcaption>&quot;Việt&quot; trong bộ nhớ: 4 ký tự nhưng 6 byte, chữ ệ chiếm 3 byte</figcaption></figure>
-<div class="code bad"><div class="code-h"><span>Go</span><span class="mark bad">Sai / nguy hiểm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Cắt chuỗi theo byte có thể cắt đôi một chữ có dấu, sinh ra ký tự lỗi</span>
-short := s[:<span class="n">3</span>] <span class="c">// &quot;Vi\xe1&quot;: hỏng chữ ệ</span></code></pre></div>
-<div class="code good"><div class="code-h"><span>Go</span><span class="mark good">Đúng / nên làm</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="c">// Giới hạn độ dài theo ký tự: đổi sang []rune</span>
+<p>Hậu quả: cắt chuỗi bằng <code>s[:3]</code> (lấy 3 byte đầu) có thể cắt đôi chữ có dấu. Cách đúng là đổi chuỗi thành danh sách ký tự <code>[]rune</code> rồi mới cắt:</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="c">// truncate cắt chuỗi còn tối đa max KÝ TỰ, thêm &quot;…&quot; nếu bị cắt</span>
 <span class="k">func</span> <span class="f">truncate</span>(s <span class="t">string</span>, <span class="b">max</span> <span class="t">int</span>) <span class="t">string</span> {
-    r := []<span class="t">rune</span>(s)
-    <span class="k">if</span> <span class="b">len</span>(r) &lt;= <span class="b">max</span> {
+    r := []<span class="t">rune</span>(s)    <span class="c">// &quot;Việt Nam&quot; -&gt; [V i ệ t _ N a m], mỗi phần tử một ký tự</span>
+    <span class="k">if</span> <span class="b">len</span>(r) &lt;= <span class="b">max</span> { <span class="c">// ngắn sẵn thì trả nguyên</span>
         <span class="k">return</span> s
     }
-    <span class="k">return</span> <span class="t">string</span>(r[:<span class="b">max</span>]) + <span class="s">&quot;…&quot;</span>
+    <span class="k">return</span> <span class="t">string</span>(r[:<span class="b">max</span>]) + <span class="s">&quot;…&quot;</span> <span class="c">// r[:max] = max phần tử đầu, string(...) ghép lại thành chuỗi</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    s := <span class="s">&quot;Việt Nam&quot;</span>
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%q\n&quot;</span>, s[:<span class="n">3</span>])      <span class="c">// SAI: cắt 3 byte, đứt đôi chữ ệ</span>
+    fmt.<span class="f">Println</span>(<span class="f">truncate</span>(s, <span class="n">3</span>))    <span class="c">// ĐÚNG: 3 ký tự</span>
+    fmt.<span class="f">Println</span>(<span class="f">truncate</span>(s, <span class="n">20</span>))   <span class="c">// chuỗi ngắn hơn 20 thì giữ nguyên</span>
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>&quot;Vi\xe1&quot;
+Việ…
+Việt Nam</pre></div>
+<p><code>"Vi\xe1"</code>: <code>\xe1</code> là byte đầu tiên của chữ ệ bị bỏ lại một mình, không thành chữ nào cả. Lên giao diện sẽ hiện dấu <code>�</code>.</p>
 <aside class="real"><p>Khi API nói "tên tối đa 80 ký tự", hãy đếm bằng <code>utf8.RuneCountInString</code>. Nếu đếm bằng <code>len</code>, người dùng gõ tên tiếng Việt có dấu sẽ bị báo quá dài sớm hơn người gõ không dấu. Còn khi giới hạn dung lượng lưu trữ (cột database tính theo byte), thì mới dùng <code>len</code>.</p></aside>
 
 <h3>Làm việc với chuỗi</h3>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">import</span> <span class="s">&quot;strings&quot;</span>
+<p>Các hàm xử lý chuỗi nằm trong package <code>strings</code>. Khác JS: JS gọi method trên chuỗi (<code>"abc".toLowerCase()</code>), Go gọi hàm và truyền chuỗi vào (<code>strings.ToLower("abc")</code>).</p>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-strings.<span class="f">ToLower</span>(<span class="s">&quot;Email@Gmail.COM&quot;</span>)          <span class="c">// &quot;email@gmail.com&quot;</span>
-strings.<span class="f">TrimSpace</span>(<span class="s">&quot;  lan  &quot;</span>)                <span class="c">// &quot;lan&quot;</span>
-strings.<span class="f">Contains</span>(<span class="s">&quot;hotoedu&quot;</span>, <span class="s">&quot;edu&quot;</span>)          <span class="c">// true</span>
-strings.<span class="f">Split</span>(<span class="s">&quot;a,b,c&quot;</span>, <span class="s">&quot;,&quot;</span>)                 <span class="c">// []string{&quot;a&quot;, &quot;b&quot;, &quot;c&quot;}</span>
-strings.<span class="f">Join</span>([]<span class="t">string</span>{<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>}, <span class="s">&quot;-&quot;</span>)       <span class="c">// &quot;a-b&quot;</span>
-strings.<span class="f">HasPrefix</span>(<span class="s">&quot;/api/users&quot;</span>, <span class="s">&quot;/api/&quot;</span>)    <span class="c">// true</span>
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+)
 
-<span class="c">// Ghép nhiều chuỗi trong vòng lặp: dùng strings.Builder, không dùng +=</span>
-<span class="k">var</span> sb strings.Builder
-<span class="k">for</span> i := <span class="n">0</span>; i &lt; <span class="n">3</span>; i++ {
-    fmt.<span class="f">Fprintf</span>(&amp;sb, <span class="s">&quot;dòng %d\n&quot;</span>, i)
-}
-out := sb.<span class="f">String</span>()</code></pre></div>
+<span class="k">func</span> <span class="f">main</span>() {
+    fmt.<span class="f">Println</span>(strings.<span class="f">ToLower</span>(<span class="s">&quot;Email@Gmail.COM&quot;</span>))       <span class="c">// .toLowerCase()</span>
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%q\n&quot;</span>, strings.<span class="f">TrimSpace</span>(<span class="s">&quot;  lan  &quot;</span>))      <span class="c">// .trim()</span>
+    fmt.<span class="f">Println</span>(strings.<span class="f">Contains</span>(<span class="s">&quot;hotoedu&quot;</span>, <span class="s">&quot;edu&quot;</span>))       <span class="c">// .includes()</span>
+    fmt.<span class="f">Println</span>(strings.<span class="f">Split</span>(<span class="s">&quot;a,b,c&quot;</span>, <span class="s">&quot;,&quot;</span>))              <span class="c">// .split(&quot;,&quot;): ra slice 3 phần tử</span>
+    fmt.<span class="f">Println</span>(strings.<span class="f">Join</span>([]<span class="t">string</span>{<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>}, <span class="s">&quot;-&quot;</span>))    <span class="c">// [a, b].join(&quot;-&quot;)</span>
+    fmt.<span class="f">Println</span>(strings.<span class="f">HasPrefix</span>(<span class="s">&quot;/api/users&quot;</span>, <span class="s">&quot;/api/&quot;</span>)) <span class="c">// .startsWith()</span>
+
+    <span class="c">// Ghép nhiều chuỗi trong vòng lặp: dùng strings.Builder, không dùng +=</span>
+    <span class="k">var</span> sb strings.Builder
+    <span class="k">for</span> i := <span class="n">0</span>; i &lt; <span class="n">3</span>; i++ {
+        fmt.<span class="f">Fprintf</span>(&amp;sb, <span class="s">&quot;dòng %d\n&quot;</span>, i) <span class="c">// ghi vào sb thay vì in ra màn hình</span>
+    }
+    fmt.<span class="f">Print</span>(sb.<span class="f">String</span>()) <span class="c">// lấy toàn bộ chuỗi đã ghép</span>
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>email@gmail.com
+&quot;lan&quot;
+true
+[a b c]
+a-b
+true
+dòng 0
+dòng 1
+dòng 2</pre></div>
 <p>Chuỗi trong Go không đổi được, nên <code>s += "x"</code> trong vòng lặp lớn sẽ tạo chuỗi mới mỗi lần. <code>strings.Builder</code> tránh việc đó.</p>
 
 <h2 id="in-va-dinh-dang-voi-fmt"><a href="#in-va-dinh-dang-voi-fmt" class="anchor" aria-hidden="true">#</a>In và định dạng với fmt</h2>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> User <span class="k">struct</span> {
+<p><code>fmt.Printf</code> nhận một chuỗi mẫu có các "chỗ trống" bắt đầu bằng <code>%</code>, rồi lần lượt điền các giá trị phía sau vào. Các chỗ trống hay dùng:</p>
+<table>
+<tr><th>Ký hiệu</th><th>In ra</th></tr>
+<tr><td><code>%v</code></td><td>Giá trị, kiểu nào cũng được (v = value). Không biết dùng gì thì dùng cái này.</td></tr>
+<tr><td><code>%+v</code></td><td>Như <code>%v</code>, kèm tên trường của struct. Hay dùng khi gỡ lỗi.</td></tr>
+<tr><td><code>%d</code> / <code>%s</code></td><td>Số nguyên / chuỗi</td></tr>
+<tr><td><code>%.2f</code></td><td>Số thực, lấy 2 chữ số sau dấu chấm</td></tr>
+<tr><td><code>%q</code></td><td>Chuỗi kèm dấu nháy, thấy rõ khoảng trắng thừa</td></tr>
+<tr><td><code>%T</code></td><td>Tên kiểu của giá trị</td></tr>
+</table>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
+
+<span class="c">// struct: gom nhiều trường thành một kiểu, giống interface của TS (bài 05)</span>
+<span class="k">type</span> User <span class="k">struct</span> {
     ID   <span class="t">int64</span>
     Name <span class="t">string</span>
 }
-u := User{ID: <span class="n">1</span>, Name: <span class="s">&quot;Lan&quot;</span>}
 
-fmt.<span class="f">Printf</span>(<span class="s">&quot;%v\n&quot;</span>, u)   <span class="c">// {1 Lan}</span>
-fmt.<span class="f">Printf</span>(<span class="s">&quot;%+v\n&quot;</span>, u)  <span class="c">// {ID:1 Name:Lan}    hay dùng khi gỡ lỗi</span>
-fmt.<span class="f">Printf</span>(<span class="s">&quot;%T\n&quot;</span>, u)   <span class="c">// main.User          kiểu của giá trị</span>
-fmt.<span class="f">Printf</span>(<span class="s">&quot;%q\n&quot;</span>, <span class="s">&quot;a&quot;</span>) <span class="c">// &quot;a&quot;                chuỗi có nháy, thấy rõ khoảng trắng</span>
-fmt.<span class="f">Printf</span>(<span class="s">&quot;%d %.2f %s\n&quot;</span>, <span class="n">7</span>, <span class="n">3.14159</span>, <span class="s">&quot;x&quot;</span>)   <span class="c">// 7 3.14 x</span>
-msg := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;Đơn #%d&quot;</span>, <span class="n">9001</span>)            <span class="c">// tạo chuỗi, không in</span></code></pre></div>
+<span class="k">func</span> <span class="f">main</span>() {
+    u := User{ID: <span class="n">1</span>, Name: <span class="s">&quot;Lan&quot;</span>}
+
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%v\n&quot;</span>, u)
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%+v\n&quot;</span>, u)
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%T\n&quot;</span>, u)
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%q\n&quot;</span>, <span class="s">&quot; a &quot;</span>)
+    fmt.<span class="f">Printf</span>(<span class="s">&quot;%d %.2f %s\n&quot;</span>, <span class="n">7</span>, <span class="n">3.14159</span>, <span class="s">&quot;x&quot;</span>) <span class="c">// 3 chỗ trống, 3 giá trị theo thứ tự</span>
+
+    msg := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;Đơn #%d&quot;</span>, <span class="n">9001</span>) <span class="c">// Sprintf: tạo chuỗi, KHÔNG in</span>
+    fmt.<span class="f">Println</span>(msg)
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>{1 Lan}
+{ID:1 Name:Lan}
+main.User
+&quot; a &quot;
+7 3.14 x
+Đơn #9001</pre></div>
+<p>Ba hàm in cần nhớ: <code>Println</code> (in các giá trị, tự xuống dòng), <code>Printf</code> (in theo mẫu, phải tự thêm <code>\n</code>), <code>Sprintf</code> (giống <code>Printf</code> nhưng trả về chuỗi thay vì in).</p>
 
 <h2 id="kieu-tu-dinh-nghia"><a href="#kieu-tu-dinh-nghia" class="anchor" aria-hidden="true">#</a>Kiểu tự định nghĩa</h2>
 <p>Bạn có thể tạo kiểu mới từ kiểu có sẵn. Go coi chúng là <b>khác nhau</b>, nên trình biên dịch giúp bạn không truyền nhầm.</p>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">type</span> UserID <span class="t">int64</span>
-<span class="k">type</span> ClassID <span class="t">int64</span>
+<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
-<span class="k">func</span> <span class="f">GetUser</span>(id UserID) {}
+<span class="k">import</span> <span class="s">&quot;fmt&quot;</span>
 
-<span class="k">var</span> c ClassID = <span class="n">5</span>
-<span class="c">// GetUser(c)        // lỗi biên dịch: không thể dùng ClassID làm UserID</span>
-<span class="f">GetUser</span>(<span class="f">UserID</span>(<span class="n">7</span>))  <span class="c">// đúng</span></code></pre></div>
+<span class="k">type</span> UserID <span class="t">int64</span>  <span class="c">// bên trong đều là int64...</span>
+<span class="k">type</span> ClassID <span class="t">int64</span> <span class="c">// ...nhưng Go coi là hai kiểu khác nhau</span>
+
+<span class="k">func</span> <span class="f">GetUser</span>(id UserID) {
+    fmt.<span class="f">Println</span>(<span class="s">&quot;lấy người dùng&quot;</span>, id)
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    <span class="k">var</span> c ClassID = <span class="n">5</span>
+    <span class="c">// GetUser(c)      // bỏ // sẽ lỗi: cannot use c (variable of type ClassID) as UserID value</span>
+    <span class="f">GetUser</span>(<span class="f">UserID</span>(<span class="n">7</span>)) <span class="c">// đúng: giá trị đúng kiểu UserID</span>
+    _ = c              <span class="c">// dấu _ : &quot;biết là có biến c, cố ý không dùng&quot; để Go không báo lỗi</span>
+}</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>lấy người dùng 7</pre></div>
+<p>Lợi ích thật: hàm <code>MoveStudent(studentID, classID)</code> mà truyền ngược hai tham số là lỗi ngay lúc biên dịch, không phải đợi lên production mới phát hiện.</p>
 <aside class="fe"><p>TypeScript dùng kiểu cấu trúc (structural), nên <code>type UserId = number</code> và <code>type ClassId = number</code> là một. Người ta phải dùng mẹo "branded types". Trong Go, kiểu đặt tên là khác nhau thật sự.</p></aside>
 
 <div class="quiz"><p class="qq"><b>Câu hỏi nhanh.</b> <code>len(&quot;Học&quot;)</code> trả về bao nhiêu?</p><div class="qo"><button type="button" class="opt">3</button><button type="button" class="opt">4</button><button type="button" class="opt" data-ok>5</button></div><p class="why" hidden>len đếm byte. "H" và "c" mỗi chữ 1 byte, "ọ" (U+1ECD) chiếm 3 byte trong UTF-8. Tổng là 5 byte, dù chỉ có 3 ký tự.</p></div>
@@ -210,9 +393,24 @@ msg := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;Đơn #%d&quot;<
 
 <h2 id="bai-tap"><a href="#bai-tap" class="anchor" aria-hidden="true">#</a>Bài tập</h2>
 <details class="ex"><summary>Chuẩn hoá email và kiểm tra độ dài tên</summary>
-<p>Viết hàm <code>normalizeEmail(s string) string</code> (bỏ khoảng trắng hai đầu, đổi về chữ thường) và <code>validName(s string) bool</code> (sau khi bỏ khoảng trắng, tên phải có từ 2 đến 80 <b>ký tự</b>). Thử với <code>"  Nguyễn Thị Ánh  "</code>.</p>
+<p>Viết hai hàm:</p>
+<ul>
+<li><code>normalizeEmail(s string) string</code>: nhận email người dùng gõ, bỏ khoảng trắng hai đầu và đổi về chữ thường.</li>
+<li><code>validName(s string) bool</code>: trả <code>true</code> nếu tên (sau khi bỏ khoảng trắng hai đầu) có từ 2 đến 80 <b>ký tự</b>.</li>
+</ul>
+<p>Kết quả mong muốn khi chạy:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>lan.nguyen@gmail.com
+true
+false</pre></div>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Cách viết hàm trong Go: <code>func tênHàm(thamSố kiểu) kiểuTrảVề { ... }</code>. Ví dụ <code>func normalizeEmail(s string) string</code> = hàm nhận một chuỗi <code>s</code>, trả về một chuỗi. Giống <code>function normalizeEmail(s: string): string</code> trong TS.</li>
+<li>Bỏ khoảng trắng: <code>strings.TrimSpace(s)</code>. Chữ thường: <code>strings.ToLower(s)</code>. Có thể lồng: kết quả của hàm này làm đầu vào của hàm kia.</li>
+<li>Đếm ký tự (không phải byte, vì tên tiếng Việt có dấu): <code>utf8.RuneCountInString(s)</code>.</li>
+<li>Trong <code>main</code>, gọi hai hàm với dữ liệu thử và in kết quả.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
 
 <span class="k">import</span> (
     <span class="s">&quot;fmt&quot;</span>
@@ -221,12 +419,13 @@ msg := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;Đơn #%d&quot;<
 )
 
 <span class="k">func</span> <span class="f">normalizeEmail</span>(s <span class="t">string</span>) <span class="t">string</span> {
+    <span class="c">// Chạy từ trong ra ngoài: TrimSpace trước, kết quả đưa vào ToLower</span>
     <span class="k">return</span> strings.<span class="f">ToLower</span>(strings.<span class="f">TrimSpace</span>(s))
 }
 
 <span class="k">func</span> <span class="f">validName</span>(s <span class="t">string</span>) <span class="t">bool</span> {
-    n := utf8.<span class="f">RuneCountInString</span>(strings.<span class="f">TrimSpace</span>(s))
-    <span class="k">return</span> n &gt;= <span class="n">2</span> &amp;&amp; n &lt;= <span class="n">80</span>
+    n := utf8.<span class="f">RuneCountInString</span>(strings.<span class="f">TrimSpace</span>(s)) <span class="c">// số ký tự sau khi bỏ khoảng trắng</span>
+    <span class="k">return</span> n &gt;= <span class="n">2</span> &amp;&amp; n &lt;= <span class="n">80</span>                          <span class="c">// biểu thức so sánh cho ra true / false</span>
 }
 
 <span class="k">func</span> <span class="f">main</span>() {
@@ -234,31 +433,81 @@ msg := fmt.<span class="f">Sprintf</span>(<span class="s">&quot;Đơn #%d&quot;<
     fmt.<span class="f">Println</span>(<span class="f">validName</span>(<span class="s">&quot;  Nguyễn Thị Ánh  &quot;</span>))           <span class="c">// true</span>
     fmt.<span class="f">Println</span>(<span class="f">validName</span>(<span class="s">&quot;A&quot;</span>))                            <span class="c">// false</span>
 }</code></pre></div>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>lan.nguyen@gmail.com
+true
+false</pre></div>
+<p><b>Cách chạy:</b> tạo thư mục mới, <code>go mod init bai02</code>, dán code vào <code>main.go</code>, gõ <code>go run .</code>. Hoặc dán vào go.dev/play và bấm Run (bài này không cần tham số).</p>
+<p><b>Giải thích:</b> <code>"  Nguyễn Thị Ánh  "</code> sau khi bỏ khoảng trắng còn 14 ký tự (nhưng tới 19 byte), nằm trong khoảng 2 đến 80 nên ra <code>true</code>. <code>"A"</code> chỉ có 1 ký tự nên <code>false</code>.</p>
 <p>Ngoài thực tế, email luôn được chuẩn hoá về chữ thường <b>trước khi lưu và trước khi tìm</b>, nếu không <code>Lan@gmail.com</code> và <code>lan@gmail.com</code> sẽ thành hai tài khoản.</p>
 </details>
 </details>
 <details class="ex"><summary>Định dạng tiền Việt</summary>
-<p>Viết hàm <code>formatVND(v int64) string</code>: <code>1234567</code> thành <code>"1.234.567đ"</code>, số âm có dấu trừ phía trước.</p>
+<p>Viết hàm <code>formatVND(v int64) string</code> đổi số thành chuỗi tiền có dấu chấm ngăn cách hàng nghìn. Số âm có dấu trừ phía trước. Kết quả mong muốn:</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>1.234.567đ
+49.000đ
+500đ
+-1.500.000đ</pre></div>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Nếu số âm: nhớ lại điều đó, rồi đổi thành số dương để xử lý cho dễ.</li>
+<li>Đổi số thành chuỗi chữ số: <code>strconv.FormatInt(v, 10)</code> cho <code>"1234567"</code>.</li>
+<li>Đi qua từng chữ số từ trái sang phải. Trước chữ số nào mà <b>số chữ số còn lại tính từ nó đến cuối</b> chia hết cho 3 thì chèn dấu chấm. Với <code>"1234567"</code> (7 chữ số): trước chữ <code>2</code> còn 6 chữ số, trước chữ <code>5</code> còn 3 chữ số, nên chèn ở hai chỗ đó.</li>
+<li>Ghép dần vào <code>strings.Builder</code>, cuối cùng thêm <code>"đ"</code> (và <code>"-"</code> nếu âm).</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<div class="code"><div class="code-h"><span>Go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">func</span> <span class="f">formatVND</span>(v <span class="t">int64</span>) <span class="t">string</span> {
-    neg := v &lt; <span class="n">0</span>
+<div class="code"><div class="code-h"><span>main.go</span><button class="copy" type="button">Sao chép</button></div><pre><code><span class="k">package</span> main
+
+<span class="k">import</span> (
+    <span class="s">&quot;fmt&quot;</span>
+    <span class="s">&quot;strconv&quot;</span>
+    <span class="s">&quot;strings&quot;</span>
+)
+
+<span class="k">func</span> <span class="f">formatVND</span>(v <span class="t">int64</span>) <span class="t">string</span> {
+    neg := v &lt; <span class="n">0</span> <span class="c">// nhớ lại là số âm hay không</span>
     <span class="k">if</span> neg {
-        v = -v
+        v = -v <span class="c">// đổi sang số dương</span>
     }
-    s := strconv.<span class="f">FormatInt</span>(v, <span class="n">10</span>)
+
+    s := strconv.<span class="f">FormatInt</span>(v, <span class="n">10</span>) <span class="c">// 1234567 -&gt; &quot;1234567&quot;</span>
+
     <span class="k">var</span> sb strings.Builder
-    <span class="k">for</span> i, ch := <span class="k">range</span> s {
-        <span class="k">if</span> i &gt; <span class="n">0</span> &amp;&amp; (<span class="b">len</span>(s)-i)%<span class="n">3</span> == <span class="n">0</span> {
+    <span class="k">for</span> i, ch := <span class="k">range</span> s { <span class="c">// i = vị trí (0, 1, 2...), ch = chữ số ở vị trí đó</span>
+        remaining := <span class="b">len</span>(s) - i <span class="c">// số chữ số từ vị trí i tới cuối</span>
+        <span class="k">if</span> i &gt; <span class="n">0</span> &amp;&amp; remaining%<span class="n">3</span> == <span class="n">0</span> { <span class="c">// % là phép chia lấy dư</span>
             sb.<span class="f">WriteByte</span>(<span class="s">'.'</span>)
         }
         sb.<span class="f">WriteRune</span>(ch)
     }
+
     <span class="k">if</span> neg {
         <span class="k">return</span> <span class="s">&quot;-&quot;</span> + sb.<span class="f">String</span>() + <span class="s">&quot;đ&quot;</span>
     }
     <span class="k">return</span> sb.<span class="f">String</span>() + <span class="s">&quot;đ&quot;</span>
+}
+
+<span class="k">func</span> <span class="f">main</span>() {
+    fmt.<span class="f">Println</span>(<span class="f">formatVND</span>(<span class="n">1234567</span>))
+    fmt.<span class="f">Println</span>(<span class="f">formatVND</span>(<span class="n">49000</span>))
+    fmt.<span class="f">Println</span>(<span class="f">formatVND</span>(<span class="n">500</span>))
+    fmt.<span class="f">Println</span>(<span class="f">formatVND</span>(-<span class="n">1500000</span>))
 }</code></pre></div>
-<p>Ở đây dùng <code>len(s)</code> và chỉ số byte vẫn đúng vì chuỗi số chỉ có ký tự ASCII (mỗi ký tự 1 byte).</p>
+<div class="term" role="img" aria-label="Terminal — kết quả khi chạy"><div class="term-h"><i></i><i></i><i></i><span>Terminal — kết quả khi chạy</span></div><pre>1.234.567đ
+49.000đ
+500đ
+-1.500.000đ</pre></div>
+<p><b>Chạy tay với <code>"1234567"</code></b> để thấy vòng lặp làm gì:</p>
+<table>
+<tr><th>i</th><th>ch</th><th>remaining = 7 - i</th><th>Chèn dấu chấm trước?</th><th>Đã ghép được</th></tr>
+<tr><td>0</td><td>1</td><td>7</td><td>không (i = 0)</td><td>1</td></tr>
+<tr><td>1</td><td>2</td><td>6</td><td>có (6 chia hết cho 3)</td><td>1.2</td></tr>
+<tr><td>2</td><td>3</td><td>5</td><td>không</td><td>1.23</td></tr>
+<tr><td>3</td><td>4</td><td>4</td><td>không</td><td>1.234</td></tr>
+<tr><td>4</td><td>5</td><td>3</td><td>có</td><td>1.234.5</td></tr>
+<tr><td>5</td><td>6</td><td>2</td><td>không</td><td>1.234.56</td></tr>
+<tr><td>6</td><td>7</td><td>1</td><td>không</td><td>1.234.567</td></tr>
+</table>
+<p>Ở đây dùng <code>len(s)</code> (đếm byte) vẫn đúng vì chuỗi chỉ có chữ số, mỗi chữ số đúng 1 byte. <code>'.'</code> nháy đơn là một ký tự, <code>"đ"</code> nháy kép là một chuỗi.</p>
 </details>
 </details>
 </div>

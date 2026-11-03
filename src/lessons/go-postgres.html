@@ -26,6 +26,109 @@ if err := pool.Ping(ctx); err != nil { // kiểm tra kết nối được ngay l
 </fig>
 <aside class="prod"><p>Kích thước pool không phải càng to càng tốt. Postgres xử lý mỗi kết nối bằng một tiến trình riêng, nên vài trăm kết nối đồng thời làm nó chậm đi. Nếu chạy 10 bản server, mỗi bản pool 20 kết nối, tổng là 200, vượt <code>max_connections</code> mặc định (100). Đặt qua URL: <code>?pool_max_conns=10</code>. Hệ thống lớn đặt <b>PgBouncer</b> ở giữa để gom kết nối.</p></aside>
 
+<h2>Chạy thử: chương trình Go đầu tiên đọc database</h2>
+<p>Trước khi đi vào từng phần, chạy một chương trình hoàn chỉnh để thấy toàn cảnh. Cần có Postgres đang chạy, đã tạo 5 bảng và nạp dữ liệu mẫu ở bài 14.</p>
+<p><b>Bước 1.</b> Tạo dự án và cài pgx:</p>
+<pre lang="sh">
+mkdir hello-db && cd hello-db
+go mod init hello-db
+go get github.com/jackc/pgx/v5   # tải thư viện, ghi vào go.mod
+</pre>
+<p><b>Bước 2.</b> Tạo <code>main.go</code>:</p>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "errors"
+    "fmt"
+    "os"
+
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgconn"
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+type Class struct {
+    ID       int64
+    Name     string
+    Capacity int
+}
+
+func main() {
+    ctx := context.Background()
+
+    // 1. Mở pool kết nối. Địa chỉ database lấy từ biến môi trường, không ghi cứng trong code
+    pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+    if err != nil {
+        fmt.Println("địa chỉ database sai:", err)
+        os.Exit(1)
+    }
+    defer pool.Close()
+    if err := pool.Ping(ctx); err != nil {
+        fmt.Println("không kết nối được database:", err)
+        os.Exit(1)
+    }
+
+    // 2. Đọc MỘT dòng: QueryRow + Scan
+    var name string
+    err = pool.QueryRow(ctx, `SELECT name FROM users WHERE email = $1`, "an@hs.vn").Scan(&name)
+    fmt.Println("tìm an@hs.vn:", name, err)
+
+    err = pool.QueryRow(ctx, `SELECT name FROM users WHERE email = $1`, "khongco@hs.vn").Scan(&name)
+    fmt.Println("tìm khongco@hs.vn: không thấy?", errors.Is(err, pgx.ErrNoRows))
+
+    // 3. Đọc NHIỀU dòng: Query + vòng lặp rows.Next
+    rows, err := pool.Query(ctx, `SELECT id, name, capacity FROM classes WHERE teacher_id = $1 ORDER BY id`, 7)
+    if err != nil {
+        fmt.Println("lỗi truy vấn:", err)
+        os.Exit(1)
+    }
+    classes := []Class{}
+    for rows.Next() {
+        var c Class
+        if err := rows.Scan(&c.ID, &c.Name, &c.Capacity); err != nil {
+            fmt.Println("lỗi đọc dòng:", err)
+            os.Exit(1)
+        }
+        classes = append(classes, c)
+    }
+    rows.Close()
+    fmt.Printf("lớp của giáo viên 7: %+v\n", classes)
+
+    // 4. Ghi: Exec trả về số dòng bị ảnh hưởng
+    tag, err := pool.Exec(ctx, `UPDATE classes SET name = $1 WHERE id = $2 AND teacher_id = $3`, "Lớp 5A1", 42, 7)
+    fmt.Println("đổi tên lớp 42:", tag.RowsAffected(), "dòng", err)
+    tag, err = pool.Exec(ctx, `UPDATE classes SET name = $1 WHERE id = $2 AND teacher_id = $3`, "Của tôi", 50, 7)
+    fmt.Println("đổi tên lớp 50 (của người khác):", tag.RowsAffected(), "dòng", err)
+
+    // 5. Lỗi ràng buộc: đọc mã lỗi của Postgres
+    _, err = pool.Exec(ctx, `INSERT INTO users (email, name, role) VALUES ($1, $2, $3)`, "an@hs.vn", "An 2", "student")
+    var pgErr *pgconn.PgError
+    if errors.As(err, &pgErr) {
+        fmt.Println("thêm email trùng: mã lỗi", pgErr.Code, "| ràng buộc", pgErr.ConstraintName)
+    }
+}
+</pre>
+<p><b>Bước 3.</b> Chạy, kèm địa chỉ database trong biến môi trường <code>DATABASE_URL</code>. Địa chỉ có dạng <code>postgres://người_dùng:mật_khẩu@máy:cổng/tên_database</code>:</p>
+<pre lang="sh">
+# Nếu chạy Postgres bằng Docker (bài 14, cách 1)
+DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go run .
+
+# Nếu cài bằng Homebrew (bài 14, cách 2): người dùng là tên tài khoản máy Mac, không có mật khẩu
+DATABASE_URL="postgres://$(whoami)@localhost:5432/postgres" go run .
+</pre>
+<pre lang="out">
+tìm an@hs.vn: An <nil>
+tìm khongco@hs.vn: không thấy? true
+lớp của giáo viên 7: [{ID:42 Name:Lớp 5A Capacity:35} {ID:43 Name:Tiếng Anh tối thứ 3 Capacity:20}]
+đổi tên lớp 42: 1 dòng <nil>
+đổi tên lớp 50 (của người khác): 0 dòng <nil>
+thêm email trùng: mã lỗi 23505 | ràng buộc users_email_key
+</pre>
+<p>Gặp <code>không kết nối được database: ... connection refused</code>: Postgres chưa chạy (mở Docker Desktop, hoặc <code>brew services start postgresql@17</code>). Gặp <code>relation "users" does not exist</code>: chưa tạo bảng ở bài 14.</p>
+<p>Các phần dưới giải thích từng việc trong chương trình trên: <code>QueryRow</code> đọc một dòng, <code>Query</code> đọc nhiều dòng, <code>Exec</code> ghi, và cách đọc lỗi của Postgres. Các đoạn code bên dưới là trích đoạn từ một <code>Store</code> (bài 13), cách viết thật trong dự án.</p>
+
 <h2>Truy vấn có tham số: không bao giờ ghép chuỗi</h2>
 <pre lang="go" mark="bad">
 // SQL injection: email = "x' OR '1'='1" là lấy được mọi người dùng
@@ -127,7 +230,7 @@ if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
 <p>Đây là cách đúng để chống trùng email: <b>không</b> SELECT kiểm tra trước rồi mới INSERT (hai request cùng lúc đều thấy "chưa có"), mà cứ INSERT và để ràng buộc UNIQUE từ chối. Mã lỗi Postgres hay gặp: <code>23505</code> trùng UNIQUE, <code>23503</code> sai khoá ngoại, <code>23514</code> sai CHECK, <code>40001</code> xung đột tuần tự hoá (bài 16).</p>
 
 <h2>Transaction: tất cả hoặc không gì cả</h2>
-<p>Nộp bài gồm hai việc: lưu bài nộp và tạo thông báo cho giáo viên. Nếu lưu xong bài mà lỗi lúc tạo thông báo thì sao? Transaction đảm bảo các câu lệnh bên trong <b>cùng thành công</b> hoặc <b>cùng bị huỷ</b>.</p>
+<p>Nộp bài gồm hai việc: lưu bài nộp và tạo thông báo cho giáo viên (bảng <code>notifications</code> trong ví dụ này chưa có ở bài 14, chỉ để minh hoạ). Nếu lưu xong bài mà lỗi lúc tạo thông báo thì sao? Transaction đảm bảo các câu lệnh bên trong <b>cùng thành công</b> hoặc <b>cùng bị huỷ</b>.</p>
 <pre lang="go">
 func (s *Store) Submit(ctx context.Context, sub Submission, teacherID int64) error {
     tx, err := s.db.Begin(ctx)
@@ -213,10 +316,66 @@ c, err := q.CreateClass(ctx, db.CreateClassParams{TeacherID: 7, Name: "5A", Capa
 
 <h2>Bài tập</h2>
 <details class="ex"><summary>Repository cho bài tập</summary>
-<p>Với lược đồ bài 14, viết <code>AssignmentStore</code> dùng pgx: <code>Create</code>, <code>ListByClass(ctx, teacherID, classID, page, size)</code> trả về <code>(items, total)</code>, <code>Delete(ctx, teacherID, id)</code>. Mọi truy vấn phải kiểm tra lớp thuộc giáo viên đó ngay trong SQL.</p>
+<p>Với lược đồ và dữ liệu mẫu bài 14, viết <code>AssignmentStore</code> dùng pgx, có ba method:</p>
+<ul>
+<li><code>Create(ctx, teacherID, classID, title, due)</code>: giao bài mới. Lớp không thuộc giáo viên đó thì trả <code>ErrNotFound</code>.</li>
+<li><code>ListByClass(ctx, teacherID, classID, page, size)</code>: trả về một trang bài tập (mới nhất trước) và tổng số bài.</li>
+<li><code>Delete(ctx, teacherID, id)</code>: xoá bài. Bài không thuộc lớp của giáo viên đó thì trả <code>ErrNotFound</code>.</li>
+</ul>
+<p>Mọi kiểm tra "lớp có thuộc giáo viên này không" phải nằm <b>ngay trong câu SQL</b>, không SELECT kiểm tra trước. Viết <code>main</code> thử cả trường hợp Thầy Nam (id 8) động vào lớp 42 của Cô Hoa (id 7).</p>
+<p><b>Gợi ý từng bước</b></p>
+<ol class="steps">
+<li>Tạo dự án như phần "Chạy thử" ở trên, hai file: <code>store.go</code> (kiểu <code>AssignmentStore</code> chứa <code>*pgxpool.Pool</code>) và <code>main.go</code>.</li>
+<li><code>Create</code>: dùng <code>INSERT ... SELECT</code> thay vì <code>INSERT ... VALUES</code>. Phần <code>SELECT c.id, $3, $4 FROM classes c WHERE c.id = $1 AND c.teacher_id = $2</code> chỉ ra một dòng khi lớp đúng là của giáo viên, nên sai giáo viên thì không có gì được thêm, và <code>RETURNING</code> không trả dòng nào (<code>pgx.ErrNoRows</code>).</li>
+<li><code>ListByClass</code>: hai câu. Một câu <code>count(*)</code> lấy tổng, một câu lấy trang với <code>LIMIT size OFFSET (page-1)*size</code>. Cả hai JOIN <code>classes</code> để lọc <code>teacher_id</code>.</li>
+<li><code>Delete</code>: Postgres có cú pháp <code>DELETE FROM a USING c WHERE ...</code> để xoá có điều kiện trên bảng khác. Đọc <code>RowsAffected()</code>: 0 là không có gì bị xoá.</li>
+</ol>
 <details class="sol"><summary>Xem lời giải</summary>
-<pre lang="go">
-func (s *Store) ListByClass(ctx context.Context, teacherID, classID int64, page, size int) ([]Assignment, int, error) {
+<pre lang="go" file="store.go" check="no">
+package main
+
+import (
+    "context"
+    "errors"
+    "time"
+
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+var ErrNotFound = errors.New("không tìm thấy")
+
+type Assignment struct {
+    ID        int64
+    ClassID   int64
+    Title     string
+    DueDate   time.Time
+    CreatedAt time.Time
+}
+
+type AssignmentStore struct {
+    db *pgxpool.Pool
+}
+
+// Create chỉ thêm được bài vào lớp của chính giáo viên đó.
+// INSERT ... SELECT: nếu lớp không thuộc giáo viên, SELECT không ra dòng nào, nên không thêm gì
+func (s *AssignmentStore) Create(ctx context.Context, teacherID, classID int64, title string, due time.Time) (Assignment, error) {
+    a := Assignment{ClassID: classID, Title: title, DueDate: due}
+    err := s.db.QueryRow(ctx, `
+        INSERT INTO assignments (class_id, title, due_date)
+        SELECT c.id, $3, $4 FROM classes c
+        WHERE c.id = $1 AND c.teacher_id = $2
+        RETURNING id, created_at`,
+        classID, teacherID, title, due,
+    ).Scan(&a.ID, &a.CreatedAt)
+    if errors.Is(err, pgx.ErrNoRows) {
+        return Assignment{}, ErrNotFound // lớp không có, hoặc không phải lớp của giáo viên này
+    }
+    return a, err
+}
+
+// ListByClass trả về một trang bài tập và tổng số bài
+func (s *AssignmentStore) ListByClass(ctx context.Context, teacherID, classID int64, page, size int) ([]Assignment, int, error) {
     var total int
     err := s.db.QueryRow(ctx, `
         SELECT count(*) FROM assignments a
@@ -235,11 +394,13 @@ func (s *Store) ListByClass(ctx context.Context, teacherID, classID int64, page,
     if err != nil {
         return nil, 0, err
     }
+    // CollectRows đọc hết các dòng và tự rows.Close(). RowToStructByPos: cột thứ n vào trường thứ n
     items, err := pgx.CollectRows(rows, pgx.RowToStructByPos[Assignment])
     return items, total, err
 }
 
-func (s *Store) Delete(ctx context.Context, teacherID, id int64) error {
+// Delete chỉ xoá được bài của lớp mình dạy
+func (s *AssignmentStore) Delete(ctx context.Context, teacherID, id int64) error {
     tag, err := s.db.Exec(ctx, `
         DELETE FROM assignments a USING classes c
         WHERE a.id = $1 AND c.id = a.class_id AND c.teacher_id = $2`, id, teacherID)
@@ -247,11 +408,74 @@ func (s *Store) Delete(ctx context.Context, teacherID, id int64) error {
         return err
     }
     if tag.RowsAffected() == 0 {
-        return domain.ErrNotFound
+        return ErrNotFound
     }
     return nil
 }
 </pre>
-<p>Để ý <code>ORDER BY a.due_date DESC, a.id DESC</code>: thêm <code>id</code> làm tiêu chí phụ để thứ tự <b>ổn định</b>. Nếu nhiều bài cùng hạn mà chỉ sắp theo hạn, Postgres có thể trả thứ tự khác nhau giữa hai lần truy vấn, và phân trang bị trùng / sót dòng.</p>
+<pre lang="go" file="main.go" check="no">
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "time"
+
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+func main() {
+    ctx := context.Background()
+    pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+    if err != nil {
+        fmt.Println(err)
+        os.Exit(1)
+    }
+    defer pool.Close()
+    store := &AssignmentStore{db: pool}
+
+    // Cô Hoa (7) giao bài mới cho lớp 42 của mình
+    due := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
+    a, err := store.Create(ctx, 7, 42, "Toán trang 20", due)
+    fmt.Println("tạo:", a.ID, a.Title, err)
+
+    // Thầy Nam (8) cố giao bài vào lớp 42 của Cô Hoa
+    _, err = store.Create(ctx, 8, 42, "Bài lạ", due)
+    fmt.Println("thầy Nam tạo vào lớp 42:", err)
+
+    // Trang 1, mỗi trang 2 bài
+    items, total, err := store.ListByClass(ctx, 7, 42, 1, 2)
+    fmt.Println("tổng:", total, err)
+    for _, it := range items {
+        fmt.Println(" -", it.ID, it.Title, it.DueDate.Format("02/01/2006"))
+    }
+    items, _, _ = store.ListByClass(ctx, 7, 42, 2, 2)
+    fmt.Println("trang 2:", len(items), "bài, bài đầu:", items[0].Title)
+
+    // Thầy Nam nhìn lớp 42: không thấy gì, như thể lớp không tồn tại
+    _, total, _ = store.ListByClass(ctx, 8, 42, 1, 20)
+    fmt.Println("thầy Nam xem lớp 42:", total, "bài")
+
+    fmt.Println("thầy Nam xoá bài 9:", store.Delete(ctx, 8, 9))
+    fmt.Println("cô Hoa xoá bài 9:", store.Delete(ctx, 7, 9))
+    fmt.Println("cô Hoa xoá lại bài 9:", store.Delete(ctx, 7, 9))
+}
+</pre>
+<pre lang="out">
+$ DATABASE_URL='postgres://postgres:dev@localhost:5432/postgres' go run .
+tạo: 1 Toán trang 20 <nil>
+thầy Nam tạo vào lớp 42: không tìm thấy
+tổng: 3 <nil>
+ - 1 Toán trang 20 10/11/2026
+ - 10 Văn: tả cây 05/11/2026
+trang 2: 1 bài, bài đầu: Toán trang 12
+thầy Nam xem lớp 42: 0 bài
+thầy Nam xoá bài 9: không tìm thấy
+cô Hoa xoá bài 9: <nil>
+cô Hoa xoá lại bài 9: không tìm thấy
+</pre>
+<p>Chương trình sửa dữ liệu thật: chạy lần hai sẽ ra kết quả khác (bài 9 đã bị xoá). Muốn về lại từ đầu, xoá và tạo lại bảng ở bài 14 (<code>DROP TABLE submissions, assignments, enrollments, classes, users;</code> rồi dán lại lược đồ và dữ liệu mẫu).</p>
+<p><b>Giải thích:</b> Thầy Nam không tạo, không xem, không xoá được gì ở lớp 42, và nhận đúng <code>ErrNotFound</code> như khi lớp không tồn tại. Handler đổi lỗi này thành <code>404</code>, nên người ngoài không đoán được lớp 42 có thật hay không. Để ý <code>ORDER BY a.due_date DESC, a.id DESC</code>: thêm <code>id</code> làm tiêu chí phụ để thứ tự <b>ổn định</b>. Nếu nhiều bài cùng hạn mà chỉ sắp theo hạn, Postgres có thể trả thứ tự khác nhau giữa hai lần truy vấn, và phân trang bị trùng / sót dòng.</p>
 </details>
 </details>
